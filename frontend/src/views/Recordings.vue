@@ -192,7 +192,16 @@
           </div>
 
           <!-- 录音播放 -->
-          <audio v-if="audioUrl" class="audio" controls preload="none" :src="audioUrl"></audio>
+          <audio
+            v-if="audioUrl"
+            ref="audioRef"
+            class="audio"
+            controls
+            preload="metadata"
+            :src="audioUrl"
+            @timeupdate="onTimeUpdate"
+            @seeked="onTimeUpdate"
+          ></audio>
 
           <!-- 失败原因 -->
           <div v-if="detail.errorMessage" class="error-banner">
@@ -232,30 +241,46 @@
           <!-- 转写 -->
           <section class="block">
             <div class="block-head">
-              <div class="block-title">录音转写</div>
-              <el-button
-                v-if="segments.length"
-                link
-                type="primary"
-                size="small"
-                @click="showSegments = !showSegments"
-              >
-                {{ showSegments ? '收起分段' : `查看分段 (${segments.length})` }}
-              </el-button>
+              <div class="seg-toggle">
+                <button
+                  class="seg-btn"
+                  :class="{ on: transcriptMode === 'segment' }"
+                  @click="transcriptMode = 'segment'"
+                >
+                  <el-icon :size="12"><Tickets /></el-icon>
+                  逐句对照
+                </button>
+                <button
+                  class="seg-btn"
+                  :class="{ on: transcriptMode === 'full' }"
+                  @click="transcriptMode = 'full'"
+                >
+                  <el-icon :size="12"><Document /></el-icon>
+                  全文
+                </button>
+              </div>
+              <label v-if="transcriptMode === 'segment'" class="follow">
+                <el-switch v-model="follow" size="small" />
+                <span class="tiny dim">跟随播放</span>
+              </label>
             </div>
+
+            <SegmentTranscript
+              v-if="transcriptMode === 'segment'"
+              :text="detail.transcript || ''"
+              :segments="segments"
+              :hits="dfaHits"
+              :target-sentence="aiResult?.targetSentence"
+              :current-time="currentTime"
+              :follow="follow"
+              @seek="seekTo"
+            />
             <TranscriptViewer
+              v-else
               :text="detail.transcript || '（暂无转写文本）'"
               :hits="dfaHits"
               :target-sentence="aiResult?.targetSentence"
             />
-            <el-collapse-transition>
-              <div v-show="showSegments && segments.length" class="segments">
-                <div v-for="(s, i) in segments" :key="i" class="segment">
-                  <span class="seg-time mono">{{ fmt(s.start) }} – {{ fmt(s.end) }}</span>
-                  <span class="seg-text">{{ s.text }}</span>
-                </div>
-              </div>
-            </el-collapse-transition>
           </section>
 
           <!-- 人工复检 -->
@@ -321,6 +346,8 @@ import { Search, Refresh, UploadFilled, Close } from '@element-plus/icons-vue'
 import api from '../api'
 import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
+import SegmentTranscript from '../components/SegmentTranscript.vue'
+import { formatClock } from '../utils/segments'
 import { formatDuration, formatSize, formatTime, formatTimeShort, PROCESSING_STATUSES } from '../constants'
 
 const route = useRoute()
@@ -339,7 +366,6 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref(null)
 const logs = ref([])
-const showSegments = ref(false)
 
 const FILTERS = [
   { key: '', label: '全部', countKey: 'ALL' },
@@ -394,10 +420,31 @@ const segments = computed(() => {
 })
 const audioUrl = computed(() => (detail.value?.filePath ? `/uploads/${detail.value.filePath}` : ''))
 
-function fmt(sec) {
-  const m = Math.floor(sec / 60)
-  const s = Math.round(sec % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+// 音画联动
+const audioRef = ref(null)
+const currentTime = ref(0)
+const follow = ref(true)
+const transcriptMode = ref('segment')
+
+function onTimeUpdate(e) {
+  currentTime.value = e?.target?.currentTime || 0
+}
+
+/** 点击句子 → 跳转到对应音频时间点并播放 */
+function seekTo(time) {
+  if (time == null) return
+  currentTime.value = time
+  const el = audioRef.value
+  if (!el) {
+    ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
+    return
+  }
+  try {
+    el.currentTime = time
+  } catch {
+    // 元数据未就绪时忽略
+  }
+  el.play?.()?.catch?.(() => {})
 }
 
 const STAGE_NAMES = {
@@ -477,7 +524,8 @@ async function openDetail(row) {
   detailLoading.value = true
   detail.value = null
   logs.value = []
-  showSegments.value = false
+  currentTime.value = 0
+  transcriptMode.value = 'segment'
   try {
     const [d, l] = await Promise.all([api.recordingDetail(row.id), api.recordingLogs(row.id)])
     detail.value = d
@@ -719,6 +767,8 @@ onUnmounted(() => clearInterval(timer))
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .block-title {
   font-size: 13.5px;
@@ -726,8 +776,41 @@ onUnmounted(() => clearInterval(timer))
   color: var(--ink-700);
   margin-bottom: 12px;
 }
-.block-head .block-title {
-  margin-bottom: 12px;
+
+/* 逐句 / 全文切换 */
+.seg-toggle {
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 12.5px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.seg-btn.on {
+  background: #fff;
+  color: var(--brand-600);
+  box-shadow: var(--sh-xs);
+}
+.follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 /* AI 结论 */
@@ -792,35 +875,6 @@ onUnmounted(() => clearInterval(timer))
 .verdict-reason {
   font-size: 12.5px;
   line-height: 1.7;
-  color: var(--el-text-color-regular);
-}
-
-/* 分段 */
-.segments {
-  margin-top: 12px;
-  border-top: 1px dashed var(--border);
-  padding-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.segment {
-  display: flex;
-  gap: 10px;
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-.seg-time {
-  flex: none;
-  color: var(--brand-600);
-  background: var(--brand-50);
-  border-radius: 5px;
-  padding: 1px 7px;
-  height: 21px;
-}
-.seg-text {
   color: var(--el-text-color-regular);
 }
 
