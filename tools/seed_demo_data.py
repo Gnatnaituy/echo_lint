@@ -7,20 +7,55 @@
 保证与线上匹配器完全一致，因此需要后端处于运行状态。
 
 用法：
-    python3 tools/seed_demo_data.py              # 写入 12 条演示录音（id 从 1000 起）
-    python3 tools/seed_demo_data.py --clean      # 仅删除演示数据
+    python3 tools/seed_demo_data.py                     # 写入 12 条演示录音（id 从 1000 起，含分段与标记）
+    python3 tools/seed_demo_data.py --with-audio        # 额外为 #1001 生成等长静音音轨，可演示音画联动
+    python3 tools/seed_demo_data.py --clean             # 仅删除演示数据
     python3 tools/seed_demo_data.py --api http://localhost:8082 --container record-audit-mysql
 """
 import argparse
 import json
+import re
 import subprocess
 import urllib.request
+import wave
 from datetime import datetime, timedelta
 from pathlib import Path
 
 SQL_FILE = Path("/tmp/seed_demo_data.sql")
 MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB = "audit", "audit123", "record_audit"
 ID_BASE = 1000  # 演示数据 id 起始，删除时按 id >= ID_BASE 清理
+AUDIO_DEMO_ID = 1001  # --with-audio 时为该条生成等长静音音频，用于演示音画联动
+
+
+def build_segments(text: str, duration):
+    """模拟 Whisper verbose_json 的分段：按句切分，时长按字符数摊分（句首带空格）"""
+    if not text:
+        return []
+    sentences = [s.strip() for s in re.findall(r"[^.!?]+[.!?]*", text) if s.strip()]
+    if not sentences:
+        return []
+    total_chars = sum(len(s) for s in sentences) or 1
+    segments, cursor = [], 0.0
+    for i, sentence in enumerate(sentences):
+        share = (duration or 0) * (len(sentence) / total_chars)
+        segments.append({
+            "id": i,
+            "start": round(cursor, 2),
+            "end": round(cursor + share, 2),
+            "text": " " + sentence,
+        })
+        cursor += share
+    return segments
+
+
+def generate_silent_wav(path: Path, seconds: int, rate: int = 8000):
+    """生成等长静音 WAV（演示用占位音轨）"""
+    frames = b"\x00\x00" * (rate * seconds)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(frames)
 
 
 def hits_for(api: str, text: str):
@@ -139,17 +174,19 @@ def generate_sql(api: str) -> int:
         hits = hits_for(api, r["text"]) if r["text"] else []
         hit_total += len(hits)
         hit_json = json.dumps(hits, ensure_ascii=False)
+        segments_json = json.dumps(build_segments(r["text"], r["dur"]), ensure_ascii=False)
         ai_json = json.dumps(r["ai"], ensure_ascii=False) if r.get("ai") else None
         review = r.get("review") or {}
         processed = None if r["status"] == "PENDING" else r["up"]
         duration = "NULL" if r["dur"] is None else r["dur"]
+        ext = "wav" if r["id"] == AUDIO_DEMO_ID else "mp3"
 
         lines.append(
             "INSERT INTO recordings (id, file_name, file_path, file_size, mime_type, duration_seconds, language, status, "
             "transcript, segments_json, dfa_hits_json, hit_count, ai_result_json, review_result, violation_type, "
             "violation_type_label, review_comment, reviewer, review_time, upload_time, processed_time, error_message) VALUES ("
-            f"{r['id']}, {esc(r['name'])}, {esc('demo-' + str(r['id']) + '.mp3')}, {r['size']}, 'audio/mpeg', "
-            f"{duration}, {esc('en')}, {esc(r['status'])}, {esc(r['text'])}, {esc('[]')}, {esc(hit_json)}, {len(hits)}, "
+            f"{r['id']}, {esc(r['name'])}, {esc('demo-' + str(r['id']) + '.' + ext)}, {r['size']}, 'audio/mpeg', "
+            f"{duration}, {esc('en')}, {esc(r['status'])}, {esc(r['text'])}, {esc(segments_json)}, {esc(hit_json)}, {len(hits)}, "
             f"{esc(ai_json)}, {esc(review.get('result'))}, {esc(review.get('type'))}, {esc(review.get('label'))}, "
             f"{esc(review.get('comment'))}, {esc(review.get('reviewer'))}, {esc(review.get('at'))}, "
             f"{esc(r['up'])}, {esc(processed)}, {esc(r.get('error'))});"
@@ -204,11 +241,24 @@ def apply_sql(container: str, clean_only: bool) -> None:
     print("演示数据已写入数据库")
 
 
+def attach_demo_audio(container: str, upload_dir: str) -> None:
+    """为演示录音生成等长静音 WAV 并投放进后端上传目录（演示音画联动用）"""
+    duration = next((r["dur"] for r in build_records(datetime.now()) if r["id"] == AUDIO_DEMO_ID), 60) or 60
+    local = Path(f"/tmp/demo-{AUDIO_DEMO_ID}.wav")
+    generate_silent_wav(local, int(duration))
+    target = f"{container}:{upload_dir}/demo-{AUDIO_DEMO_ID}.wav"
+    subprocess.run(["docker", "cp", str(local), target], check=True, capture_output=True)
+    print(f"已生成 {int(duration)}s 静音音轨 → {target}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="生成/清理录音稽核演示数据")
     parser.add_argument("--api", default="http://localhost:8082", help="后端地址（用于计算 DFA 命中）")
     parser.add_argument("--container", default="record-audit-mysql", help="MySQL 容器名")
     parser.add_argument("--clean", action="store_true", help="仅清理演示数据")
+    parser.add_argument("--with-audio", action="store_true", help="为演示录音生成等长静音音频")
+    parser.add_argument("--upload-container", default="record-audit-backend", help="后端容器名（投放音频用）")
+    parser.add_argument("--upload-dir", default="/app/data/uploads", help="后端容器内上传目录")
     args = parser.parse_args()
 
     if args.clean:
@@ -216,6 +266,8 @@ def main():
         return
     generate_sql(args.api)
     apply_sql(args.container, clean_only=False)
+    if args.with_audio:
+        attach_demo_audio(args.upload_container, args.upload_dir)
 
 
 if __name__ == "__main__":

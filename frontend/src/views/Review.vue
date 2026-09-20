@@ -98,14 +98,65 @@
           </div>
 
           <template v-else>
-            <audio v-if="current.filePath" class="audio" controls preload="none" :src="`/uploads/${current.filePath}`"></audio>
+            <div class="player-row">
+              <audio
+                v-if="current.filePath"
+                ref="audioRef"
+                class="audio"
+                controls
+                preload="metadata"
+                :src="`/uploads/${current.filePath}`"
+                @timeupdate="onTimeUpdate"
+                @seeked="onTimeUpdate"
+              ></audio>
+              <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
+              <div class="player-meta mono">
+                <span>{{ formatClock(currentTime) }}</span>
+                <span class="dim">/ {{ formatClock(current.durationSeconds || totalDuration) }}</span>
+              </div>
+            </div>
 
             <div class="work-grid">
-              <!-- 左：转写 -->
+              <!-- 左：转写（逐句对照 / 全文） -->
               <div class="work-col">
-                <div class="block-title">录音转写（命中词已标注）</div>
+                <div class="block-head">
+                  <div class="seg-toggle">
+                    <button
+                      class="seg-btn"
+                      :class="{ on: transcriptMode === 'segment' }"
+                      @click="transcriptMode = 'segment'"
+                    >
+                      <el-icon :size="12"><Tickets /></el-icon>
+                      逐句对照
+                    </button>
+                    <button
+                      class="seg-btn"
+                      :class="{ on: transcriptMode === 'full' }"
+                      @click="transcriptMode = 'full'"
+                    >
+                      <el-icon :size="12"><Document /></el-icon>
+                      全文
+                    </button>
+                  </div>
+                  <label v-if="transcriptMode === 'segment'" class="follow">
+                    <el-switch v-model="follow" size="small" />
+                    <span class="tiny dim">跟随播放</span>
+                  </label>
+                </div>
+
                 <div class="transcript-scroll">
+                  <SegmentTranscript
+                    v-if="transcriptMode === 'segment'"
+                    :text="current.transcript || ''"
+                    :segments="segments"
+                    :hits="dfaHits"
+                    :target-sentence="aiResult?.targetSentence"
+                    :current-time="currentTime"
+                    :follow="follow"
+                    @seek="seekTo"
+                  />
                   <TranscriptViewer
+                    v-else
                     :text="current.transcript || '（无转写文本）'"
                     :hits="dfaHits"
                     :target-sentence="aiResult?.targetSentence"
@@ -295,6 +346,8 @@ import { ElMessage } from 'element-plus'
 import { Search, Right, Close } from '@element-plus/icons-vue'
 import api from '../api'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
+import SegmentTranscript from '../components/SegmentTranscript.vue'
+import { formatClock } from '../utils/segments'
 import { formatDuration, formatTime, formatRelative, VIOLATION_TYPES, PROCESSING_STATUSES } from '../constants'
 
 const route = useRoute()
@@ -317,6 +370,12 @@ const historyLoading = ref(false)
 const historyVisible = ref(false)
 const historyDetail = ref(null)
 
+// 音画联动
+const audioRef = ref(null)
+const currentTime = ref(0)
+const follow = ref(true)
+const transcriptMode = ref('segment')
+
 const filteredQueue = computed(() => {
   const kw = queueKeyword.value.trim().toLowerCase()
   if (!kw) return pendingRows.value
@@ -332,6 +391,33 @@ const remaining = computed(() => Math.max(0, pendingRows.value.length - 1))
 const dfaHits = computed(() => parseJson(current.value?.dfaHitsJson, []))
 const aiResult = computed(() => parseJson(current.value?.aiResultJson, null))
 const historyHits = computed(() => parseJson(historyDetail.value?.dfaHitsJson, []))
+const segments = computed(() => parseJson(current.value?.segmentsJson, []))
+/** 无 durationSeconds 时用最后一句的结束时间兜底 */
+const totalDuration = computed(() => {
+  const last = segments.value[segments.value.length - 1]
+  return last?.end ?? 0
+})
+
+function onTimeUpdate(e) {
+  currentTime.value = e?.target?.currentTime || 0
+}
+
+/** 点击句子 → 跳转到对应音频时间点并播放 */
+function seekTo(time) {
+  if (time == null) return
+  const el = audioRef.value
+  currentTime.value = time
+  if (!el) {
+    ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
+    return
+  }
+  try {
+    el.currentTime = time
+  } catch {
+    // 元数据未就绪时忽略，等 loadedmetadata 后可再次点击
+  }
+  el.play?.()?.catch?.(() => {})
+}
 
 function parseJson(raw, fallback) {
   try {
@@ -358,6 +444,9 @@ async function select(r) {
   current.value = r
   alreadyReviewed.value = false
   form.value = { result: 'CONFIRMED_VIOLATION', violationType: 'INSULT', comment: '' }
+  // 切换录音时重置播放进度与视图模式
+  currentTime.value = 0
+  transcriptMode.value = 'segment'
   detailLoading.value = true
   try {
     const detail = await api.recordingDetail(r.id)
@@ -631,17 +720,87 @@ watch(
 .work-actions {
   flex: none;
 }
-.audio {
-  width: 100%;
-  height: 38px;
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   margin: 14px 0 4px;
+}
+.audio {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+}
+.no-audio {
+  flex: 1;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  background: var(--ink-50);
+}
+.player-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--brand-600);
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+}
+.player-meta .dim {
+  font-size: 11px;
+}
+
+/* 逐句 / 全文切换 */
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+.seg-toggle {
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 12.5px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.seg-btn.on {
+  background: #fff;
+  color: var(--brand-600);
+  box-shadow: var(--sh-xs);
+}
+.follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 .work-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
   gap: 18px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 @media (max-width: 1180px) {
   .work-grid {
@@ -652,7 +811,7 @@ watch(
   min-width: 0;
 }
 .transcript-scroll {
-  max-height: 430px;
+  max-height: 470px;
   overflow-y: auto;
   padding-right: 4px;
 }
