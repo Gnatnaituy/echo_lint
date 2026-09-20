@@ -3,6 +3,7 @@ package com.recordaudit.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recordaudit.config.OpenAiProperties;
+import com.recordaudit.domain.TranscriptSegment;
 import com.recordaudit.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,9 +18,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Whisper 语音转写（OpenAI whisper-1, response_format=verbose_json）
+ * 单次调用只负责一路音频；双声道由 {@link AudioTranscriptionService} 编排。
  */
 @Slf4j
 @Service
@@ -30,10 +34,15 @@ public class TranscriptionService {
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
 
-    public record TranscriptionResult(String text, String language, int durationSeconds, String segmentsJson) {
+    /**
+     * @param text      Whisper 完整文本
+     * @param segments  分段（未带说话人/声道，由上层补齐）
+     * @param duration  时长（秒）
+     */
+    public record ChannelTranscript(String text, String language, int durationSeconds, List<TranscriptSegment> segments) {
     }
 
-    public TranscriptionResult transcribe(Path audioFile) {
+    public ChannelTranscript transcribe(Path audioFile) {
         checkApiKey();
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
         parts.add("file", new FileSystemResource(audioFile.toFile()));
@@ -63,19 +72,29 @@ public class TranscriptionService {
             throw new BizException("Whisper 转写超时或返回为空");
         }
         String text = resp.path("text").asText("");
-        if (text.isBlank()) {
-            throw new BizException("Whisper 未识别到有效语音内容");
-        }
         String language = resp.path("language").asText("");
         int duration = (int) Math.round(resp.path("duration").asDouble(0));
-        String segmentsJson;
-        try {
-            segmentsJson = objectMapper.writeValueAsString(resp.path("segments"));
-        } catch (Exception e) {
-            segmentsJson = "[]";
+        List<TranscriptSegment> segments = parseSegments(resp.path("segments"));
+        log.info("Whisper 转写完成：{} 秒，语言={}，分段 {} 段，文本长度={}",
+                duration, language, segments.size(), text.length());
+        return new ChannelTranscript(text, language, duration, segments);
+    }
+
+    private List<TranscriptSegment> parseSegments(JsonNode segmentsNode) {
+        List<TranscriptSegment> segments = new ArrayList<>();
+        if (segmentsNode == null || !segmentsNode.isArray()) {
+            return segments;
         }
-        log.info("Whisper 转写完成：{} 秒，语言={}，文本长度={}", duration, language, text.length());
-        return new TranscriptionResult(text, language, duration, segmentsJson);
+        for (JsonNode node : segmentsNode) {
+            String segmentText = node.path("text").asText("");
+            if (segmentText.isBlank()) {
+                continue;
+            }
+            double start = node.path("start").asDouble(0);
+            double end = node.path("end").asDouble(start);
+            segments.add(TranscriptSegment.of(null, null, start, end, segmentText));
+        }
+        return segments;
     }
 
     private void checkApiKey() {

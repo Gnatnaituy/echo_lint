@@ -16,6 +16,8 @@ public record RecordingSummary(
         Integer durationSeconds,
         RecordingStatus status,
         int hitCount,
+        /** 声道数：2 = 双声道双轨（坐席/客户各一路） */
+        Integer channelCount,
         /** 人工复检确认的违规类型 */
         String violationType,
         String violationTypeLabel,
@@ -67,6 +69,7 @@ public record RecordingSummary(
                 r.getDurationSeconds(),
                 r.getStatus(),
                 r.getHitCount() == null ? 0 : r.getHitCount(),
+                r.getChannelCount(),
                 r.getViolationType(),
                 r.getViolationTypeLabel(),
                 aiViolation,

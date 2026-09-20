@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Collectors;
 
 /**
  * AI 语义复筛（GPT-4o mini）：在 DFA 命中的基础上，结合 few-shot 语料判断是否构成真实违规
@@ -51,13 +52,22 @@ public class SemanticScreeningService {
 
             只输出一个 JSON 对象，不要输出任何其他内容，格式：
             {"violation": true或false, "violation_type": "INSULT"或"DISCRIMINATION"或"THREAT"或"HARASSMENT"或"SEXUAL"或"FRAUD"或"PRIVACY"或"OTHER"或"NONE", "reason": "简短英文理由", "confidence": 0.0到1.0的小数, "target_sentence": "违规原句，无违规则为空字符串"}
+
+            补充说明：
+            - 若转写文本带有 【说话人】 前缀（双声道双轨录音，如 【坐席】/【客户】），请注意区分是谁说的：
+              坐席辱骂/威胁/歧视客户属于严重违规；客户辱骂坐席也应标记，但理由中要写清说话人。
+            - target_sentence 必须是纯文本原句，不要包含 【说话人】 前缀。
             """;
 
     private final OpenAiProperties props;
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
 
-    public AiScreenResult screen(String transcript, List<DfaHit> hits, List<CorpusExample> examples) {
+    /**
+     * @param transcript  全文转写（DFA 命中偏移即基于此文本）
+     * @param segmentsJson 转写分段 JSON（双声道时带 speaker/channel，用于给模型补充说话人信息）
+     */
+    public AiScreenResult screen(String transcript, String segmentsJson, List<DfaHit> hits, List<CorpusExample> examples) {
         if (!props.apiKeyConfigured()) {
             throw new BizException("未配置 OPENAI_API_KEY，无法进行语义复筛");
         }
@@ -68,7 +78,7 @@ public class SemanticScreeningService {
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
-                Map.of("role", "user", "content", buildUserPrompt(transcript, hits, examples))));
+                Map.of("role", "user", "content", buildUserPrompt(transcript, segmentsJson, hits, examples))));
 
         JsonNode resp;
         try {
@@ -112,15 +122,14 @@ public class SemanticScreeningService {
         }
     }
 
-    private String buildUserPrompt(String transcript, List<DfaHit> hits, List<CorpusExample> examples) {
+    private String buildUserPrompt(String transcript, String segmentsJson, List<DfaHit> hits, List<CorpusExample> examples) {
         StringBuilder sb = new StringBuilder();
         sb.append("DFA 词典初筛命中的关键词（仅候选标记，不代表违规）：\n");
-        if (hits.isEmpty()) {
+        if (hits == null || hits.isEmpty()) {
             sb.append("（无）\n");
         } else {
-            for (DfaHit h : hits) {
-                sb.append("- ").append(h.word()).append(" [").append(h.start()).append(", ").append(h.end()).append(")\n");
-            }
+            String words = hits.stream().map(DfaHit::word).distinct().collect(Collectors.joining(", "));
+            sb.append(words).append("\n");
         }
         if (examples != null && !examples.isEmpty()) {
             sb.append("\n人工复核参考案例（few-shot）：\n");
@@ -131,9 +140,44 @@ public class SemanticScreeningService {
                 sb.append("【").append(tag).append("】").append(ex.transcript()).append("\n");
             }
         }
-        sb.append("\n待审核转写文本：\n\"\"\"\n").append(truncate(transcript, 12000)).append("\n\"\"\"\n");
+        String auditText = annotateBySpeaker(transcript, segmentsJson);
+        sb.append("\n待审核转写文本：\n\"\"\"\n").append(truncate(auditText, 12000)).append("\n\"\"\"\n");
         sb.append("\n请根据 system 的判定标准输出 JSON 对象。");
         return sb.toString();
+    }
+
+    /**
+     * 双声道录音按 【说话人】文本 渲染，帮助模型区分说话人（坐席违规与客户辱骂性质不同）
+     */
+    private String annotateBySpeaker(String transcript, String segmentsJson) {
+        String plain = transcript == null ? "" : transcript;
+        if (segmentsJson == null || segmentsJson.isBlank() || "[]".equals(segmentsJson.trim())) {
+            return plain;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(segmentsJson);
+            if (!node.isArray() || node.isEmpty()) {
+                return plain;
+            }
+            StringBuilder sb = new StringBuilder();
+            boolean hasSpeaker = false;
+            for (JsonNode seg : node) {
+                String speaker = seg.path("speaker").asText("");
+                String text = seg.path("text").asText("").trim();
+                if (text.isEmpty()) {
+                    continue;
+                }
+                if (!speaker.isBlank()) {
+                    hasSpeaker = true;
+                    sb.append("【").append(speaker).append("】").append(text).append('\n');
+                } else {
+                    sb.append(text).append(' ');
+                }
+            }
+            return hasSpeaker ? sb.toString().trim() : plain;
+        } catch (Exception e) {
+            return plain;
+        }
     }
 
     private String extractErrorMessage(String errorBody) {

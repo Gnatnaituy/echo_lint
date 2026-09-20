@@ -31,7 +31,7 @@ public class PipelineService {
     private final RecordingRepository recordingRepository;
     private final PipelineLogRepository pipelineLogRepository;
     private final DictionaryWordRepository dictionaryWordRepository;
-    private final TranscriptionService transcriptionService;
+    private final AudioTranscriptionService audioTranscriptionService;
     private final DfaService dfaService;
     private final SemanticScreeningService semanticScreeningService;
     private final CorpusService corpusService;
@@ -47,19 +47,24 @@ public class PipelineService {
         }
         logStage(recordingId, "PIPELINE", "INFO", "开始处理，待执行步骤: 转写 -> DFA 初筛 -> AI 复筛");
         try {
-            // 1. Whisper 转写
+            // 1. 转写（双声道自动分轨：左右声道分别转写后按时间对齐）
             updateStatus(recording, RecordingStatus.TRANSCRIBING);
-            var result = transcriptionService.transcribe(resolvePath(recording));
-            recording.setTranscript(result.text());
-            recording.setSegmentsJson(result.segmentsJson());
-            recording.setLanguage(result.language());
-            recording.setDurationSeconds(result.durationSeconds());
+            var outcome = audioTranscriptionService.transcribe(resolvePath(recording));
+            recording.setTranscript(outcome.transcript());
+            recording.setSegmentsJson(outcome.segmentsJson());
+            recording.setChannelCount(outcome.channelCount());
+            recording.setChannelFilesJson(outcome.channelFilesJson());
+            recording.setLanguage(outcome.language());
+            recording.setDurationSeconds(outcome.durationSeconds());
             logStage(recordingId, "TRANSCRIBE", "INFO",
-                    "转写完成：时长 " + result.durationSeconds() + "s，语言 " + result.language() + "，文本 " + result.text().length() + " 字符");
+                    (outcome.stereo() ? "双声道转写完成（左声道=坐席 / 右声道=客户）" : "单路转写完成")
+                            + "：时长 " + outcome.durationSeconds() + "s，语言 " + outcome.language()
+                            + "，分段 " + segmentCount(outcome.segmentsJson()) + " 段，文本 "
+                            + outcome.transcript().length() + " 字符");
 
             // 2. DFA 初筛
             updateStatus(recording, RecordingStatus.DFA_CHECKING);
-            List<DfaHit> hits = dfaService.match(result.text());
+            List<DfaHit> hits = dfaService.match(outcome.transcript());
             recording.setHitCount(hits.size());
             recording.setDfaHitsJson(objectMapper.writeValueAsString(hits));
             recordingRepository.save(recording);
@@ -72,10 +77,10 @@ public class PipelineService {
                     "DFA 初筛命中 " + hits.size() + " 处（" + words + "），进入 AI 语义复筛");
             incrementHitCounts(hits);
 
-            // 3. AI 语义复筛（few-shot 带人工复核语料）
+            // 3. AI 语义复筛（few-shot 带人工复核语料；双声道附带说话人标注）
             updateStatus(recording, RecordingStatus.AI_CHECKING);
             var examples = corpusService.getFewShotExamples(5);
-            var ai = semanticScreeningService.screen(result.text(), hits, examples);
+            var ai = semanticScreeningService.screen(outcome.transcript(), outcome.segmentsJson(), hits, examples);
             recording.setAiResultJson(objectMapper.writeValueAsString(MapUtil.of(
                     "violation", ai.violation(),
                     "violationType", ai.typeCode(),
@@ -135,6 +140,15 @@ public class PipelineService {
 
     private Path resolvePath(Recording recording) {
         return appProperties.absoluteUploadDir().resolve(recording.getFilePath());
+    }
+
+    /** 分段数（用于日志） */
+    private int segmentCount(String segmentsJson) {
+        try {
+            return objectMapper.readTree(segmentsJson == null ? "[]" : segmentsJson).size();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private void logStage(Long recordingId, String stage, String level, String message) {

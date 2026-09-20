@@ -56,8 +56,23 @@ function normalizeSegments(segments) {
     .map((s) => ({
       start: typeof s.start === 'number' ? s.start : null,
       end: typeof s.end === 'number' ? s.end : null,
-      text: s.text.trim()
+      text: s.text.trim(),
+      speaker: typeof s.speaker === 'string' && s.speaker.trim() ? s.speaker.trim() : null,
+      channel: typeof s.channel === 'string' && s.channel.trim() ? s.channel.trim().toUpperCase() : null
     }))
+}
+
+/** 声道 → 左右栏；无声道信息时返回 null（兼容 L/R、LEFT/RIGHT、1/2 写法） */
+export function sideOfChannel(channel) {
+  const c = typeof channel === 'string' ? channel.trim().toUpperCase() : ''
+  if (c === 'L' || c === 'LEFT' || c === '1') return 'left'
+  if (c === 'R' || c === 'RIGHT' || c === '2') return 'right'
+  return null
+}
+
+/** 去掉 AI 原句里可能带的说话人前缀，如 "【坐席】" / "[客户]" */
+export function stripSpeakerTag(text) {
+  return (text || '').replace(/^\s*[【\[]\s*[^】\]]{1,12}\s*[】\]]\s*/, '').trim()
 }
 
 /** 无分段数据时：按句末标点切句（无时间轴） */
@@ -90,6 +105,9 @@ export function buildSentenceView({ text, segments, hits, targetSentence } = {})
       start: s.start,
       end: s.end,
       text: s.text,
+      speaker: s.speaker,
+      channel: s.channel,
+      side: sideOfChannel(s.channel),
       charStart,
       charEnd: charStart == null ? null : charStart + s.text.length,
       hitWords: [],
@@ -123,8 +141,8 @@ export function buildSentenceView({ text, segments, hits, targetSentence } = {})
     }
   }
 
-  // 3) AI 判违规原句归属
-  const target = (targetSentence || '').trim()
+  // 3) AI 判违规原句归属（去掉可能的 【说话人】 前缀后再匹配）
+  const target = stripSpeakerTag(targetSentence)
   if (target) {
     const ti = src.indexOf(target)
     let owner = null
@@ -148,8 +166,18 @@ export function buildSentenceView({ text, segments, hits, targetSentence } = {})
     s.hasMarks = s.hitWords.length > 0 || s.isTarget
   }
 
+  // 5) 双声道信息：左右说话人名称
+  const leftSentence = sentences.find((s) => s.side === 'left' && s.speaker)
+  const rightSentence = sentences.find((s) => s.side === 'right' && s.speaker)
+  const dialogue = sentences.some((s) => s.side != null)
+
   return {
     timed,
+    dialogue,
+    speakers: {
+      left: leftSentence?.speaker || null,
+      right: rightSentence?.speaker || null
+    },
     sentences,
     totalHits: allHits.length,
     markedCount: sentences.filter((s) => s.hasMarks).length

@@ -66,6 +66,7 @@
                   <span class="num">{{ formatDuration(row.durationSeconds) }}</span>
                   <span class="sep">·</span>
                   <span class="num">{{ formatTimeShort(row.uploadTime) }}</span>
+                  <span v-if="row.channelCount === 2" class="chip brand ch-tag">双声道</span>
                 </div>
               </div>
             </div>
@@ -171,6 +172,7 @@
                   <span class="chip">{{ formatDuration(detail.durationSeconds) }}</span>
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
+                  <span v-if="detail.channelCount === 2" class="chip brand">双声道双轨</span>
                 </div>
               </div>
             </div>
@@ -191,17 +193,31 @@
             </div>
           </div>
 
-          <!-- 录音播放 -->
-          <audio
-            v-if="audioUrl"
-            ref="audioRef"
-            class="audio"
-            controls
-            preload="metadata"
-            :src="audioUrl"
-            @timeupdate="onTimeUpdate"
-            @seeked="onTimeUpdate"
-          ></audio>
+          <!-- 录音播放 + 分声道试听 -->
+          <div class="player-row">
+            <audio
+              v-if="audioUrl"
+              ref="audioRef"
+              class="audio"
+              controls
+              preload="metadata"
+              :src="audioSrc"
+              @timeupdate="onTimeUpdate"
+              @seeked="onTimeUpdate"
+            ></audio>
+            <div v-if="channelFiles" class="channel-switch">
+              <button
+                v-for="opt in channelOptions"
+                :key="opt.key"
+                class="ch-btn"
+                :class="{ on: audioChannel === opt.key }"
+                @click="switchChannel(opt.key)"
+              >
+                <span v-if="opt.badge" class="ch-badge sm" :class="opt.key === 'R' ? 'r' : 'l'">{{ opt.badge }}</span>
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
 
           <!-- 失败原因 -->
           <div v-if="detail.errorMessage" class="error-banner">
@@ -243,6 +259,15 @@
             <div class="block-head">
               <div class="seg-toggle">
                 <button
+                  v-if="dialogueAvailable"
+                  class="seg-btn"
+                  :class="{ on: transcriptMode === 'dialogue' }"
+                  @click="transcriptMode = 'dialogue'"
+                >
+                  <el-icon :size="12"><Connection /></el-icon>
+                  双栏对话
+                </button>
+                <button
                   class="seg-btn"
                   :class="{ on: transcriptMode === 'segment' }"
                   @click="transcriptMode = 'segment'"
@@ -259,20 +284,21 @@
                   全文
                 </button>
               </div>
-              <label v-if="transcriptMode === 'segment'" class="follow">
+              <label v-if="transcriptMode !== 'full'" class="follow">
                 <el-switch v-model="follow" size="small" />
                 <span class="tiny dim">跟随播放</span>
               </label>
             </div>
 
             <SegmentTranscript
-              v-if="transcriptMode === 'segment'"
+              v-if="transcriptMode !== 'full'"
               :text="detail.transcript || ''"
               :segments="segments"
               :hits="dfaHits"
               :target-sentence="aiResult?.targetSentence"
               :current-time="currentTime"
               :follow="follow"
+              :layout="transcriptMode === 'dialogue' ? 'dialogue' : 'single'"
               @seek="seekTo"
             />
             <TranscriptViewer
@@ -420,11 +446,45 @@ const segments = computed(() => {
 })
 const audioUrl = computed(() => (detail.value?.filePath ? `/uploads/${detail.value.filePath}` : ''))
 
-// 音画联动
+// 音画联动 + 分声道试听
 const audioRef = ref(null)
 const currentTime = ref(0)
 const follow = ref(true)
 const transcriptMode = ref('segment')
+const audioChannel = ref('mix')
+const modeInitialized = ref(false)
+
+const channelFiles = computed(() => {
+  try {
+    return JSON.parse(detail.value?.channelFilesJson || 'null')
+  } catch {
+    return null
+  }
+})
+const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
+const channelOptions = computed(() => {
+  const files = channelFiles.value || {}
+  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || '左声道'
+  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || '右声道'
+  return [
+    { key: 'mix', label: '混合', badge: '' },
+    { key: 'L', label: files.L ? leftName : '左声道', badge: 'L' },
+    { key: 'R', label: files.R ? rightName : '右声道', badge: 'R' }
+  ]
+})
+const audioSrc = computed(() => {
+  const files = channelFiles.value
+  if (files && audioChannel.value !== 'mix' && files[audioChannel.value]) {
+    return `/uploads/${files[audioChannel.value]}`
+  }
+  return audioUrl.value
+})
+
+function switchChannel(key) {
+  if (audioChannel.value === key) return
+  audioChannel.value = key
+  currentTime.value = 0
+}
 
 function onTimeUpdate(e) {
   currentTime.value = e?.target?.currentTime || 0
@@ -525,11 +585,17 @@ async function openDetail(row) {
   detail.value = null
   logs.value = []
   currentTime.value = 0
+  audioChannel.value = 'mix'
   transcriptMode.value = 'segment'
   try {
     const [d, l] = await Promise.all([api.recordingDetail(row.id), api.recordingLogs(row.id)])
     detail.value = d
     logs.value = l || []
+    // 双轨录音首次打开默认双栏对话
+    if (dialogueAvailable.value && !modeInitialized.value) {
+      transcriptMode.value = 'dialogue'
+    }
+    modeInitialized.value = true
   } finally {
     detailLoading.value = false
   }
@@ -742,6 +808,69 @@ onUnmounted(() => clearInterval(timer))
   width: 100%;
   height: 38px;
   border-radius: var(--r-md);
+}
+
+/* 播放器行 + 分声道试听 */
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.player-row .audio {
+  flex: 1;
+  min-width: 0;
+}
+.channel-switch {
+  flex: none;
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.ch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.ch-btn.on {
+  background: #fff;
+  color: var(--brand-600);
+  box-shadow: var(--sh-xs);
+}
+.ch-badge.sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #fff;
+}
+.ch-badge.sm.l {
+  background: var(--brand-500);
+}
+.ch-badge.sm.r {
+  background: #64748b;
+}
+.ch-tag {
+  margin-left: 6px;
+  height: 18px;
+  font-size: 11px;
+  padding: 0 7px;
 }
 
 .error-banner {
