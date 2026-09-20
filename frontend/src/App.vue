@@ -1,137 +1,85 @@
 <template>
-  <el-container class="layout">
-    <el-aside width="200px" class="aside">
-      <div class="logo">
-        <el-icon size="22"><Headset /></el-icon>
-        <span>录音稽核</span>
-      </div>
-      <el-menu :default-active="activeMenu" router class="menu">
-        <el-menu-item index="/">
-          <el-icon><Odometer /></el-icon>
-          <span>工作台</span>
-        </el-menu-item>
-        <el-menu-item index="/recordings">
-          <el-icon><Files /></el-icon>
-          <span>录音管理</span>
-        </el-menu-item>
-        <el-menu-item index="/review">
-          <el-icon><Checked /></el-icon>
-          <span>人工复检</span>
-          <el-badge v-if="pendingReview > 0" :value="pendingReview" class="menu-badge" />
-        </el-menu-item>
-        <el-menu-item index="/dictionary">
-          <el-icon><Collection /></el-icon>
-          <span>敏感词库</span>
-        </el-menu-item>
-        <el-menu-item index="/corpus">
-          <el-icon><Notebook /></el-icon>
-          <span>语料库</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header">
-        <div class="header-title">{{ route.meta?.title || '' }}</div>
-        <div class="header-right">
-          <span class="flow-hint">上传 → Whisper 转写 → DFA 初筛 → AI 复筛 → 人工复检 → 语料回馈</span>
-        </div>
-      </el-header>
-      <el-main class="main">
+  <div class="shell">
+    <AppSidebar :collapsed="collapsed" :badge-count="pendingReview" @toggle="collapsed = !collapsed" />
+    <div class="shell-main">
+      <AppHeader
+        :title="route.meta?.title"
+        :pending="pendingReview"
+        :healthy="healthy"
+        @refresh="refreshStatus"
+      />
+      <main class="shell-content">
         <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+      </main>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from './api'
+import AppSidebar from './components/AppSidebar.vue'
+import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
-const activeMenu = computed(() => route.path)
+const collapsed = ref(false)
 const pendingReview = ref(0)
+const healthy = ref(true)
 
-let timer = null
-async function refreshBadge() {
+async function refreshStatus() {
   try {
     const data = await api.overview()
     pendingReview.value = data.statusCounts?.NEEDS_REVIEW || 0
+    healthy.value = true
   } catch {
-    // 后端未就绪时静默
+    healthy.value = false
   }
 }
 
 watch(
   () => route.path,
   () => {
-    if (route.path === '/review' || route.path === '/') refreshBadge()
+    if (route.path === '/review' || route.path === '/') refreshStatus()
   }
 )
 
+// 窄屏自动收起侧栏
+function syncCollapse() {
+  if (window.innerWidth < 1180) collapsed.value = true
+}
+
+let timer = null
 onMounted(() => {
-  refreshBadge()
-  timer = setInterval(refreshBadge, 15000)
+  syncCollapse()
+  window.addEventListener('resize', syncCollapse)
+  refreshStatus()
+  timer = setInterval(refreshStatus, 15000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  window.removeEventListener('resize', syncCollapse)
+  clearInterval(timer)
+})
 </script>
 
 <style scoped>
-.layout {
+.shell {
+  display: flex;
   height: 100vh;
+  overflow: hidden;
 }
-.aside {
-  background: #001529;
+.shell-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.logo {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 17px;
-  font-weight: 600;
-}
-.menu {
-  border-right: none;
-  background: transparent;
+.shell-content {
   flex: 1;
-}
-.menu :deep(.el-menu-item) {
-  color: rgba(255, 255, 255, 0.72);
-}
-.menu :deep(.el-menu-item:hover) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-.menu :deep(.el-menu-item.is-active) {
-  background: #409eff;
-  color: #fff;
-}
-.menu-badge {
-  margin-left: auto;
-}
-.header {
-  background: #fff;
-  border-bottom: 1px solid #ebeef5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-}
-.header-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-.flow-hint {
-  color: #909399;
-  font-size: 12px;
-}
-.main {
-  background: #f5f7fa;
-  padding: 20px;
+  overflow-y: auto;
+  padding: 18px 22px 32px;
+  background:
+    radial-gradient(1200px 400px at 15% -10%, #eef3ff 0%, rgba(244, 246, 251, 0) 60%),
+    var(--surface-sunken);
 }
 </style>
