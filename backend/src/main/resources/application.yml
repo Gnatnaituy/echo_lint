@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: record-audit
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/record_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${SPRING_DATASOURCE_USERNAME:audit}
+    password: ${SPRING_DATASOURCE_PASSWORD:audit123}
+    hikari:
+      maximum-pool-size: 8
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 32MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  upload-dir: ${APP_UPLOAD_DIR:data/uploads}
+  # OpenAI whisper-1 单文件上限 25MB
+  max-size-bytes: 26214400
+  allowed-extensions: mp3,wav,m4a,mp4,webm,ogg,flac,aac,amr,caf,opus,mov
+  pipeline-pool-size: 2
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+  whisper-model: ${OPENAI_WHISPER_MODEL:whisper-1}
+  screen-model: ${OPENAI_SCREEN_MODEL:gpt-4o-mini}
+  screen-temperature: 0.1
+  few-shot-count: 5
+  request-timeout-seconds: 300

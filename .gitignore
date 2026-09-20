@@ -1,0 +1,22 @@
+# Java / Maven
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/*.jar
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# 运行时数据
+data/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# 本地密钥文件
+.env
