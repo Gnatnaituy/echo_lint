@@ -1,5 +1,6 @@
 package com.recordaudit.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recordaudit.domain.RecordingStatus;
 import com.recordaudit.dto.RecordingSummary;
 import com.recordaudit.entity.PipelineLog;
@@ -26,11 +27,12 @@ import java.util.List;
 public class RecordingController {
 
     private final RecordingService recordingService;
+    private final ObjectMapper objectMapper;
 
     @PostMapping("/upload")
     public ResponseEntity<RecordingSummary> upload(@RequestParam("file") MultipartFile file) {
         Recording saved = recordingService.upload(file);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(RecordingSummary.from(saved));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(RecordingSummary.from(saved, objectMapper));
     }
 
     @GetMapping
@@ -47,7 +49,8 @@ public class RecordingController {
                     .toList();
         }
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
-        return recordingService.query(statusList, keyword, pageable).map(RecordingSummary::from);
+        return recordingService.query(statusList, keyword, pageable)
+                .map(r -> RecordingSummary.from(r, objectMapper));
     }
 
     @GetMapping("/{id}")
@@ -62,7 +65,7 @@ public class RecordingController {
 
     @PostMapping("/{id}/retry")
     public RecordingSummary retry(@PathVariable Long id) {
-        return RecordingSummary.from(recordingService.retry(id));
+        return RecordingSummary.from(recordingService.retry(id), objectMapper);
     }
 
     @DeleteMapping("/{id}")

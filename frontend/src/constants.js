@@ -36,7 +36,7 @@ export const SOURCE_META = {
 }
 
 export function formatDuration(seconds) {
-  if (seconds == null) return '-'
+  if (!seconds) return '-'
   const m = Math.floor(seconds / 60)
   const s = Math.round(seconds % 60)
   return m > 0 ? `${m}分${s}秒` : `${s}秒`
@@ -52,4 +52,28 @@ export function formatSize(bytes) {
 export function formatTime(ts) {
   if (!ts) return '-'
   return ts.replace('T', ' ').substring(0, 19)
+}
+
+/** 紧凑时间：MM-DD HH:mm */
+export function formatTimeShort(ts) {
+  if (!ts) return '-'
+  const s = ts.replace('T', ' ')
+  return s.length >= 16 ? s.substring(5, 16) : s
+}
+
+/** 相对时间：刚刚 / N 分钟前 / N 小时前 / 昨天 HH:mm / MM-DD HH:mm */
+export function formatRelative(ts) {
+  if (!ts) return '-'
+  const then = new Date(ts.replace(' ', 'T'))
+  if (Number.isNaN(then.getTime())) return formatTimeShort(ts)
+  const diff = Date.now() - then.getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟前`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour} 小时前`
+  const day = Math.floor(hour / 24)
+  if (day === 1) return `昨天 ${String(then.getHours()).padStart(2, '0')}:${String(then.getMinutes()).padStart(2, '0')}`
+  if (day < 7) return `${day} 天前`
+  return formatTimeShort(ts)
 }
