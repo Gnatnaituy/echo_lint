@@ -7,8 +7,10 @@ import {
   buildSentenceView,
   findActiveIndex,
   formatClock,
+  sideOfChannel,
   splitByHits,
-  splitSentences
+  splitSentences,
+  stripSpeakerTag
 } from '../src/utils/segments.js'
 
 const TEXT =
@@ -40,6 +42,13 @@ const HITS = [
   { word: 'bitch', ...span('bitch') },
   { word: 'killyou', ...span('kill you') } // 词典词是规范化形式，跨度覆盖原文 "kill you"
 ]
+
+/** 在任意文本中定位词面（用于构造命中） */
+function spanOf(text, literal) {
+  const start = text.indexOf(literal)
+  assert.ok(start >= 0, `文本中找不到「${literal}」`)
+  return { start, end: start + literal.length }
+}
 
 test('formatClock 输出 mm:ss', () => {
   assert.equal(formatClock(0), '00:00')
@@ -142,4 +151,65 @@ test('findActiveIndex 依据播放时间定位句子', () => {
   // 无时间轴 → -1
   const untimed = buildSentenceView({ text: TEXT, segments: [], hits: [] })
   assert.equal(findActiveIndex(untimed.sentences, 5), -1)
+})
+
+// ---------- 双声道（双轨）对话视图 ----------
+
+const STEREO_TEXT =
+  'Thank you for calling support. I want a refund right now. Let me check your order first. ' +
+  'You are a stupid idiot, hurry up!'
+
+const STEREO_SEGMENTS = [
+  { start: 0, end: 2.5, text: 'Thank you for calling support.', speaker: '坐席', channel: 'L' },
+  { start: 2.6, end: 5.2, text: 'I want a refund right now.', speaker: '客户', channel: 'R' },
+  { start: 5.4, end: 8.0, text: 'Let me check your order first.', speaker: '坐席', channel: 'L' },
+  { start: 8.2, end: 11.0, text: 'You are a stupid idiot, hurry up!', speaker: '客户', channel: 'R' }
+]
+
+test('sideOfChannel 声道映射', () => {
+  assert.equal(sideOfChannel('L'), 'left')
+  assert.equal(sideOfChannel('r'), 'right')
+  assert.equal(sideOfChannel(null), null)
+  assert.equal(sideOfChannel('C'), null)
+})
+
+test('stripSpeakerTag 去掉 AI 原句里的说话人前缀', () => {
+  assert.equal(stripSpeakerTag('【坐席】I will kill you'), 'I will kill you')
+  assert.equal(stripSpeakerTag('[客户] You are stupid'), 'You are stupid')
+  assert.equal(stripSpeakerTag('没有前缀'), '没有前缀')
+})
+
+test('双声道：按声道分成左右两侧并识别说话人', () => {
+  const hits = [{ word: 'stupid', ...spanOf(STEREO_TEXT, 'stupid') }]
+  const view = buildSentenceView({ text: STEREO_TEXT, segments: STEREO_SEGMENTS, hits })
+
+  assert.equal(view.dialogue, true)
+  assert.deepEqual(view.speakers, { left: '坐席', right: '客户' })
+  assert.deepEqual(
+    view.sentences.map((s) => s.side),
+    ['left', 'right', 'left', 'right']
+  )
+  assert.equal(view.sentences[0].speaker, '坐席')
+  assert.equal(view.sentences[1].channel, 'R')
+  // 命中落在客户（右侧）那句
+  assert.deepEqual(view.sentences[3].hitWords, ['stupid'])
+  assert.equal(view.sentences[0].hasMarks, false)
+})
+
+test('双声道：AI 原句带说话人前缀时仍能定位到句子', () => {
+  const view = buildSentenceView({
+    text: STEREO_TEXT,
+    segments: STEREO_SEGMENTS,
+    hits: [],
+    targetSentence: '【客户】You are a stupid idiot, hurry up!'
+  })
+  assert.equal(view.sentences[3].isTarget, true)
+  assert.equal(view.sentences[1].isTarget, false)
+})
+
+test('单声道：无声道信息时不进入对话布局', () => {
+  const view = buildSentenceView({ text: TEXT, segments: SEGMENTS, hits: HITS })
+  assert.equal(view.dialogue, false)
+  assert.equal(view.speakers.left, null)
+  assert.ok(view.sentences.every((s) => s.side === null))
 })

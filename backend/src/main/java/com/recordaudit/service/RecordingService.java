@@ -1,5 +1,6 @@
 package com.recordaudit.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recordaudit.config.AppProperties;
 import com.recordaudit.domain.RecordingStatus;
 import com.recordaudit.entity.PipelineLog;
@@ -40,6 +41,7 @@ public class RecordingService {
     private final PipelineLogRepository pipelineLogRepository;
     private final PipelineService pipelineService;
     private final AppProperties appProperties;
+    private final ObjectMapper objectMapper;
 
     /**
      * 上传录音：落盘 -> 建记录(PENDING) -> 异步启动稽核流水线
@@ -124,12 +126,28 @@ public class RecordingService {
         Recording recording = get(id);
         pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
         recordingRepository.delete(recording);
-        try {
-            Files.deleteIfExists(appProperties.absoluteUploadDir().resolve(recording.getFilePath()));
-        } catch (IOException e) {
-            log.warn("删除录音文件失败 {}: {}", recording.getFilePath(), e.getMessage());
+        deleteFile(recording.getFilePath());
+        // 双声道分轨文件一并清理
+        if (StringUtils.hasText(recording.getChannelFilesJson())) {
+            try {
+                var node = objectMapper.readTree(recording.getChannelFilesJson());
+                node.forEach(channelFile -> deleteFile(channelFile.asText()));
+            } catch (Exception e) {
+                log.warn("解析分轨文件失败: {}", e.getMessage());
+            }
         }
         log.info("录音 {} 已删除", id);
+    }
+
+    private void deleteFile(String storedFileName) {
+        if (!StringUtils.hasText(storedFileName)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(appProperties.absoluteUploadDir().resolve(storedFileName));
+        } catch (IOException e) {
+            log.warn("删除文件失败 {}: {}", storedFileName, e.getMessage());
+        }
     }
 
     /**

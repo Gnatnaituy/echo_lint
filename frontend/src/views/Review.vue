@@ -105,11 +105,26 @@
                 class="audio"
                 controls
                 preload="metadata"
-                :src="`/uploads/${current.filePath}`"
+                :src="audioSrc"
                 @timeupdate="onTimeUpdate"
                 @seeked="onTimeUpdate"
               ></audio>
               <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
+
+              <!-- 分声道试听：双轨录音可单独听坐席 / 客户 -->
+              <div v-if="channelFiles" class="channel-switch">
+                <button
+                  v-for="opt in channelOptions"
+                  :key="opt.key"
+                  class="ch-btn"
+                  :class="{ on: audioChannel === opt.key }"
+                  @click="switchChannel(opt.key)"
+                >
+                  <span v-if="opt.badge" class="ch-badge sm" :class="opt.key === 'R' ? 'r' : 'l'">{{ opt.badge }}</span>
+                  {{ opt.label }}
+                </button>
+              </div>
+
               <div class="player-meta mono">
                 <span>{{ formatClock(currentTime) }}</span>
                 <span class="dim">/ {{ formatClock(current.durationSeconds || totalDuration) }}</span>
@@ -117,10 +132,19 @@
             </div>
 
             <div class="work-grid">
-              <!-- 左：转写（逐句对照 / 全文） -->
+              <!-- 左：转写（双栏对话 / 逐句 / 全文） -->
               <div class="work-col">
                 <div class="block-head">
                   <div class="seg-toggle">
+                    <button
+                      v-if="dialogueAvailable"
+                      class="seg-btn"
+                      :class="{ on: transcriptMode === 'dialogue' }"
+                      @click="transcriptMode = 'dialogue'"
+                    >
+                      <el-icon :size="12"><Connection /></el-icon>
+                      双栏对话
+                    </button>
                     <button
                       class="seg-btn"
                       :class="{ on: transcriptMode === 'segment' }"
@@ -138,7 +162,7 @@
                       全文
                     </button>
                   </div>
-                  <label v-if="transcriptMode === 'segment'" class="follow">
+                  <label v-if="transcriptMode !== 'full'" class="follow">
                     <el-switch v-model="follow" size="small" />
                     <span class="tiny dim">跟随播放</span>
                   </label>
@@ -146,13 +170,14 @@
 
                 <div class="transcript-scroll">
                   <SegmentTranscript
-                    v-if="transcriptMode === 'segment'"
+                    v-if="transcriptMode !== 'full'"
                     :text="current.transcript || ''"
                     :segments="segments"
                     :hits="dfaHits"
                     :target-sentence="aiResult?.targetSentence"
                     :current-time="currentTime"
                     :follow="follow"
+                    :layout="transcriptMode === 'dialogue' ? 'dialogue' : 'single'"
                     @seek="seekTo"
                   />
                   <TranscriptViewer
@@ -375,6 +400,38 @@ const audioRef = ref(null)
 const currentTime = ref(0)
 const follow = ref(true)
 const transcriptMode = ref('segment')
+/** mix | L | R：双轨录音可分声道试听 */
+const audioChannel = ref('mix')
+const modeInitialized = ref(false)
+
+const channelFiles = computed(() => parseJson(current.value?.channelFilesJson, null))
+const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
+
+const channelOptions = computed(() => {
+  const files = channelFiles.value || {}
+  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || '左声道'
+  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || '右声道'
+  return [
+    { key: 'mix', label: '混合', badge: '' },
+    { key: 'L', label: files.L ? leftName : '左声道', badge: 'L' },
+    { key: 'R', label: files.R ? rightName : '右声道', badge: 'R' }
+  ]
+})
+
+/** 播放源：默认混合声道，可切到单独声道 */
+const audioSrc = computed(() => {
+  const files = channelFiles.value
+  if (files && audioChannel.value !== 'mix' && files[audioChannel.value]) {
+    return `/uploads/${files[audioChannel.value]}`
+  }
+  return current.value?.filePath ? `/uploads/${current.value.filePath}` : ''
+})
+
+function switchChannel(key) {
+  if (audioChannel.value === key) return
+  audioChannel.value = key
+  currentTime.value = 0
+}
 
 const filteredQueue = computed(() => {
   const kw = queueKeyword.value.trim().toLowerCase()
@@ -446,12 +503,20 @@ async function select(r) {
   form.value = { result: 'CONFIRMED_VIOLATION', violationType: 'INSULT', comment: '' }
   // 切换录音时重置播放进度与视图模式
   currentTime.value = 0
-  transcriptMode.value = 'segment'
+  audioChannel.value = 'mix'
   detailLoading.value = true
   try {
     const detail = await api.recordingDetail(r.id)
     current.value = detail
     alreadyReviewed.value = detail.status !== 'NEEDS_REVIEW'
+    // 首次遇到双轨录音默认用双栏对话；若当前模式不适用则回退逐句
+    if (dialogueAvailable.value && !modeInitialized.value) {
+      transcriptMode.value = 'dialogue'
+    }
+    if (transcriptMode.value === 'dialogue' && !dialogueAvailable.value) {
+      transcriptMode.value = 'segment'
+    }
+    modeInitialized.value = true
     // 默认选中 AI 建议的违规类型，减少复检操作成本
     const suggested = parseJson(detail.aiResultJson, null)?.violationType
     if (suggested && VIOLATION_TYPES[suggested]) {
@@ -751,6 +816,54 @@ watch(
 }
 .player-meta .dim {
   font-size: 11px;
+}
+
+/* 分声道试听切换 */
+.channel-switch {
+  flex: none;
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.ch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.ch-btn.on {
+  background: #fff;
+  color: var(--brand-600);
+  box-shadow: var(--sh-xs);
+}
+.ch-badge.sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #fff;
+}
+.ch-badge.sm.l {
+  background: var(--brand-500);
+}
+.ch-badge.sm.r {
+  background: #64748b;
 }
 
 /* 逐句 / 全文切换 */

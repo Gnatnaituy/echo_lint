@@ -52,10 +52,18 @@ public class Recording {
     @Column(columnDefinition = "MEDIUMTEXT")
     private String transcript;
 
-    /** Whisper verbose_json segments 原始 JSON */
+    /** 转写分段 JSON [{speaker,channel,start,end,text},...]；双声道时带说话人/声道 */
     @Lob
     @Column(columnDefinition = "MEDIUMTEXT")
     private String segmentsJson;
+
+    /** 声道数（1=单声道，2=双声道双轨） */
+    private Integer channelCount;
+
+    /** 分轨文件 JSON {"L":"xxx.L.wav","R":"xxx.R.wav"}，仅双声道存在 */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String channelFilesJson;
 
     /** DFA 命中 [{word,start,end},...] 原始 JSON */
     @Lob

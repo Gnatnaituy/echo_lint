@@ -36,6 +36,12 @@ app:
   max-size-bytes: 26214400
   allowed-extensions: mp3,wav,m4a,mp4,webm,ogg,flac,aac,amr,caf,opus,mov
   pipeline-pool-size: 2
+  # 双声道（双轨）录音：ffmpeg 分离左右声道后分别转写，按时间对齐成对话
+  stereo:
+    enabled: ${APP_STEREO_ENABLED:true}
+    left-speaker: ${APP_STEREO_LEFT_SPEAKER:坐席}
+    right-speaker: ${APP_STEREO_RIGHT_SPEAKER:客户}
+    split-timeout-seconds: 300
 
 openai:
   api-key: ${OPENAI_API_KEY:}

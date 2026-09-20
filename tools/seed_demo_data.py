@@ -27,8 +27,10 @@ ID_BASE = 1000  # 演示数据 id 起始，删除时按 id >= ID_BASE 清理
 AUDIO_DEMO_ID = 1001  # --with-audio 时为该条生成等长静音音频，用于演示音画联动
 
 
-def build_segments(text: str, duration):
-    """模拟 Whisper verbose_json 的分段：按句切分，时长按字符数摊分（句首带空格）"""
+def build_segments(text: str, duration, stereo: bool = False):
+    """模拟 Whisper 分段：按句切分，时长按字符数摊分（句首带空格）
+    stereo=True 时模拟双声道双轨：偶数句=坐席/L，奇数句=客户/R
+    """
     if not text:
         return []
     sentences = [s.strip() for s in re.findall(r"[^.!?]+[.!?]*", text) if s.strip()]
@@ -38,12 +40,16 @@ def build_segments(text: str, duration):
     segments, cursor = [], 0.0
     for i, sentence in enumerate(sentences):
         share = (duration or 0) * (len(sentence) / total_chars)
-        segments.append({
+        seg = {
             "id": i,
             "start": round(cursor, 2),
             "end": round(cursor + share, 2),
             "text": " " + sentence,
-        })
+        }
+        if stereo:
+            seg["speaker"] = "坐席" if i % 2 == 0 else "客户"
+            seg["channel"] = "L" if i % 2 == 0 else "R"
+        segments.append(seg)
         cursor += share
     return segments
 
@@ -56,6 +62,22 @@ def generate_silent_wav(path: Path, seconds: int, rate: int = 8000):
         w.setsampwidth(2)
         w.setframerate(rate)
         w.writeframes(frames)
+
+
+def generate_tone_wav(path: Path, seconds: int, freq: int, rate: int = 8000):
+    """生成等长单频 WAV（用于区分左右声道：#1001 左=440Hz，右=660Hz）"""
+    import math
+
+    amplitude = int(0.12 * 32767)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        buf = bytearray()
+        for n in range(rate * seconds):
+            v = int(amplitude * math.sin(2 * math.pi * freq * n / rate))
+            buf += v.to_bytes(2, "little", signed=True)
+        w.writeframes(bytes(buf))
 
 
 def hits_for(api: str, text: str):
@@ -162,7 +184,7 @@ def build_records(now):
     ]
 
 
-def generate_sql(api: str) -> int:
+def generate_sql(api: str, with_audio: bool = False) -> int:
     now = datetime.now()
     records = build_records(now)
     lines = ["SET NAMES utf8mb4;",
@@ -174,19 +196,29 @@ def generate_sql(api: str) -> int:
         hits = hits_for(api, r["text"]) if r["text"] else []
         hit_total += len(hits)
         hit_json = json.dumps(hits, ensure_ascii=False)
-        segments_json = json.dumps(build_segments(r["text"], r["dur"]), ensure_ascii=False)
+        is_stereo = with_audio and r["id"] == AUDIO_DEMO_ID
+        segments_json = json.dumps(build_segments(r["text"], r["dur"], stereo=is_stereo), ensure_ascii=False)
         ai_json = json.dumps(r["ai"], ensure_ascii=False) if r.get("ai") else None
         review = r.get("review") or {}
         processed = None if r["status"] == "PENDING" else r["up"]
         duration = "NULL" if r["dur"] is None else r["dur"]
         ext = "wav" if r["id"] == AUDIO_DEMO_ID else "mp3"
+        channel_count = 2 if is_stereo else 1
+        channel_files = None
+        if is_stereo:
+            channel_files = json.dumps({
+                "L": f"demo-{AUDIO_DEMO_ID}.wav.L.wav",
+                "R": f"demo-{AUDIO_DEMO_ID}.wav.R.wav",
+            }, ensure_ascii=False)
 
         lines.append(
             "INSERT INTO recordings (id, file_name, file_path, file_size, mime_type, duration_seconds, language, status, "
-            "transcript, segments_json, dfa_hits_json, hit_count, ai_result_json, review_result, violation_type, "
-            "violation_type_label, review_comment, reviewer, review_time, upload_time, processed_time, error_message) VALUES ("
+            "transcript, segments_json, channel_count, channel_files_json, dfa_hits_json, hit_count, ai_result_json, "
+            "review_result, violation_type, violation_type_label, review_comment, reviewer, review_time, upload_time, "
+            "processed_time, error_message) VALUES ("
             f"{r['id']}, {esc(r['name'])}, {esc('demo-' + str(r['id']) + '.' + ext)}, {r['size']}, 'audio/mpeg', "
-            f"{duration}, {esc('en')}, {esc(r['status'])}, {esc(r['text'])}, {esc(segments_json)}, {esc(hit_json)}, {len(hits)}, "
+            f"{duration}, {esc('en')}, {esc(r['status'])}, {esc(r['text'])}, {esc(segments_json)}, "
+            f"{channel_count}, {esc(channel_files)}, {esc(hit_json)}, {len(hits)}, "
             f"{esc(ai_json)}, {esc(review.get('result'))}, {esc(review.get('type'))}, {esc(review.get('label'))}, "
             f"{esc(review.get('comment'))}, {esc(review.get('reviewer'))}, {esc(review.get('at'))}, "
             f"{esc(r['up'])}, {esc(processed)}, {esc(r.get('error'))});"
@@ -242,13 +274,29 @@ def apply_sql(container: str, clean_only: bool) -> None:
 
 
 def attach_demo_audio(container: str, upload_dir: str) -> None:
-    """为演示录音生成等长静音 WAV 并投放进后端上传目录（演示音画联动用）"""
+    """为演示录音生成音轨并投放进后端上传目录
+    - demo-1001.wav        ：混合（静音占位）
+    - demo-1001.wav.L.wav  ：左声道 坐席（440Hz）
+    - demo-1001.wav.R.wav  ：右声道 客户（660Hz）
+    左右声道用不同频率，便于验证「分声道试听」
+    """
     duration = next((r["dur"] for r in build_records(datetime.now()) if r["id"] == AUDIO_DEMO_ID), 60) or 60
-    local = Path(f"/tmp/demo-{AUDIO_DEMO_ID}.wav")
-    generate_silent_wav(local, int(duration))
-    target = f"{container}:{upload_dir}/demo-{AUDIO_DEMO_ID}.wav"
-    subprocess.run(["docker", "cp", str(local), target], check=True, capture_output=True)
-    print(f"已生成 {int(duration)}s 静音音轨 → {target}")
+    seconds = int(duration)
+    targets = [
+        (f"demo-{AUDIO_DEMO_ID}.wav", "silent"),
+        (f"demo-{AUDIO_DEMO_ID}.wav.L.wav", 440),
+        (f"demo-{AUDIO_DEMO_ID}.wav.R.wav", 660),
+    ]
+    for name, kind in targets:
+        local = Path(f"/tmp/{name}")
+        if kind == "silent":
+            generate_silent_wav(local, seconds)
+        else:
+            generate_tone_wav(local, seconds, kind)
+        subprocess.run(["docker", "cp", str(local), f"{container}:{upload_dir}/{name}"],
+                       check=True, capture_output=True)
+        print(f"  音轨 {name}（{seconds}s{'，' + str(kind) + 'Hz' if kind != 'silent' else ''}）")
+    print(f"已生成演示音轨 → {container}:{upload_dir}/")
 
 
 def main():
@@ -264,7 +312,7 @@ def main():
     if args.clean:
         apply_sql(args.container, clean_only=True)
         return
-    generate_sql(args.api)
+    generate_sql(args.api, args.with_audio)
     apply_sql(args.container, clean_only=False)
     if args.with_audio:
         attach_demo_audio(args.upload_container, args.upload_dir)
