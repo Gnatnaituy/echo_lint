@@ -6,8 +6,8 @@
         <el-icon :size="18"><Headset /></el-icon>
       </div>
       <div v-show="!collapsed" class="brand-text">
-        <div class="brand-name">录音稽核</div>
-        <div class="brand-sub">Compliance Audit</div>
+        <div class="brand-name">EchoLint</div>
+        <div class="brand-sub">Audio Compliance Audit</div>
       </div>
     </div>
 

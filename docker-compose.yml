@@ -1,17 +1,19 @@
+name: echolint
+
 services:
   mysql:
     image: mysql:8.0
-    container_name: record-audit-mysql
+    container_name: echolint-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: record_audit
+      MYSQL_DATABASE: echolint
       MYSQL_USER: audit
       MYSQL_PASSWORD: audit123
       TZ: Asia/Shanghai
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
     volumes:
-      - record-audit-mysql-data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
     ports:
       # 本机调试用：宿主 3307 → 容器 3306（若本机 3306 空闲可直接改 3306:3306）
       - "3307:3306"
@@ -24,20 +26,21 @@ services:
 
   backend:
     build: ./backend
-    container_name: record-audit-backend
+    image: echolint-backend
+    container_name: echolint-backend
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/record_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/echolint?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: audit
       SPRING_DATASOURCE_PASSWORD: audit123
       APP_UPLOAD_DIR: /app/data/uploads
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       TZ: Asia/Shanghai
     volumes:
-      - record-audit-uploads:/app/data/uploads
+      - uploads:/app/data/uploads
     ports:
       # 本机 8080 若被其他服务占用，可改为 8082:8080 或任意空闲端口
       - "8082:8080"
@@ -50,7 +53,8 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: record-audit-frontend
+    image: echolint-frontend
+    container_name: echolint-frontend
     restart: unless-stopped
     depends_on:
       backend:
@@ -59,5 +63,5 @@ services:
       - "8081:80"
 
 volumes:
-  record-audit-mysql-data:
-  record-audit-uploads:
+  mysql-data:
+  uploads:

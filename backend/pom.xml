@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.recordaudit</groupId>
-    <artifactId>record-audit-backend</artifactId>
+    <groupId>com.echolint</groupId>
+    <artifactId>echolint-backend</artifactId>
     <version>1.0.0</version>
-    <name>record-audit-backend</name>
-    <description>录音稽核服务后端: 上传 -> Whisper 转写 -> DFA 初筛 -> AI 语义复筛 -> 人工复检 -> 语料回馈</description>
+    <name>echolint-backend</name>
+    <description>EchoLint 后端：录音上传 → Whisper 转写 → DFA 初筛 → AI 语义复筛 → 人工复检 → 语料回馈</description>
 
     <properties>
         <java.version>17</java.version>

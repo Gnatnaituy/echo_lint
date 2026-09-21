@@ -3,9 +3,9 @@ server:
 
 spring:
   application:
-    name: record-audit
+    name: echolint
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/record_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/echolint?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false}
     username: ${SPRING_DATASOURCE_USERNAME:audit}
     password: ${SPRING_DATASOURCE_PASSWORD:audit123}
     hikari:

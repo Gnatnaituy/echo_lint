@@ -10,7 +10,7 @@
     python3 tools/seed_demo_data.py                     # 写入 12 条演示录音（id 从 1000 起，含分段与标记）
     python3 tools/seed_demo_data.py --with-audio        # 额外为 #1001 生成等长静音音轨，可演示音画联动
     python3 tools/seed_demo_data.py --clean             # 仅删除演示数据
-    python3 tools/seed_demo_data.py --api http://localhost:8082 --container record-audit-mysql
+    python3 tools/seed_demo_data.py --api http://localhost:8082 --container echolint-mysql
 """
 import argparse
 import json
@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 SQL_FILE = Path("/tmp/seed_demo_data.sql")
-MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB = "audit", "audit123", "record_audit"
+MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB = "audit", "audit123", "echolint"
 ID_BASE = 1000  # 演示数据 id 起始，删除时按 id >= ID_BASE 清理
 AUDIO_DEMO_ID = 1001  # --with-audio 时为该条生成等长静音音频，用于演示音画联动
 
@@ -302,10 +302,10 @@ def attach_demo_audio(container: str, upload_dir: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="生成/清理录音稽核演示数据")
     parser.add_argument("--api", default="http://localhost:8082", help="后端地址（用于计算 DFA 命中）")
-    parser.add_argument("--container", default="record-audit-mysql", help="MySQL 容器名")
+    parser.add_argument("--container", default="echolint-mysql", help="MySQL 容器名")
     parser.add_argument("--clean", action="store_true", help="仅清理演示数据")
     parser.add_argument("--with-audio", action="store_true", help="为演示录音生成等长静音音频")
-    parser.add_argument("--upload-container", default="record-audit-backend", help="后端容器名（投放音频用）")
+    parser.add_argument("--upload-container", default="echolint-backend", help="后端容器名（投放音频用）")
     parser.add_argument("--upload-dir", default="/app/data/uploads", help="后端容器内上传目录")
     args = parser.parse_args()
 
