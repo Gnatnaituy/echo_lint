@@ -1,4 +1,6 @@
-# 录音稽核平台 (Record Audit)
+# EchoLint · 录音稽核平台
+
+> **EchoLint** = Echo（录音） + Lint（自动化体检）：把每一通录音当作待检代码，先机械地查关键词，再让 AI 读语境，最后交给人拍板。
 
 基于 **OpenAI Whisper** 的录音合规稽核服务：录音上传后自动完成 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，人工复检结论自动回馈语料库，并从中挖掘新敏感词，形成自增长闭环。
 
@@ -37,9 +39,9 @@
 ## 目录结构
 
 ```
-record-audit/
+echolint/
 ├── backend/                      # Spring Boot 后端
-│   ├── src/main/java/com/recordaudit/
+│   ├── src/main/java/com/echolint/
 │   │   ├── config/               # 配置：OpenAI、异步流水线、CORS/静态资源
 │   │   ├── controller/           # 录音/复检/词典/语料/统计 接口
 │   │   ├── dfa/                  # DFA 匹配器（AC 自动机 + 词规范化）
@@ -133,7 +135,7 @@ python3 tools/seed_demo_data.py --clean  # 清理演示数据
 ```
 
 脚本会调用运行中的后端 `/api/dictionary/test` 计算命中位置，因此需要后端已启动；
-默认后端地址 `http://localhost:8082`、MySQL 容器 `record-audit-mysql`，可用 `--api` / `--container` 覆盖。
+默认后端地址 `http://localhost:8082`、MySQL 容器 `echolint-mysql`，可用 `--api` / `--container` 覆盖。
 
 ## 快速开始（Docker 一键）
 
@@ -164,7 +166,7 @@ docker compose up -d mysql
 # 1. 后端（通过 3307 连容器 MySQL；若本机 3306 空闲可改回默认 URL）
 cd backend
 export OPENAI_API_KEY=sk-...
-export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3307/record_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false'
+export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3307/echolint?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false'
 mvn spring-boot:run
 
 # 2. 前端（开发服务器，/api 与 /uploads 默认代理到 8080；
