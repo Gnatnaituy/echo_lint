@@ -32,7 +32,9 @@ public record RecordingSummary(
         String transcriptSnippet,
         String errorMessage,
         LocalDateTime uploadTime,
-        LocalDateTime processedTime) {
+        LocalDateTime processedTime,
+        /** 最近一次状态变更时间，前端据此判断处理是否卡住 */
+        LocalDateTime statusUpdatedAt) {
 
     public static RecordingSummary from(com.echolint.entity.Recording r, ObjectMapper objectMapper) {
         String snippet = r.getTranscript();
@@ -82,6 +84,7 @@ public record RecordingSummary(
                 snippet,
                 r.getErrorMessage(),
                 r.getUploadTime(),
-                r.getProcessedTime());
+                r.getProcessedTime(),
+                r.getStatusUpdatedAt());
     }
 }

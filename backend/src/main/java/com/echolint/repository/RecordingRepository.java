@@ -21,4 +21,7 @@ public interface RecordingRepository extends JpaRepository<Recording, Long>, Jpa
 
     @Query("select count(r) from Recording r where r.uploadTime >= :since")
     long countUploadedSince(@Param("since") LocalDateTime since);
+
+    /** 用于启动时恢复：找出中断在中间状态的录音 */
+    List<Recording> findByStatusIn(List<RecordingStatus> statuses);
 }

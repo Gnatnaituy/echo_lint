@@ -36,7 +36,8 @@ export const api = {
   recordingLogs(id) {
     return http.get(`/recordings/${id}/logs`)
   },
-  retryRecording(id) {
+  /** 手动推进/重新处理（PENDING/FAILED/卡住的中间态，后端会做在途与状态守卫） */
+  reprocessRecording(id) {
     return http.post(`/recordings/${id}/retry`)
   },
   deleteRecording(id) {

@@ -43,6 +43,8 @@
       </div>
       <div class="hint">
         上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛；初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
+        <br />
+        若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
       </div>
     </section>
 
@@ -92,9 +94,18 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="132" align="center">
+        <el-table-column label="状态" width="150" align="center">
           <template #default="{ row }">
-            <StatusTag :status="row.status" />
+            <div class="status-cell">
+              <StatusTag :status="row.status" />
+              <el-tooltip
+                v-if="isStale(row)"
+                content="停留超过 2 分钟未变更，疑似中断；可用「重新处理」手动推进"
+                placement="top"
+              >
+                <span class="chip warn">疑似卡住</span>
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
 
@@ -111,7 +122,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="176" align="right">
+        <el-table-column label="操作" width="196" align="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
             <el-button
@@ -121,13 +132,21 @@
               type="danger"
               @click.stop="$router.push(`/review?id=${row.id}`)"
             >去复检</el-button>
-            <el-button
-              v-if="row.status === 'FAILED'"
-              size="small"
-              link
-              type="warning"
-              @click.stop="retry(row)"
-            >重试</el-button>
+            <el-popconfirm
+              v-if="reprocessInfo(row)"
+              :title="reprocessInfo(row).confirm"
+              width="260"
+              @confirm="reprocess(row)"
+            >
+              <template #reference>
+                <el-button
+                  size="small"
+                  link
+                  :type="reprocessInfo(row).tone"
+                  @click.stop
+                >{{ reprocessInfo(row).label }}</el-button>
+              </template>
+            </el-popconfirm>
             <el-popconfirm title="确认删除该录音（含文件与日志）？" @confirm="remove(row)">
               <template #reference>
                 <el-button size="small" link type="danger" @click.stop>删除</el-button>
@@ -183,12 +202,18 @@
                 size="small"
                 @click="$router.push(`/review?id=${detail.id}`)"
               >去人工复检</el-button>
-              <el-button
-                v-if="detail.status === 'FAILED'"
-                type="warning"
-                size="small"
-                @click="retry(detail)"
-              >重试</el-button>
+              <el-popconfirm
+                v-if="reprocessInfo(detail)"
+                :title="reprocessInfo(detail).confirm"
+                width="260"
+                @confirm="reprocess(detail)"
+              >
+                <template #reference>
+                  <el-button :type="reprocessInfo(detail).tone" size="small">
+                    {{ reprocessInfo(detail).label }}
+                  </el-button>
+                </template>
+              </el-popconfirm>
               <el-button :icon="Close" circle size="small" @click="detailVisible = false" />
             </div>
           </div>
@@ -374,7 +399,15 @@ import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
 import { formatClock } from '../utils/segments'
-import { formatDuration, formatSize, formatTime, formatTimeShort, PROCESSING_STATUSES } from '../constants'
+import {
+  formatDuration,
+  formatSize,
+  formatTime,
+  formatTimeShort,
+  isStale,
+  reprocessInfo,
+  PROCESSING_STATUSES
+} from '../constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -601,9 +634,11 @@ async function openDetail(row) {
   }
 }
 
-async function retry(row) {
-  await api.retryRecording(row.id)
-  ElMessage.success('已重新进入流水线')
+/** 手动推进/重新处理：清空上一轮产物后重新进入流水线 */
+async function reprocess(row) {
+  const info = reprocessInfo(row)
+  await api.reprocessRecording(row.id)
+  ElMessage.success(`${info?.label || '处理'}已触发，正在重新执行流水线`)
   load()
   loadOverview()
   if (detail.value?.id === row.id) openDetail(row)
@@ -705,6 +740,12 @@ onUnmounted(() => clearInterval(timer))
 /* 表格 */
 :deep(.row-clickable) {
   cursor: pointer;
+}
+.status-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 .file-cell {
   display: flex;

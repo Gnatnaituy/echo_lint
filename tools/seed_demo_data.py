@@ -202,7 +202,6 @@ def generate_sql(api: str, with_audio: bool = False) -> int:
         review = r.get("review") or {}
         processed = None if r["status"] == "PENDING" else r["up"]
         duration = "NULL" if r["dur"] is None else r["dur"]
-        ext = "wav" if r["id"] == AUDIO_DEMO_ID else "mp3"
         channel_count = 2 if is_stereo else 1
         channel_files = None
         if is_stereo:
@@ -216,7 +215,7 @@ def generate_sql(api: str, with_audio: bool = False) -> int:
             "transcript, segments_json, channel_count, channel_files_json, dfa_hits_json, hit_count, ai_result_json, "
             "review_result, violation_type, violation_type_label, review_comment, reviewer, review_time, upload_time, "
             "processed_time, error_message) VALUES ("
-            f"{r['id']}, {esc(r['name'])}, {esc('demo-' + str(r['id']) + '.' + ext)}, {r['size']}, 'audio/mpeg', "
+            f"{r['id']}, {esc(r['name'])}, {esc('demo-' + str(r['id']) + '.wav')}, {r['size']}, 'audio/wav', "
             f"{duration}, {esc('en')}, {esc(r['status'])}, {esc(r['text'])}, {esc(segments_json)}, "
             f"{channel_count}, {esc(channel_files)}, {esc(hit_json)}, {len(hits)}, "
             f"{esc(ai_json)}, {esc(review.get('result'))}, {esc(review.get('type'))}, {esc(review.get('label'))}, "
@@ -279,15 +278,20 @@ def attach_demo_audio(container: str, upload_dir: str) -> None:
     - demo-1001.wav.L.wav  ：左声道 坐席（440Hz）
     - demo-1001.wav.R.wav  ：右声道 客户（660Hz）
     左右声道用不同频率，便于验证「分声道试听」
+
+    其余每条演示录音也会生成与其时长一致的静音音轨（demo-<id>.wav），
+    这样列表里的「推进处理 / 重新处理」在演示数据上也能真正跑通（不会报“文件不存在”）。
     """
-    duration = next((r["dur"] for r in build_records(datetime.now()) if r["id"] == AUDIO_DEMO_ID), 60) or 60
-    seconds = int(duration)
-    targets = [
-        (f"demo-{AUDIO_DEMO_ID}.wav", "silent"),
-        (f"demo-{AUDIO_DEMO_ID}.wav.L.wav", 440),
-        (f"demo-{AUDIO_DEMO_ID}.wav.R.wav", 660),
-    ]
-    for name, kind in targets:
+    records = build_records(datetime.now())
+    targets = []
+    for r in records:
+        seconds = max(3, int(r["dur"] or 0))
+        targets.append((f"demo-{r['id']}.wav", "silent", seconds))
+        if r["id"] == AUDIO_DEMO_ID:
+            targets.append((f"demo-{AUDIO_DEMO_ID}.wav.L.wav", 440, seconds))
+            targets.append((f"demo-{AUDIO_DEMO_ID}.wav.R.wav", 660, seconds))
+
+    for name, kind, seconds in targets:
         local = Path(f"/tmp/{name}")
         if kind == "silent":
             generate_silent_wav(local, seconds)
@@ -295,8 +299,7 @@ def attach_demo_audio(container: str, upload_dir: str) -> None:
             generate_tone_wav(local, seconds, kind)
         subprocess.run(["docker", "cp", str(local), f"{container}:{upload_dir}/{name}"],
                        check=True, capture_output=True)
-        print(f"  音轨 {name}（{seconds}s{'，' + str(kind) + 'Hz' if kind != 'silent' else ''}）")
-    print(f"已生成演示音轨 → {container}:{upload_dir}/")
+    print(f"已生成 {len(targets)} 个演示音轨 → {container}:{upload_dir}/（含双声道 440/660Hz 分轨）")
 
 
 def main():
