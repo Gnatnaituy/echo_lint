@@ -36,21 +36,18 @@
             :key="r.id"
             class="queue-item"
             :class="{ on: current?.id === r.id }"
+            :title="queueTooltip(r)"
             @click="select(r)"
           >
             <span class="queue-index num">{{ String(i + 1).padStart(2, '0') }}</span>
             <span class="queue-body">
               <span class="queue-name ellipsis">{{ r.fileName }}</span>
               <span class="queue-meta">
-                <span class="chip warn">{{ r.aiViolationTypeLabel || '未分类' }}</span>
-                <span class="tiny dim num">
-                  {{ r.aiConfidence != null ? Math.round(r.aiConfidence * 100) + '%' : '—' }} ·
-                  {{ formatRelative(r.uploadTime) }}
-                </span>
+                <span class="dot" :style="{ background: 'var(--warn)' }"></span>
+                <span class="queue-type">{{ r.aiViolationTypeLabel || '未分类' }}</span>
+                <span class="queue-time num">{{ formatRelative(r.uploadTime) }}</span>
               </span>
-              <span class="queue-snippet">{{ r.transcriptSnippet || '（无转写内容）' }}</span>
             </span>
-            <el-icon class="queue-arrow" :size="13"><ArrowRight /></el-icon>
           </button>
 
           <div v-if="!filteredQueue.length" class="empty-block">
@@ -445,6 +442,14 @@ const filteredQueue = computed(() => {
 
 const remaining = computed(() => Math.max(0, pendingRows.value.length - 1))
 
+/** 队列行保持两行简洁，摘要与置信度放进原生 tooltip，信息不丢但不占版面 */
+function queueTooltip(r) {
+  const conf = r.aiConfidence != null ? Math.round(r.aiConfidence * 100) + '%' : '—'
+  const lines = [`${r.aiViolationTypeLabel || '未分类'} · 置信度 ${conf}`]
+  if (r.transcriptSnippet) lines.push(r.transcriptSnippet)
+  return lines.join('\n')
+}
+
 const dfaHits = computed(() => parseJson(current.value?.dfaHitsJson, []))
 const aiResult = computed(() => parseJson(current.value?.aiResultJson, null))
 const historyHits = computed(() => parseJson(historyDetail.value?.dfaHitsJson, []))
@@ -671,6 +676,10 @@ watch(
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* 窄屏（含侧边栏浏览器面板）上下堆叠时，队列别把工作区挤出首屏 */
+  .queue {
+    max-height: 38vh;
+  }
 }
 
 /* 队列 */
@@ -698,17 +707,17 @@ watch(
 }
 .queue-item {
   display: flex;
-  gap: 9px;
-  align-items: flex-start;
+  gap: 8px;
+  align-items: center;
   width: 100%;
   text-align: left;
-  padding: 10px 11px;
-  border-radius: var(--r-md);
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
   background: #fff;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .queue-item:hover {
   background: var(--ink-50);
@@ -718,47 +727,47 @@ watch(
   border-color: var(--brand-200);
 }
 .queue-index {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--brand-500);
-  background: #fff;
-  border: 1px solid var(--brand-100);
-  border-radius: 6px;
-  padding: 1px 5px;
   flex: none;
-  margin-top: 1px;
+  width: 18px;
+  font-size: 11px;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+.queue-item.on .queue-index {
+  color: var(--brand-500);
 }
 .queue-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .queue-name {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-700);
+  line-height: 1.45;
 }
 .queue-meta {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
 }
-.queue-snippet {
-  font-size: 11.5px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.55;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.queue-type {
+  color: #b06a06;
+  font-weight: 500;
 }
-.queue-arrow {
+.queue-time {
+  color: var(--el-text-color-placeholder);
+}
+.queue-time::before {
+  content: "·";
+  margin-right: 6px;
   color: var(--ink-300);
-  margin-top: 3px;
 }
-
 /* 工作区主体 */
 .work {
   padding: 16px 18px 20px;
