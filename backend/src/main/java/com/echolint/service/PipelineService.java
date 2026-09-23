@@ -18,10 +18,15 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
  * 稽核流水线编排：转写 -> DFA 初筛 -> AI 语义复筛 -> 归档/待复检
+ *
+ * 注意：本类有 @Async 方法，**不要实现任何接口**，否则 Spring 会用 JDK 动态代理，
+ * 导致其它 Bean 按本具体类型注入失败（启动恢复逻辑见 PipelineRecoveryService）。
  */
 @Slf4j
 @Service
@@ -38,8 +43,27 @@ public class PipelineService {
     private final com.echolint.config.AppProperties appProperties;
     private final ObjectMapper objectMapper;
 
+    /** 正在处理的录音 id（进程内），用于防止重复触发 */
+    private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
+
+    public boolean isInFlight(Long recordingId) {
+        return inFlight.contains(recordingId);
+    }
+
     @Async("pipelineExecutor")
     public void run(Long recordingId) {
+        if (!inFlight.add(recordingId)) {
+            log.warn("录音 {} 正在处理中，忽略重复触发", recordingId);
+            return;
+        }
+        try {
+            process(recordingId);
+        } finally {
+            inFlight.remove(recordingId);
+        }
+    }
+
+    private void process(Long recordingId) {
         Recording recording = recordingRepository.findById(recordingId).orElse(null);
         if (recording == null) {
             log.warn("流水线找不到录音 {}", recordingId);

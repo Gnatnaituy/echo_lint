@@ -102,6 +102,9 @@ public class Recording {
 
     private LocalDateTime processedTime;
 
+    /** 最近一次状态变更时间（用于判断处理是否卡住） */
+    private LocalDateTime statusUpdatedAt;
+
     @Lob
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
@@ -111,5 +114,11 @@ public class Recording {
         if (uploadTime == null) {
             uploadTime = LocalDateTime.now();
         }
+        statusUpdatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        statusUpdatedAt = LocalDateTime.now();
     }
 }

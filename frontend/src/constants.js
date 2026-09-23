@@ -77,3 +77,55 @@ export function formatRelative(ts) {
   if (day < 7) return `${day} 天前`
   return formatTimeShort(ts)
 }
+
+/** 中间态超过该时长仍未变更 → 视为卡住 */
+export const STALE_MS = 2 * 60 * 1000
+
+/** 处理是否疑似卡住（仅对进行中的状态有意义） */
+export function isStale(row, now = Date.now()) {
+  if (!row || !PROCESSING_STATUSES.includes(row.status)) return false
+  const ts = row.statusUpdatedAt || row.uploadTime
+  if (!ts) return false
+  const then = new Date(String(ts).replace(' ', 'T')).getTime()
+  if (Number.isNaN(then)) return false
+  return now - then > STALE_MS
+}
+
+/**
+ * 手动推进/重新处理的按钮信息；返回 null 表示该状态不该出现此按钮。
+ * - PENDING：排队未开始（如上传后服务重启），可立即推进
+ * - 转写中/初筛中/复筛中：仅在疑似卡住时给「重新处理」
+ * - 失败：给「重试」
+ * - 已有结论（自动通过/待复检/确认违规/误判放行）：不给，避免覆盖结论
+ */
+export function reprocessInfo(row, now = Date.now()) {
+  const status = row?.status
+  if (!status) return null
+
+  if (status === 'FAILED') {
+    return {
+      label: '重试',
+      tone: 'warning',
+      confirm: '重新执行转写与稽核流程？（将覆盖失败记录）'
+    }
+  }
+  if (status === 'PENDING') {
+    const stale = isStale(row, now)
+    return {
+      label: stale ? '推进处理' : '立即处理',
+      tone: 'primary',
+      confirm: stale
+        ? '该录音排队超过 2 分钟仍未开始，可能是上传后服务重启导致流水线丢失。立即处理？'
+        : '立即开始处理该录音？（正在排队时重复触发会被后端忽略）'
+    }
+  }
+  if (PROCESSING_STATUSES.includes(status)) {
+    if (!isStale(row, now)) return null
+    return {
+      label: '重新处理',
+      tone: 'warning',
+      confirm: `该录音停留在「${STATUS_META[status]?.label || status}」超过 2 分钟，疑似中断。重新处理？`
+    }
+  }
+  return null
+}

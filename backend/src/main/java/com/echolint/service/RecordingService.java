@@ -151,17 +151,56 @@ public class RecordingService {
     }
 
     /**
-     * 失败重试：重新置为 PENDING 并再次进入流水线
+     * 手动推进/重新处理：清空上一轮处理产物后重新进入流水线。
+     *
+     * 允许的状态：
+     * - PENDING：排队但未开始（例如上传后服务重启，流水线丢失）
+     * - FAILED：上次处理失败
+     * - TRANSCRIBING / DFA_CHECKING / AI_CHECKING：卡住的中间态（服务重启中断）
+     * 不允许：COMPLIANT / NEEDS_REVIEW / VIOLATION_CONFIRMED / FALSE_POSITIVE，
+     * 这些已有结论，重新跑会覆盖结果（待复检请走「人工复检」）。
      */
     public Recording retry(Long id) {
         Recording recording = get(id);
-        if (recording.getStatus() != RecordingStatus.FAILED) {
-            throw new BizException("仅处理失败(FAILED)的录音可以重试");
+        RecordingStatus status = recording.getStatus();
+
+        if (pipelineService.isInFlight(id)) {
+            throw new BizException("该录音正在处理中，请稍候再试");
+        }
+        if (status != RecordingStatus.PENDING
+                && status != RecordingStatus.FAILED
+                && status != RecordingStatus.TRANSCRIBING
+                && status != RecordingStatus.DFA_CHECKING
+                && status != RecordingStatus.AI_CHECKING) {
+            throw new BizException("当前状态（" + status + "）已有稽核结论，不支持重新处理；待复检录音请在「人工复检」中处理");
+        }
+        if (!Files.exists(appProperties.absoluteUploadDir().resolve(recording.getFilePath()))) {
+            throw new BizException("原始录音文件不存在，无法重新处理");
+        }
+
+        // 清理上一轮产物，避免新旧结果混杂
+        if (StringUtils.hasText(recording.getChannelFilesJson())) {
+            try {
+                objectMapper.readTree(recording.getChannelFilesJson())
+                        .forEach(node -> deleteFile(node.asText()));
+            } catch (Exception e) {
+                log.warn("清理分轨文件失败: {}", e.getMessage());
+            }
         }
         recording.setStatus(RecordingStatus.PENDING);
         recording.setErrorMessage(null);
+        recording.setTranscript(null);
+        recording.setSegmentsJson(null);
+        recording.setChannelCount(null);
+        recording.setChannelFilesJson(null);
+        recording.setDfaHitsJson(null);
+        recording.setHitCount(0);
+        recording.setAiResultJson(null);
+        recording.setProcessedTime(null);
         recordingRepository.saveAndFlush(recording);
+
         pipelineService.run(recording.getId());
+        log.info("录音 {} 手动触发重新处理（原状态 {}）", id, status);
         return recording;
     }
 }
