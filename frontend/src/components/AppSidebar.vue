@@ -103,6 +103,17 @@ const badgeCount = computed(() => props.badgeCount)
   width: 68px;
 }
 
+/* 折叠态：图标在胶囊/品牌格里居中（否则 padding 会把图标顶偏） */
+.sidebar.collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
 /* 品牌区 */
 .brand {
   display: flex;
