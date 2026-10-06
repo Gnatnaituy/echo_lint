@@ -336,7 +336,7 @@
     </section>
 
     <!-- 历史详情 -->
-    <el-drawer v-model="historyVisible" size="700px" :with-header="false">
+    <el-drawer v-model="historyVisible" size="700px" :with-header="false" append-to-body>
       <template v-if="historyDetail">
         <div class="work-head">
           <div class="min-w-0">

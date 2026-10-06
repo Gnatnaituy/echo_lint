@@ -176,7 +176,7 @@
     </section>
 
     <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" size="720px" :with-header="false">
+    <el-drawer v-model="detailVisible" size="720px" :with-header="false" append-to-body>
       <div v-loading="detailLoading" class="detail">
         <template v-if="detail">
           <!-- 抽屉头 -->
