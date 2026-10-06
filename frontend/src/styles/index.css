@@ -182,7 +182,10 @@ a {
 .page {
   max-width: 1560px;
   margin: 0 auto;
-  animation: rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* 注意：不要用 fill-mode both/forwards 保留终态——
+     动画结束后残留的恒等 transform 会让 .page 成为 position:fixed 的包含块，
+     页内抽屉/弹窗会被压成「内容高度」（列表条数少时尤其明显）。 */
+  animation: rise 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes rise {
