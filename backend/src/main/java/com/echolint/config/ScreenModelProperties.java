@@ -16,7 +16,7 @@ import java.util.Optional;
  *
  * 复筛与词挖掘都是 OpenAI 兼容的 chat completions 调用，因此「切换供应商」等价于
  * 换 base-url + api-key + model 三件套；语音转写（Whisper）不在其中，仍固定走
- * {@link OpenAiProperties}（DeepSeek 等 chat 供应商不提供转写能力）。
+ * {@link WhisperProperties}（DeepSeek 等 chat 供应商不提供转写能力）。
  *
  * 当前生效的供应商/模型在运行时可切换，并持久化到 app_settings 表，见 ScreenModelService。
  */

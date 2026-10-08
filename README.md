@@ -34,7 +34,7 @@
 | 层 | 技术 |
 |---|---|
 | 后端 | Spring Boot 3.3 / Java 17, Spring Data JPA, WebClient, MySQL 8 |
-| AI | OpenAI（Whisper 转写 + 可选复筛）、DeepSeek（可选复筛 / 词挖掘），统一走 OpenAI 兼容协议 |
+| AI | OpenAI（Whisper 转写 + 可选复筛）、DeepSeek（可选复筛 / 词挖掘），统一走 OpenAI 兼容协议；转写亦可换成本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp)（Metal 加速，录音不出本机） |
 | 前端 | Vue 3 + Vite + Element Plus + vue-router + axios |
 | 部署 | docker-compose（MySQL + 后端 + Nginx 前端） |
 
@@ -57,6 +57,7 @@ echolint/
 ├── frontend/                     # Vue3 前端（工作台/录音管理/人工复检/敏感词库/语料库/系统设置）
 │   └── src/styles/index.css      # 设计令牌 + Element Plus 主题层
 ├── tools/seed_demo_data.py       # 演示数据生成/清理（预览 UI 用）
+├── tools/whisper-server.sh       # 本机 whisper.cpp 转写服务（伪装成 OpenAI 端点）
 ├── docs/screenshots/             # 界面截图
 ├── docker-compose.yml            # 一键部署
 └── .env.example                  # OPENAI_API_KEY 配置样例
@@ -162,6 +163,30 @@ app:
         extra-body: {}           # 可选：透传字段，如 DeepSeek 的 thinking
 ```
 
+### 本地转写（whisper.cpp，可选）
+
+录音涉及客户隐私时，可以把转写从 OpenAI 换到**本机 whisper.cpp**：录音不出本机、无时长费用、无并发限制、也不受 25MB 限制。
+
+```bash
+brew install whisper.cpp ffmpeg
+tools/whisper-server.sh --daemon      # 默认加载 ~/models/whisper/ggml-large-v3-turbo.bin
+```
+
+然后在 `.env` 里加两行并 `docker compose up -d`：
+
+```bash
+WHISPER_BASE_URL=http://host.docker.internal:9900
+WHISPER_API_KEY=local      # whisper.cpp 本身不校验密钥，但后端要求非空
+```
+
+**实测**（M1 Pro / 16 核 GPU / `large-v3-turbo` / Metal）：**约 12x 实时** —— 79 秒录音转写 6 秒；本项目双声道会调用两次，10 分钟双轨通话约需 1.5 分钟。
+
+> **零代码改动是怎么做到的**：whisper.cpp 的 server 只暴露 `/inference`（1.9.5 实测无 `/v1/audio/transcriptions`），脚本用 `--inference-path /v1/audio/transcriptions` 把它**改名**成 OpenAI 的路径。响应结构本来就和 OpenAI 对齐：`segments[].{start,end,text}` 同名同单位（秒），顶层也有 `language` / `duration` / `text`，因此 `TranscriptionService` 一行都不用改。
+>
+> 端口只绑 `127.0.0.1`；Docker Desktop 的 `host.docker.internal` 可以直达宿主回环，无需暴露到局域网。
+
+> ⚠️ **转写配置用独立的 `whisper.*` 前缀，不是复用 `openai.*`**。因为 docker-compose 会注入空的 `OPENAI_API_KEY=""`，而环境变量按宽松绑定等价于 `openai.api-key`、**优先级高于 `application.yml`**，会把配置里解析好的值整个盖掉（这个问题在开发时真实踩到过）。
+
 ### 逐句转写的数据来源与降级策略
 
 | 场景 | 表现 |
@@ -235,9 +260,11 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `OPENAI_API_KEY` | (空) | OpenAI 密钥，缺失时转写/复筛会置录音为 FAILED |
+| `OPENAI_API_KEY` | (空) | OpenAI 密钥；转写与复筛的兜底密钥 |
+| `WHISPER_BASE_URL` | `https://api.openai.com` | **转写**端点，可指向本机 whisper.cpp（`http://host.docker.internal:9900`） |
+| `WHISPER_API_KEY` | (空) | **转写**密钥，覆盖 `OPENAI_API_KEY`；自建服务填任意非空值 |
 | `OPENAI_BASE_URL` | `https://api.openai.com` | 可指向代理/网关 |
-| `OPENAI_WHISPER_MODEL` | `whisper-1` | 转写模型 |
+| `OPENAI_WHISPER_MODEL` | `whisper-1` | 转写模型（自建 whisper.cpp 会忽略该值，但仍需带上） |
 | `OPENAI_SCREEN_MODEL` | `gpt-4o-mini` | OpenAI 作为复筛模型时的默认模型 |
 | `DEEPSEEK_API_KEY` | (空) | DeepSeek 密钥，用于复筛 / 词挖掘（切换前必须配置） |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 端点（可指向代理） |
@@ -283,7 +310,12 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 - 词条保存时自动**规范化**：小写、去空格/标点（`Kill You` → `killyou`），匹配时原文中的空格/标点不影响命中（`f u c k`、`f.u.c.k` 均可命中 `fuck`）。
 - 匹配为**子串语义**（`unfuckingbelievable` 会命中 `fuck`），且不做字母替换（`f**k` 不命中由复筛兜底），误报由 AI 复筛兜底——这是两段式设计的初衷。
 - **AI 挖掘的新词默认停用**，需在敏感词库页人工审核后启用（列表按 `来源=AI 挖掘` 过滤）。
-- 预置词典面向通用客服质检场景（辱骂/歧视/威胁/骚扰/色情/诈骗/隐私），可增删改。
+- 预置词典**中英双语**（185 词，中文 93 条），覆盖辱骂/歧视/威胁/骚扰/色情/诈骗/隐私，可增删改。
+  选词原则是「只可能出现在违规语境」，刻意不收「垃圾」「转账」「死」这类高频中性词，避免误报淹没复检队列。
+- ⚠️ **同音变体必须收录**。实测 Whisper 会把「傻逼」转写成「**少逼**」（shǎ bī ↔ shǎo bī）；
+  而流水线是 **DFA 命中才进 AI 复筛**，所以 DFA 漏检 = 该录音直接判 `COMPLIANT`、AI 永远看不到，
+  是**静默假阴性**。词典里因此显式收录了 `少逼/傻比/傻壁/杀比/草你妈` 等 ASR 误写变体。
+  维护词典时请按「ASR 可能怎么听错」补词，而不只是按「人会怎么写」。
 
 ## 运维与开发注意
 
@@ -301,6 +333,7 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 ## 注意事项
 
 - Whisper 单文件上限 **25MB**（OpenAI 限制），上传接口同样限制；更长的录音请先切分或压缩。
+  **改用本机 whisper.cpp 后该限制即失效**（`app.max-size-bytes` 可调大，whisper.cpp 无此限制）。
 - 语义复筛调用失败时（模型缺密钥 / 网络异常 / 额度不足），DFA 命中的录音会**降级转入人工复检**
   （`aiResultJson` 中 `degraded=true` 并带错误说明），不会漏审；恢复模型可用后重跑即可得到 AI 结论。
 - 语料库初始含 5 条合成样例，随人工复检的积累会逐渐替换为真实标注数据。

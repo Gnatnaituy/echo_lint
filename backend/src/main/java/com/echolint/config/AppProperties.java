@@ -13,7 +13,7 @@ import java.util.List;
 public class AppProperties {
 
     private String uploadDir = "data/uploads";
-    private long maxSizeBytes = 25 * 1024 * 1024;
+    private long maxSizeBytes = 200 * 1024 * 1024;
     private List<String> allowedExtensions = List.of("mp3", "wav", "m4a", "mp4", "webm", "ogg", "flac", "aac");
     private int pipelinePoolSize = 2;
     private Stereo stereo = new Stereo();

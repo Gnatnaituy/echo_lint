@@ -21,8 +21,8 @@ spring:
       encoding: UTF-8
   servlet:
     multipart:
-      max-file-size: 30MB
-      max-request-size: 32MB
+      max-file-size: 210MB
+      max-request-size: 220MB
 
 management:
   endpoints:
@@ -32,8 +32,9 @@ management:
 
 app:
   upload-dir: ${APP_UPLOAD_DIR:data/uploads}
-  # OpenAI whisper-1 单文件上限 25MB
-  max-size-bytes: 26214400
+  # 上传大小上限。放宽到 200MB 以配合本地 whisper.cpp（无 25MB 限制）；
+  # 若转写仍指向 OpenAI 官方 API，单文件仍受其 25MB 限制（启动日志会提示）。
+  max-size-bytes: ${APP_MAX_SIZE_BYTES:209715200}
   allowed-extensions: mp3,wav,m4a,mp4,webm,ogg,flac,aac,amr,caf,opus,mov
   pipeline-pool-size: 2
   # 双声道（双轨）录音：ffmpeg 分离左右声道后分别转写，按时间对齐成对话
@@ -80,9 +81,16 @@ app:
         # 透传字段：如需开思考模式可加 thinking: {type: enabled}
         extra-body: {}
 
-# Whisper 语音转写专用（DeepSeek 等 chat 供应商不提供转写，故不参与模型切换）
-openai:
-  api-key: ${OPENAI_API_KEY:}
-  base-url: ${OPENAI_BASE_URL:https://api.openai.com}
-  whisper-model: ${OPENAI_WHISPER_MODEL:whisper-1}
-  request-timeout-seconds: 300
+# 语音转写（ASR）。默认走 OpenAI Whisper；可用 WHISPER_* 指向自建服务，
+# 例如本机 whisper.cpp（见 tools/whisper-server.sh）：录音不出本机、无时长费用、无并发限制。
+#
+# 注意：前缀刻意用 whisper 而不是复用 openai —— docker-compose 会注入空的
+# OPENAI_API_KEY=""，而环境变量按宽松绑定等价于 openai.api-key 且优先级高于本文件，
+# 会把这里解析好的值整个盖掉。独立前缀与环境变量 WHISPER_* 一一对应，不受影响。
+whisper:
+  # 系统设置页切换的复筛模型与此无关，两者互不影响
+  base-url: ${WHISPER_BASE_URL:${OPENAI_BASE_URL:https://api.openai.com}}
+  api-key: ${WHISPER_API_KEY:${OPENAI_API_KEY:}}
+  model: ${OPENAI_WHISPER_MODEL:whisper-1}
+  # 本地 whisper.cpp 处理长音频较慢，超时给宽一些
+  request-timeout-seconds: 600

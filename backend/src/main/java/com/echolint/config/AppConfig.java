@@ -28,16 +28,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AppConfig {
 
-    private final OpenAiProperties openAiProperties;
+    private final WhisperProperties whisperProperties;
 
     @Bean
-    public WebClient openAiWebClient() {
+    public WebClient whisperWebClient() {
         HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(openAiProperties.getRequestTimeoutSeconds()));
+                .responseTimeout(Duration.ofSeconds(whisperProperties.getRequestTimeoutSeconds()));
         return WebClient.builder()
-                .baseUrl(openAiProperties.getBaseUrl())
+                .baseUrl(whisperProperties.getBaseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + openAiProperties.getApiKey())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + whisperProperties.getApiKey())
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
@@ -55,11 +55,23 @@ public class AppConfig {
     }
 
     @Bean
-    public ApplicationRunner startupAdvice(ScreenModelService screenModelService) {
+    public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties) {
         return args -> {
-            if (!openAiProperties.apiKeyConfigured()) {
-                log.warn("未配置 OPENAI_API_KEY —— Whisper 转写将不可用（上传会置为 FAILED）。" +
-                        "请通过环境变量 OPENAI_API_KEY 提供，或创建 .env 文件后执行 docker compose up。");
+            if (whisperProperties.apiKeyConfigured()) {
+                log.info("语音转写：{}（模型 {}，上传上限 {}MB）",
+                        whisperProperties.getBaseUrl(), whisperProperties.getModel(),
+                        appProperties.getMaxSizeBytes() / 1024 / 1024);
+                // 官方 API 单文件上限 25MB，上传上限放宽后大文件会在远端才失败，提前提醒
+                if (whisperProperties.getBaseUrl().contains("api.openai.com")
+                        && appProperties.getMaxSizeBytes() > 26214400L) {
+                    log.warn("上传上限已放宽到 {}MB，但转写走的是 OpenAI 官方 API（单文件上限 25MB）。" +
+                            "超过 25MB 的录音会在调用远端时失败；如需处理长录音，请把 WHISPER_BASE_URL " +
+                            "指向自建服务（如本机 whisper.cpp，见 tools/whisper-server.sh）。",
+                            appProperties.getMaxSizeBytes() / 1024 / 1024);
+                }
+            } else {
+                log.warn("未配置转写服务密钥 —— 录音上传后将置为 FAILED。" +
+                        "请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）或 OPENAI_API_KEY。");
             }
             try {
                 var active = screenModelService.active();

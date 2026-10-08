@@ -2,7 +2,7 @@ package com.echolint.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.echolint.config.OpenAiProperties;
+import com.echolint.config.WhisperProperties;
 import com.echolint.domain.TranscriptSegment;
 import com.echolint.exception.BizException;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +30,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TranscriptionService {
 
-    private final OpenAiProperties props;
-    private final WebClient openAiWebClient;
+    private final WhisperProperties props;
+    private final WebClient whisperWebClient;
     private final ObjectMapper objectMapper;
 
     /**
@@ -46,12 +46,12 @@ public class TranscriptionService {
         checkApiKey();
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
         parts.add("file", new FileSystemResource(audioFile.toFile()));
-        parts.add("model", props.getWhisperModel());
+        parts.add("model", props.getModel());
         parts.add("response_format", "verbose_json");
 
         JsonNode resp;
         try {
-            resp = openAiWebClient.post()
+            resp = whisperWebClient.post()
                     .uri(props.getAudioPath())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(BodyInserters.fromMultipartData(parts))
@@ -99,7 +99,8 @@ public class TranscriptionService {
 
     private void checkApiKey() {
         if (!props.apiKeyConfigured()) {
-            throw new BizException("未配置 OPENAI_API_KEY，请设置环境变量后重启服务");
+            throw new BizException("未配置转写服务密钥：请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）"
+                    + "或 OPENAI_API_KEY，然后重启服务");
         }
     }
 
