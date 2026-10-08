@@ -2,7 +2,7 @@ package com.echolint.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.echolint.config.OpenAiProperties;
+import com.echolint.config.ScreenModelProperties;
 import com.echolint.dfa.DfaHit;
 import com.echolint.domain.CorpusLabel;
 import com.echolint.domain.ViolationType;
@@ -14,17 +14,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Collectors;
 
 /**
- * AI 语义复筛（GPT-4o mini）：在 DFA 命中的基础上，结合 few-shot 语料判断是否构成真实违规
+ * AI 语义复筛：在 DFA 命中的基础上，结合 few-shot 语料判断是否构成真实违规。
+ *
+ * 具体用哪个模型由 {@link ScreenModelService} 在运行时决定（OpenAI / DeepSeek / 自建网关均可），
+ * 本类只负责组装提示词与解析结论。
  */
 @Slf4j
 @Service
@@ -50,7 +51,7 @@ public class SemanticScreeningService {
             - 轻微情绪词但未针对任何人（如 "damn, this is frustrating"）；
             - 正常业务术语与词典词巧合重合。
 
-            只输出一个 JSON 对象，不要输出任何其他内容，格式：
+            只输出一个 json 对象，不要输出任何其他内容，格式：
             {"violation": true或false, "violation_type": "INSULT"或"DISCRIMINATION"或"THREAT"或"HARASSMENT"或"SEXUAL"或"FRAUD"或"PRIVACY"或"OTHER"或"NONE", "reason": "简短英文理由", "confidence": 0.0到1.0的小数, "target_sentence": "违规原句，无违规则为空字符串"}
 
             补充说明：
@@ -59,8 +60,8 @@ public class SemanticScreeningService {
             - target_sentence 必须是纯文本原句，不要包含 【说话人】 前缀。
             """;
 
-    private final OpenAiProperties props;
-    private final WebClient openAiWebClient;
+    private final ScreenModelProperties screenModelProperties;
+    private final ScreenModelService screenModelService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -68,45 +69,53 @@ public class SemanticScreeningService {
      * @param segmentsJson 转写分段 JSON（双声道时带 speaker/channel，用于给模型补充说话人信息）
      */
     public AiScreenResult screen(String transcript, String segmentsJson, List<DfaHit> hits, List<CorpusExample> examples) {
-        if (!props.apiKeyConfigured()) {
-            throw new BizException("未配置 OPENAI_API_KEY，无法进行语义复筛");
-        }
+        ScreenModelService.ActiveModel model = screenModelService.requireActive();
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", props.getScreenModel());
-        body.put("temperature", props.getScreenTemperature());
-        body.put("response_format", Map.of("type", "json_object"));
+        if (model.extraBody() != null) {
+            body.putAll(model.extraBody());
+        }
+        body.put("model", model.model());
+        body.put("temperature", screenModelProperties.getTemperature());
+        if (model.jsonMode()) {
+            body.put("response_format", Map.of("type", "json_object"));
+        }
+        if (model.maxTokens() != null && model.maxTokens() > 0) {
+            body.put("max_tokens", model.maxTokens());
+        }
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", buildUserPrompt(transcript, segmentsJson, hits, examples))));
 
         JsonNode resp;
         try {
-            resp = openAiWebClient.post()
-                    .uri(props.getChatPath())
+            resp = model.client().post()
+                    .uri(model.chatPath())
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, clientResponse ->
                             clientResponse.bodyToMono(String.class).map(errBody ->
-                                    new BizException("语义复筛调用失败 (HTTP " + clientResponse.statusCode().value() + "): "
-                                            + extractErrorMessage(errBody), HttpStatus.INTERNAL_SERVER_ERROR)))
+                                    new BizException("语义复筛调用失败 [" + model.display() + "] (HTTP "
+                                            + clientResponse.statusCode().value() + "): "
+                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody),
+                                            HttpStatus.INTERNAL_SERVER_ERROR)))
                     .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(props.getRequestTimeoutSeconds()));
+                    .block(Duration.ofSeconds(model.timeoutSeconds()));
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {
-            throw new BizException("语义复筛调用异常: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new BizException("语义复筛调用异常 [" + model.display() + "]: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         if (resp == null) {
-            throw new BizException("语义复筛超时或返回为空", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new BizException("语义复筛超时或返回为空 [" + model.display() + "]", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        String content = resp.path("choices").path(0).path("message").path("content").asText("");
-        return parseResult(content);
+        return parseResult(ScreenModelService.contentOf(resp), model);
     }
 
-    private AiScreenResult parseResult(String content) {
+    private AiScreenResult parseResult(String content, ScreenModelService.ActiveModel model) {
         try {
             JsonNode node = objectMapper.readTree(content);
             boolean violation = node.path("violation").asBoolean(false);
@@ -114,11 +123,12 @@ public class SemanticScreeningService {
             String reason = node.path("reason").asText("");
             double confidence = node.path("confidence").asDouble(0);
             String target = node.path("target_sentence").asText("");
-            return new AiScreenResult(violation, type, type.getLabel(), reason, confidence, target);
+            return new AiScreenResult(violation, type, type.getLabel(), reason, confidence, target,
+                    model.providerId(), model.providerLabel(), model.model());
         } catch (Exception e) {
-            log.warn("AI 复筛返回无法解析: {}", content);
-            throw new BizException("AI 复筛返回格式异常，无法解析: " + (content != null && content.length() > 200 ? content.substring(0, 200) : content),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            log.warn("[{}] AI 复筛返回无法解析: {}", model.display(), content);
+            throw new BizException("AI 复筛返回格式异常，无法解析 [" + model.display() + "]: "
+                    + ScreenModelService.truncate(content, 200), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -141,8 +151,8 @@ public class SemanticScreeningService {
             }
         }
         String auditText = annotateBySpeaker(transcript, segmentsJson);
-        sb.append("\n待审核转写文本：\n\"\"\"\n").append(truncate(auditText, 12000)).append("\n\"\"\"\n");
-        sb.append("\n请根据 system 的判定标准输出 JSON 对象。");
+        sb.append("\n待审核转写文本：\n\"\"\"\n").append(ScreenModelService.truncate(auditText, 12000)).append("\n\"\"\"\n");
+        sb.append("\n请根据 system 的判定标准输出 json 对象。");
         return sb.toString();
     }
 
@@ -178,25 +188,5 @@ public class SemanticScreeningService {
         } catch (Exception e) {
             return plain;
         }
-    }
-
-    private String extractErrorMessage(String errorBody) {
-        try {
-            JsonNode node = objectMapper.readTree(errorBody);
-            String msg = node.path("error").path("message").asText("");
-            if (!msg.isBlank()) {
-                return msg;
-            }
-        } catch (Exception ignored) {
-            // fall through
-        }
-        return errorBody != null && errorBody.length() > 300 ? errorBody.substring(0, 300) : String.valueOf(errorBody);
-    }
-
-    static String truncate(String s, int max) {
-        if (s == null) {
-            return "";
-        }
-        return s.length() <= max ? s : s.substring(0, max);
     }
 }

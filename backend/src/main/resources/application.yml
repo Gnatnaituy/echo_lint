@@ -42,12 +42,47 @@ app:
     left-speaker: ${APP_STEREO_LEFT_SPEAKER:坐席}
     right-speaker: ${APP_STEREO_RIGHT_SPEAKER:客户}
     split-timeout-seconds: 300
+  # AI 语义复筛 + 敏感词挖掘所用的模型供应商（OpenAI 兼容 chat completions）。
+  # 运行时可切换：当前选择存在 app_settings 表，界面入口为「系统设置」页，无需重启。
+  screen-models:
+    # 仅当 app_settings 尚无记录时生效（即首次启动的默认值）
+    default-provider: ${APP_SCREEN_PROVIDER:openai}
+    temperature: 0.1
+    few-shot-count: 5
+    request-timeout-seconds: 300
+    providers:
+      - id: openai
+        label: OpenAI
+        base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+        api-key: ${OPENAI_API_KEY:}
+        api-key-env: OPENAI_API_KEY
+        chat-path: /v1/chat/completions
+        default-model: ${OPENAI_SCREEN_MODEL:gpt-4o-mini}
+        models:
+          - gpt-4o-mini
+          - gpt-4o
+          - gpt-4.1-mini
+        json-mode: true
+      - id: deepseek
+        label: DeepSeek
+        base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        api-key: ${DEEPSEEK_API_KEY:}
+        api-key-env: DEEPSEEK_API_KEY
+        # DeepSeek 的 OpenAI 兼容端点为 /chat/completions（无 /v1 前缀）
+        chat-path: /chat/completions
+        default-model: ${DEEPSEEK_SCREEN_MODEL:deepseek-flash}
+        models:
+          - deepseek-flash
+          - deepseek-v4-pro
+        json-mode: true
+        # JSON 模式下官方建议显式限制输出长度，避免 JSON 被中途截断
+        max-tokens: 2048
+        # 透传字段：如需开思考模式可加 thinking: {type: enabled}
+        extra-body: {}
 
+# Whisper 语音转写专用（DeepSeek 等 chat 供应商不提供转写，故不参与模型切换）
 openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com}
   whisper-model: ${OPENAI_WHISPER_MODEL:whisper-1}
-  screen-model: ${OPENAI_SCREEN_MODEL:gpt-4o-mini}
-  screen-temperature: 0.1
-  few-shot-count: 5
   request-timeout-seconds: 300

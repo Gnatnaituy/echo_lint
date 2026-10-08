@@ -9,7 +9,7 @@
 ```
 ┌────────┐   ┌───────────────────┐   ┌──────────────┐   ┌───────────────────┐   ┌──────────────┐
 │ 手动上传 │ → │ ① Whisper 英转文   │ → │ ② DFA 初筛    │ → │ ③ AI 语义复筛      │ → │ ④ 人工复检     │
-│ (≤25MB) │   │   (whisper-1)     │   │  敏感词词典    │   │   (gpt-4o-mini)   │   │  confirm/reject│
+│ (≤25MB) │   │   (whisper-1)     │   │  敏感词词典    │   │   (模型可切换)    │   │  confirm/reject│
 └────────┘   └───────────────────┘   └──────┬───────┘   └─────────┬─────────┘   └──────┬───────┘
                                             │ 未命中               │ 不构成违规          │
                                             ▼                     ▼                    │
@@ -24,8 +24,9 @@
 - **DFA 初筛**：Aho-Corasick 自动机 + 字符跳变（`f u c k`、`f.u.c.k` 也能命中 `fuck`），大小写不敏感。
   > 跳变只允许字母之间插入分隔符；字母缺失的写法（如 `f**k` 少了 `u`/`c`）不命中，这类漏网由 AI 语义复筛与人工复检兜底。
 - **双声道（双轨）录音**：自动探测声道数，立体声时分离左右声道并**分别转写**，按时间对齐成对话（详见下文）。
-- **AI 复筛**：GPT-4o mini 结合上下文判断命中词是否构成真实违规，`few-shot` 自动注入人工复核语料；双轨录音会带上**说话人标注**（坐席违规与客户辱骂性质不同）。
-- **人工复检**：初筛 + 复筛均判违规 → 进入复检队列；确认违规 / 判定误报。
+- **AI 复筛**：结合上下文判断命中词是否构成真实违规，`few-shot` 自动注入人工复核语料；双轨录音会带上**说话人标注**（坐席违规与客户辱骂性质不同）。
+  **模型可在「系统设置」页运行时切换**（OpenAI / DeepSeek / 任意 OpenAI 兼容网关），切换立即生效、重启后保持（详见下文）。
+- **人工复检**：初筛 + 复筛均判违规 → 进入复检队列；确认违规 / 判定误报。复筛不可用时**降级转人工**，不漏审。
 - **语料回馈**：复检结论写入语料库（复筛时作为参考案例）；确认违规的录音由 AI 挖掘新敏感词入库（默认停用，人工审核后启用）。
 
 ## 技术栈
@@ -33,6 +34,7 @@
 | 层 | 技术 |
 |---|---|
 | 后端 | Spring Boot 3.3 / Java 17, Spring Data JPA, WebClient, MySQL 8 |
+| AI | OpenAI（Whisper 转写 + 可选复筛）、DeepSeek（可选复筛 / 词挖掘），统一走 OpenAI 兼容协议 |
 | 前端 | Vue 3 + Vite + Element Plus + vue-router + axios |
 | 部署 | docker-compose（MySQL + 后端 + Nginx 前端） |
 
@@ -49,10 +51,10 @@ echolint/
 │   │   ├── entity/               # JPA 实体
 │   │   ├── exception/            # 业务异常与全局异常处理
 │   │   ├── repository/
-│   │   └── service/              # 流水线/转写/复筛/复检/挖掘/语料/统计
+│   │   └── service/              # 流水线/转写/复筛/复检/挖掘/语料/统计/模型切换
 │   ├── src/main/resources/       # application.yml + 预置词库 data.sql
 │   └── src/test/                 # DFA 单元测试
-├── frontend/                     # Vue3 前端（工作台/录音管理/人工复检/敏感词库/语料库）
+├── frontend/                     # Vue3 前端（工作台/录音管理/人工复检/敏感词库/语料库/系统设置）
 │   └── src/styles/index.css      # 设计令牌 + Element Plus 主题层
 ├── tools/seed_demo_data.py       # 演示数据生成/清理（预览 UI 用）
 ├── docs/screenshots/             # 界面截图
@@ -84,6 +86,7 @@ echolint/
 - **双栏对话 + 分声道试听**：双轨录音默认以左右双栏对话展示（左=坐席、右=客户），播放器可切「混合 / 坐席 / 客户」单独试听某一路。
 - **敏感词库**：KPI 概览、DFA 检测工具（命中实时高亮预览）、词条表含命中次数条形图，AI 挖掘词带「待审核」标记。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
+- **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
 ### 双声道（双轨）录音
 
@@ -107,6 +110,57 @@ echolint/
 | 降级 | 未安装 ffmpeg、探测失败或分离失败 → 自动退回单路转写，不影响主流程 |
 
 > Docker 镜像已内置 ffmpeg/ffprobe；**本地开发需自行安装**（macOS: `brew install ffmpeg`），否则双声道能力降级为单路。
+
+### AI 复筛模型切换（OpenAI / DeepSeek）
+
+语义复筛与敏感词挖掘都是 **OpenAI 兼容的 chat completions** 调用，所以「换模型」= 换 `base-url + api-key + model` 三件套。
+系统把这套组合做成**供应商清单**，并在「系统设置」页支持**运行时切换**：立即生效、无需重启、重启后保持。
+
+| 能力 | 说明 |
+|---|---|
+| 切换入口 | 「系统设置」页 → 选供应商 → 选/填模型 → 保存并生效（影响之后的所有复筛与挖掘，已出结论的历史录音不重判） |
+| 持久化 | 写入 `app_settings` 表（`screen.provider` / `screen.model`）；表为空时回退到配置项 `APP_SCREEN_PROVIDER` |
+| 连通性测试 | 可测「当前生效」或「待保存」的选择（先验证再切换），返回真实耗时与供应商报错原文 |
+| 候选模型 | 下拉候选来自配置，同时支持**直接输入**列表外的新模型名 —— 供应商上新模型无需改配置重启 |
+| 判定留痕 | AI 结论里记录 `screenProvider / screenModel`，录音详情与复检工作区显示「判定模型」，便于回溯与横向对比 |
+| 不参与切换 | **Whisper 转写固定走 OpenAI**（chat 类供应商不提供转写能力）；DFA 初筛是本地算法，不调用外部模型 |
+| 降级保护 | 当前模型缺密钥 / 网络失败 / 额度不足时，DFA 命中的录音**降级转人工复检**（`aiResultJson.degraded=true`），既不自动放行也不卡死 |
+
+内置供应商（`application.yml` → `app.screen-models.providers`）：
+
+| 供应商 | 默认模型 | 端点 | 候选模型 |
+|---|---|---|---|
+| OpenAI | `gpt-4o-mini` | `/v1/chat/completions` | `gpt-4o-mini` / `gpt-4o` / `gpt-4.1-mini` |
+| DeepSeek | `deepseek-flash` | `/chat/completions` | `deepseek-flash` / `deepseek-v4-pro` |
+
+启用 DeepSeek：
+
+```bash
+# 1. 在 .env 里补密钥（docker compose 自动读取）
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# 2. 重启后到「系统设置」页切到 DeepSeek；或直接指定首次启动的默认供应商
+# APP_SCREEN_PROVIDER=deepseek
+```
+
+接入第三方供应商（自建网关、其它厂商）只需在 `application.yml` 追加一段：
+
+```yaml
+app:
+  screen-models:
+    providers:
+      - id: my-gateway
+        label: 自建网关
+        base-url: https://llm.internal
+        api-key: ${MY_GATEWAY_KEY:}
+        api-key-env: MY_GATEWAY_KEY
+        chat-path: /v1/chat/completions
+        default-model: qwen-max
+        models: [qwen-max, qwen-plus]
+        json-mode: true          # 端点不支持 response_format 时设为 false
+        max-tokens: 2048         # 可选：防止 JSON 输出被中途截断
+        extra-body: {}           # 可选：透传字段，如 DeepSeek 的 thinking
+```
 
 ### 逐句转写的数据来源与降级策略
 
@@ -184,7 +238,11 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `OPENAI_API_KEY` | (空) | OpenAI 密钥，缺失时转写/复筛会置录音为 FAILED |
 | `OPENAI_BASE_URL` | `https://api.openai.com` | 可指向代理/网关 |
 | `OPENAI_WHISPER_MODEL` | `whisper-1` | 转写模型 |
-| `OPENAI_SCREEN_MODEL` | `gpt-4o-mini` | 语义复筛 + 词挖掘模型 |
+| `OPENAI_SCREEN_MODEL` | `gpt-4o-mini` | OpenAI 作为复筛模型时的默认模型 |
+| `DEEPSEEK_API_KEY` | (空) | DeepSeek 密钥，用于复筛 / 词挖掘（切换前必须配置） |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 端点（可指向代理） |
+| `DEEPSEEK_SCREEN_MODEL` | `deepseek-flash` | DeepSeek 默认模型 |
+| `APP_SCREEN_PROVIDER` | `openai` | 首次启动（`app_settings` 表为空）时的复筛供应商 |
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
@@ -207,6 +265,9 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET/POST/DELETE | `/api/corpus...` | 语料库查询/录入/删除 |
 | GET | `/api/corpus/export` | 语料导出 JSON |
 | GET | `/api/stats/overview` | 工作台统计 |
+| GET | `/api/settings/screen-model` | 当前复筛模型 + 全部候选供应商 |
+| PUT | `/api/settings/screen-model` | 切换复筛模型 `{providerId, model?}`（落库持久化） |
+| POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
 
 ## 录音状态机
 
@@ -230,6 +291,7 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 - **服务重启自动恢复**：启动时会把上次中断在中间态的录音置为 `FAILED`（附原因「服务重启导致处理中断」），
   使其可被「重新处理」，不会永久卡死（见 `PipelineRecoveryService`）。
 - **在途保护**：流水线运行期间重复点击「重新处理」会被后端忽略（进程内 in-flight 标记），不会重复调用 Whisper。
+- **切换复筛模型**：选择存在 `app_settings` 表，进程内不缓存，改完立即对新录音生效；配置里删掉某个供应商时，表里的旧选择会自动回退到 `APP_SCREEN_PROVIDER`（旧的模型名一并作废，避免拿旧模型名打新供应商）。密钥只从环境变量/配置读取，**不会**通过接口下发或写库。
 - **Spring 代理坑**：`PipelineService` 有 `@Async` 方法，**不要让它实现接口**，否则 Spring 使用 JDK 动态代理，
   其它 Bean 按具体类型注入会启动失败（`was actually of type 'jdk.proxy2.$Proxy'`）。
   项目已在 `@EnableAsync(proxyTargetClass = true)` 上做了兜底。
@@ -239,5 +301,6 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 ## 注意事项
 
 - Whisper 单文件上限 **25MB**（OpenAI 限制），上传接口同样限制；更长的录音请先切分或压缩。
-- 语义复筛调用失败时，DFA 命中的录音会**降级转入人工复检**（aiResultJson 中带错误说明），不会漏审。
+- 语义复筛调用失败时（模型缺密钥 / 网络异常 / 额度不足），DFA 命中的录音会**降级转入人工复检**
+  （`aiResultJson` 中 `degraded=true` 并带错误说明），不会漏审；恢复模型可用后重跑即可得到 AI 结论。
 - 语料库初始含 5 条合成样例，随人工复检的积累会逐渐替换为真实标注数据。

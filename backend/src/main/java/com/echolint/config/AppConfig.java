@@ -5,6 +5,7 @@ import com.echolint.domain.WordSeverity;
 import com.echolint.domain.ViolationType;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.repository.DictionaryWordRepository;
+import com.echolint.service.ScreenModelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
@@ -54,11 +55,22 @@ public class AppConfig {
     }
 
     @Bean
-    public ApplicationRunner openAiKeyWarning() {
+    public ApplicationRunner startupAdvice(ScreenModelService screenModelService) {
         return args -> {
             if (!openAiProperties.apiKeyConfigured()) {
-                log.warn("未配置 OPENAI_API_KEY —— Whisper 转写与 AI 语义复筛将不可用（上传会置为 FAILED）。" +
+                log.warn("未配置 OPENAI_API_KEY —— Whisper 转写将不可用（上传会置为 FAILED）。" +
                         "请通过环境变量 OPENAI_API_KEY 提供，或创建 .env 文件后执行 docker compose up。");
+            }
+            try {
+                var active = screenModelService.active();
+                if (active.apiKeyConfigured()) {
+                    log.info("AI 语义复筛模型：{} · {}（可在系统设置页运行时切换）", active.providerLabel(), active.model());
+                } else {
+                    log.warn("AI 语义复筛模型 {} · {} 未配置 API Key —— DFA 命中的录音将降级转人工复检，" +
+                            "请在「系统设置」中切换模型或补全密钥。", active.providerLabel(), active.model());
+                }
+            } catch (Exception e) {
+                log.warn("AI 语义复筛模型解析失败：{}", e.getMessage());
             }
         };
     }

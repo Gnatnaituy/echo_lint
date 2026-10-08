@@ -27,6 +27,11 @@ const routes = [
     meta: { title: '语料库' }
   },
   {
+    path: '/settings',
+    component: () => import('../views/Settings.vue'),
+    meta: { title: '系统设置' }
+  },
+  {
     // 兜底：未知路径（例如被外部容器/地址栏拼坏的 /blank）一律回到工作台，
     // 避免出现「只剩侧栏与顶栏、正文空白」的状态，同时把 URL 自愈为 /
     path: '/:pathMatch(.*)*',

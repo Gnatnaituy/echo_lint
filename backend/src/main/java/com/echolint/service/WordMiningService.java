@@ -2,7 +2,6 @@ package com.echolint.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.echolint.config.OpenAiProperties;
 import com.echolint.dfa.WordNormalizer;
 import com.echolint.domain.ViolationType;
 import com.echolint.domain.WordSeverity;
@@ -17,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,6 +27,8 @@ import java.util.Optional;
 /**
  * 词典挖掘：人工确认违规的录音，由 AI 提炼违规关键词/短语，加入词典（默认停用，待管理员启用）。
  * 形成"人工复检 -> 语料库 -> 词典自增长"的闭环。
+ *
+ * 与语义复筛共用同一份模型选择（见 {@link ScreenModelService}），换模型后挖掘行为同步变化。
  */
 @Slf4j
 @Service
@@ -39,11 +39,10 @@ public class WordMiningService {
             你是合规词典维护助手。系统判定一段客服录音转写文本为真实违规，类型已给出。
             请从中提炼适合关键词初筛的违规用词或短语：要求简短（1~5 个词）、小写、
             删除标点，能被关键词过滤器直接命中；不要提取过于常见的中性词。
-            只输出一个 JSON 对象：{"keywords": ["word1", "phrase two", ...]}，最多 10 个。
+            只输出一个 json 对象：{"keywords": ["word1", "phrase two", ...]}，最多 10 个。
             """;
 
-    private final OpenAiProperties props;
-    private final WebClient openAiWebClient;
+    private final ScreenModelService screenModelService;
     private final ObjectMapper objectMapper;
     private final DictionaryWordRepository dictionaryWordRepository;
     private final PipelineLogRepository pipelineLogRepository;
@@ -91,33 +90,46 @@ public class WordMiningService {
     }
 
     private List<String> extractKeywords(String transcript, ViolationType type) throws Exception {
-        if (!props.apiKeyConfigured()) {
+        // 未配置密钥时静默跳过（词挖掘是闭环的锦上添花，不应阻塞复检）
+        ScreenModelService.ActiveModel model = screenModelService.active();
+        if (!model.apiKeyConfigured()) {
+            log.debug("跳过词挖掘：模型「{}」未配置 API Key", model.display());
             return List.of();
         }
+
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", props.getScreenModel());
+        if (model.extraBody() != null) {
+            body.putAll(model.extraBody());
+        }
+        body.put("model", model.model());
         body.put("temperature", 0.2);
-        body.put("response_format", Map.of("type", "json_object"));
+        if (model.jsonMode()) {
+            body.put("response_format", Map.of("type", "json_object"));
+        }
+        if (model.maxTokens() != null && model.maxTokens() > 0) {
+            body.put("max_tokens", model.maxTokens());
+        }
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", "违规类型: " + type.name() + "\n转写文本:\n\"\"\"\n"
-                        + SemanticScreeningService.truncate(transcript == null ? "" : transcript, 8000) + "\n\"\"\"")));
+                        + ScreenModelService.truncate(transcript == null ? "" : transcript, 8000) + "\n\"\"\"")));
 
-        JsonNode resp = openAiWebClient.post()
-                .uri(props.getChatPath())
+        JsonNode resp = model.client().post()
+                .uri(model.chatPath())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, clientResponse ->
                         clientResponse.bodyToMono(String.class).map(errBody ->
-                                new RuntimeException("HTTP " + clientResponse.statusCode().value() + ": " + errBody)))
+                                new RuntimeException("HTTP " + clientResponse.statusCode().value() + ": "
+                                        + ScreenModelService.extractErrorMessage(objectMapper, errBody))))
                 .bodyToMono(JsonNode.class)
-                .block(Duration.ofSeconds(props.getRequestTimeoutSeconds()));
+                .block(Duration.ofSeconds(model.timeoutSeconds()));
 
         if (resp == null) {
             return List.of();
         }
-        String content = resp.path("choices").path(0).path("message").path("content").asText("");
+        String content = ScreenModelService.contentOf(resp);
         JsonNode node = objectMapper.readTree(content);
         List<String> keywords = new ArrayList<>();
         node.path("keywords").forEach(k -> keywords.add(k.asText()));
