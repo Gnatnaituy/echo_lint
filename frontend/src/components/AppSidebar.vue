@@ -80,6 +80,10 @@ const groups = [
       { path: '/dictionary', label: '敏感词库', icon: 'Collection' },
       { path: '/corpus', label: '语料库', icon: 'Notebook' }
     ]
+  },
+  {
+    title: '系统',
+    items: [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
   }
 ]
 

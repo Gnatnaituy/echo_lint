@@ -39,8 +39,10 @@ public class PipelineService {
     private final AudioTranscriptionService audioTranscriptionService;
     private final DfaService dfaService;
     private final SemanticScreeningService semanticScreeningService;
+    private final ScreenModelService screenModelService;
     private final CorpusService corpusService;
     private final com.echolint.config.AppProperties appProperties;
+    private final com.echolint.config.ScreenModelProperties screenModelProperties;
     private final ObjectMapper objectMapper;
 
     /** 正在处理的录音 id（进程内），用于防止重复触发 */
@@ -101,30 +103,53 @@ public class PipelineService {
                     "DFA 初筛命中 " + hits.size() + " 处（" + words + "），进入 AI 语义复筛");
             incrementHitCounts(hits);
 
-            // 3. AI 语义复筛（few-shot 带人工复核语料；双声道附带说话人标注）
+            // 3. AI 语义复筛（few-shot 带人工复核语料；双声道附带说话人标注；模型可在系统设置中切换）
             updateStatus(recording, RecordingStatus.AI_CHECKING);
-            var examples = corpusService.getFewShotExamples(5);
-            var ai = semanticScreeningService.screen(outcome.transcript(), outcome.segmentsJson(), hits, examples);
+            var activeModel = screenModelService.active();
+            logStage(recordingId, "AI", "INFO", "使用模型 " + activeModel.display() + " 进行语义复筛");
+            var examples = corpusService.getFewShotExamples(screenModelProperties.getFewShotCount());
+            AiScreenResult ai;
+            boolean degraded = false;
+            try {
+                ai = semanticScreeningService.screen(outcome.transcript(), outcome.segmentsJson(), hits, examples);
+            } catch (Exception e) {
+                // 复筛不可用（模型未配密钥 / 网络 / 额度…）时不能漏审：
+                // DFA 已命中，直接降级转人工复检，失败原因写进 aiResultJson
+                String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                log.warn("录音 {} 语义复筛不可用，降级转人工复检: {}", recordingId, reason);
+                ai = AiScreenResult.failed(reason);
+                degraded = true;
+            }
             recording.setAiResultJson(objectMapper.writeValueAsString(MapUtil.of(
                     "violation", ai.violation(),
                     "violationType", ai.typeCode(),
                     "violationTypeLabel", ai.typeLabel(),
                     "reason", ai.reason(),
                     "confidence", ai.confidence(),
-                    "targetSentence", ai.targetSentence())));
+                    "targetSentence", ai.targetSentence(),
+                    "screenProvider", ai.providerId(),
+                    "screenProviderLabel", ai.providerLabel(),
+                    "screenModel", ai.model(),
+                    "degraded", degraded)));
             recordingRepository.save(recording);
 
-            if (!ai.violation()) {
+            if (!degraded && !ai.violation()) {
                 finishCompliant(recording, "AI 复筛判定命中词不构成违规，自动通过");
                 return;
             }
-            // 4. 初筛 + 复筛均违规 -> 人工复检
+            // 4. 初筛 + 复筛均违规（或复筛不可用）-> 人工复检
             recording.setStatus(RecordingStatus.NEEDS_REVIEW);
             recording.setProcessedTime(LocalDateTime.now());
             recordingRepository.save(recording);
-            logStage(recordingId, "AI", "ERROR",
-                    "AI 复筛判定违规（" + ai.typeLabel() + "，置信度 " + String.format("%.2f", ai.confidence())
-                            + "）：" + ai.reason() + " → 进入人工复检");
+            if (degraded) {
+                logStage(recordingId, "AI", "WARN",
+                        "AI 复筛不可用，降级转入人工复检：" + ai.reason());
+            } else {
+                logStage(recordingId, "AI", "ERROR",
+                        "AI 复筛判定违规（" + ai.typeLabel() + "，置信度 " + String.format("%.2f", ai.confidence())
+                                + "，模型 " + ai.providerLabel() + " · " + ai.model() + "）：" + ai.reason()
+                                + " → 进入人工复检");
+            }
         } catch (BizException e) {
             fail(recording, e.getMessage());
         } catch (Exception e) {

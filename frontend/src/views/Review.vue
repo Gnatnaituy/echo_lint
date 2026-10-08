@@ -210,6 +210,13 @@
                     <b class="num">{{ aiResult?.confidence != null ? Math.round(aiResult.confidence * 100) + '%' : '—' }}</b>
                   </div>
                   <div class="verdict-reason">{{ aiResult?.reason || '（无复筛理由）' }}</div>
+                  <div v-if="aiResult?.screenModel" class="verdict-model tiny">
+                    <span class="dim">判定模型</span>
+                    <span class="mono">
+                      {{ aiResult.screenProviderLabel || aiResult.screenProvider }} · {{ aiResult.screenModel }}
+                    </span>
+                    <span v-if="aiResult.degraded" class="chip warn">降级转人工</span>
+                  </div>
                 </div>
 
                 <div class="form">
@@ -1012,6 +1019,20 @@ watch(
   font-size: 12.5px;
   line-height: 1.7;
   color: var(--el-text-color-regular);
+}
+
+/* 判定模型标注 */
+.verdict-model {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--border);
+}
+.verdict-model .mono {
+  color: var(--ink-600);
 }
 
 /* 结论表单 */

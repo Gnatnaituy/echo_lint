@@ -38,6 +38,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: audit123
       APP_UPLOAD_DIR: /app/data/uploads
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # AI 复筛/词挖掘可切换到 DeepSeek（系统设置页运行时切换，重启后仍生效）
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # 首次启动的默认复筛供应商（未在界面切换过时生效）：openai | deepseek
+      APP_SCREEN_PROVIDER: ${APP_SCREEN_PROVIDER:-openai}
       TZ: Asia/Shanghai
     volumes:
       - uploads:/app/data/uploads

@@ -85,6 +85,18 @@ export const api = {
   // 统计
   overview() {
     return http.get('/stats/overview')
+  },
+
+  // 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）
+  screenModel() {
+    return http.get('/settings/screen-model')
+  },
+  updateScreenModel(payload) {
+    return http.put('/settings/screen-model', payload)
+  },
+  /** 连通性测试：传入 {providerId, model} 可测未保存的选择 */
+  testScreenModel(payload = {}) {
+    return http.post('/settings/screen-model/test', payload)
   }
 }
 
