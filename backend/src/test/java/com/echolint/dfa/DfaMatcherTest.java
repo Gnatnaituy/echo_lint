@@ -78,6 +78,32 @@ class DfaMatcherTest {
     }
 
     @Test
+    void chineseKeywordScreening() {
+        DfaMatcher m = new DfaMatcher(List.of("傻逼", "滚蛋", "找人收拾你", "短信验证码"));
+
+        // 真实违规句：辱骂 + 驱赶
+        java.util.Set<String> words = m.match("你这个人怎么这么傻逼，说了多少次了，滚蛋，别再来电话了。")
+                .stream().map(DfaHit::word).collect(java.util.stream.Collectors.toSet());
+        assertEquals(java.util.Set.of("傻逼", "滚蛋"), words);
+
+        // 多字威胁短语整体命中
+        assertEquals(List.of("找人收拾你"),
+                m.match("你要是不退钱，我就找人收拾你。").stream().map(DfaHit::word).toList());
+    }
+
+    @Test
+    void chineseAmbiguityIsLeftToAiScreening() {
+        // 子串匹配无法区分语境：这句话命中「短信验证码」，但坐席是在做反诈提醒 ——
+        // 误报由第二段 AI 复筛兜底，这正是两段式设计的意图
+        DfaMatcher m = new DfaMatcher(List.of("短信验证码"));
+        assertEquals(1, m.match("我们不会问您的短信验证码，那是诈骗话术。").size());
+
+        // 正常业务用语不应命中任何词
+        DfaMatcher clean = new DfaMatcher(List.of("傻逼", "滚蛋", "短信验证码", "安全账户"));
+        assertTrue(clean.match("您好，您的退款会在三个工作日内原路返回，请留意银行短信。").isEmpty());
+    }
+
+    @Test
     void noHitWhenNotPresent() {
         DfaMatcher m = new DfaMatcher(List.of("kill"));
         // "kiln" 仅含 "kil"，不缺尾字母；"kinder" 同理不命中

@@ -83,7 +83,7 @@ public class RecordingService {
             throw new BizException("不支持的文件类型 ." + ext + "，支持: " + String.join(", ", appProperties.getAllowedExtensions()));
         }
         if (file.getSize() > appProperties.getMaxSizeBytes()) {
-            throw new BizException("文件大小超过限制（" + (appProperties.getMaxSizeBytes() / 1024 / 1024) + "MB），Whisper 单文件上限 25MB");
+            throw new BizException("文件大小超过限制（" + (appProperties.getMaxSizeBytes() / 1024 / 1024) + "MB）");
         }
     }
 

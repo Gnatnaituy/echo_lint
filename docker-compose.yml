@@ -42,6 +42,12 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       # 首次启动的默认复筛供应商（未在界面切换过时生效）：openai | deepseek
       APP_SCREEN_PROVIDER: ${APP_SCREEN_PROVIDER:-openai}
+      # 转写改道到本机 whisper.cpp（Metal 加速，不占 Docker 的 CPU）：
+      #   tools/whisper-server.sh --daemon
+      #   .env 里设 WHISPER_BASE_URL=http://host.docker.internal:9900  WHISPER_API_KEY=local
+      # 不设时保持默认，走 OPENAI_* 的官方 Whisper。
+      WHISPER_BASE_URL: ${WHISPER_BASE_URL:-https://api.openai.com}
+      WHISPER_API_KEY: ${WHISPER_API_KEY:-}
       TZ: Asia/Shanghai
     volumes:
       - uploads:/app/data/uploads
