@@ -111,7 +111,7 @@ public class PipelineService {
             AiScreenResult ai;
             boolean degraded = false;
             try {
-                ai = semanticScreeningService.screen(outcome.transcript(), outcome.segmentsJson(), hits, examples);
+                ai = semanticScreeningService.screen(recordingId, outcome.transcript(), outcome.segmentsJson(), hits, examples);
             } catch (Exception e) {
                 // 复筛不可用（模型未配密钥 / 网络 / 额度…）时不能漏审：
                 // DFA 已命中，直接降级转人工复检，失败原因写进 aiResultJson

@@ -388,6 +388,60 @@
             </el-timeline>
             <div v-else class="dim tiny">暂无处理日志</div>
           </section>
+
+          <!-- AI 调用详情：完整提示词与模型原始回复 -->
+          <section v-if="aiInvocations.length" class="block">
+            <div class="block-head">
+              <div class="block-title">AI 调用详情</div>
+              <span class="tiny dim">完整提示词与原始回复，共 {{ aiInvocations.length }} 次</span>
+            </div>
+            <el-collapse class="ai-collapse">
+              <el-collapse-item v-for="inv in aiInvocations" :key="inv.id" :name="inv.id">
+                <template #title>
+                  <div class="ai-inv-title">
+                    <span class="chip" :class="inv.stage === 'MINING' ? 'info' : 'brand'">
+                      {{ stageLabel(inv.stage) }}
+                    </span>
+                    <span class="mono ai-inv-model">{{ inv.providerLabel }} · {{ inv.model }}</span>
+                    <span v-if="!inv.success" class="chip danger">失败</span>
+                    <span v-else-if="inv.degraded" class="chip warn">降级</span>
+                    <span v-else class="chip ok">成功</span>
+                    <span class="spacer"></span>
+                    <span class="num tiny dim">{{ inv.latencyMs }}ms</span>
+                  </div>
+                </template>
+
+                <div class="ai-meta tiny dim">
+                  <div>端点：<span class="mono">{{ inv.endpoint || '—' }}</span></div>
+                  <div>
+                    <span class="num">{{ formatTime(inv.createdAt) }}</span>
+                    · 请求 {{ inv.requestChars }} 字符 · 回复 {{ inv.responseChars }} 字符
+                  </div>
+                </div>
+
+                <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
+                  <div class="ai-part-head">
+                    <span class="ai-role" :class="m.role">
+                      {{ m.role === 'system' ? '系统提示词' : '用户提示词' }}
+                    </span>
+                    <span class="tiny dim">{{ (m.content || '').length }} 字符</span>
+                  </div>
+                  <pre class="ai-raw">{{ m.content }}</pre>
+                </div>
+
+                <div v-if="!inv.requestJson" class="tiny dim">（请求体未留痕）</div>
+
+                <div class="ai-part">
+                  <div class="ai-part-head">
+                    <span class="ai-role reply">模型回复</span>
+                    <span class="tiny dim">{{ inv.responseChars }} 字符</span>
+                  </div>
+                  <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
+                  <pre v-else class="ai-raw error">{{ inv.errorMessage || '（无回复）' }}</pre>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </section>
         </template>
       </div>
     </el-drawer>
@@ -430,6 +484,7 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref(null)
 const logs = ref([])
+const aiInvocations = ref([])
 
 const FILTERS = [
   { key: '', label: '全部', countKey: 'ALL' },
@@ -555,6 +610,27 @@ const STAGE_NAMES = {
 }
 const stageName = (s) => STAGE_NAMES[s] || s
 
+/* ---------- AI 调用留痕 ---------- */
+const stageLabel = (s) => (s === 'MINING' ? '敏感词挖掘' : '语义复筛')
+
+/** 从留痕的请求体里取出 messages，供分栏展示 */
+function messagesOf(inv) {
+  try {
+    return JSON.parse(inv.requestJson || '{}').messages || []
+  } catch {
+    return []
+  }
+}
+
+/** 模型回复是 JSON 字符串，格式化后更易读；解析失败则原样展示 */
+function prettyJson(raw) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -622,13 +698,19 @@ async function openDetail(row) {
   detailLoading.value = true
   detail.value = null
   logs.value = []
+  aiInvocations.value = []
   currentTime.value = 0
   audioChannel.value = 'mix'
   transcriptMode.value = 'segment'
   try {
-    const [d, l] = await Promise.all([api.recordingDetail(row.id), api.recordingLogs(row.id)])
+    const [d, l, inv] = await Promise.all([
+      api.recordingDetail(row.id),
+      api.recordingLogs(row.id),
+      api.recordingAiInvocations(row.id)
+    ])
     detail.value = d
     logs.value = l || []
+    aiInvocations.value = inv || []
     // 双轨录音首次打开默认双栏对话
     if (dialogueAvailable.value && !modeInitialized.value) {
       transcriptMode.value = 'dialogue'
@@ -1065,6 +1147,80 @@ onUnmounted(() => clearInterval(timer))
 }
 .verdict-model .mono {
   color: var(--ink-600);
+}
+
+/* AI 调用留痕 */
+.ai-collapse {
+  border-top: none;
+}
+.ai-collapse :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: 34px;
+  padding: 4px 0;
+  line-height: 1.5;
+}
+.ai-inv-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding-right: 10px;
+  min-width: 0;
+}
+.ai-inv-model {
+  font-size: 12px;
+  color: var(--ink-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-meta {
+  line-height: 1.9;
+  margin-bottom: 4px;
+}
+.ai-part {
+  margin-top: 11px;
+}
+.ai-part-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.ai-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+.ai-role.system {
+  color: var(--brand-600);
+}
+.ai-role.reply {
+  color: var(--ok);
+}
+.ai-raw {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+  background: var(--ink-50);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.68;
+  color: var(--ink-600);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-raw.reply {
+  background: var(--ok-soft);
+  border-color: #cfe9d9;
+}
+.ai-raw.error {
+  background: var(--danger-soft);
+  border-color: #f3cccc;
+  color: #a32424;
 }
 
 /* 复检 */

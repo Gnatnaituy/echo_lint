@@ -37,6 +37,8 @@ class RecordingServiceTest {
     @Mock
     private PipelineService pipelineService;
     @Mock
+    private AiInvocationService aiInvocationService;
+    @Mock
     private ObjectMapper objectMapper;
 
     @TempDir
@@ -49,7 +51,7 @@ class RecordingServiceTest {
     void setUp() {
         appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
-        service = new RecordingService(recordingRepository, pipelineLogRepository, pipelineService, appProperties, objectMapper);
+        service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService, pipelineService, appProperties, objectMapper);
     }
 
     private Recording recording(RecordingStatus status) {

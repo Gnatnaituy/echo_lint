@@ -112,19 +112,29 @@ public class ScreenModelService {
      */
     public ActiveModel requireActive() {
         ActiveModel active = active();
-        if (!active.apiKeyConfigured()) {
-            ScreenModelProperties.Provider provider = props.find(active.providerId()).orElseThrow();
-            throw new BizException("当前复筛模型「" + active.display() + "」未配置 API Key："
-                    + provider.apiKeyHint() + "；或在「系统设置」中切换到其它模型",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        requireUsable(active);
         return active;
+    }
+
+    /**
+     * 校验给定模型是否可调用。单独暴露是为了让调用方先组装请求体（用于留痕）再校验，
+     * 这样即使因缺密钥失败，留痕里也能看到「本该发出去什么」。
+     */
+    public void requireUsable(ActiveModel model) {
+        if (model != null && model.apiKeyConfigured()) {
+            return;
+        }
+        ScreenModelProperties.Provider provider = props.find(model == null ? null : model.providerId()).orElse(null);
+        throw new BizException("当前复筛模型「" + (model == null ? "未知" : model.display()) + "」未配置 API Key："
+                + (provider == null ? "" : provider.apiKeyHint()) + "；或在「系统设置」中切换到其它模型",
+                HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     private ActiveModel toActive(ScreenModelProperties.Provider provider, String requestedModel) {
         return new ActiveModel(
                 provider.getId(),
                 provider.displayLabel(),
+                trimTrailingSlash(provider.getBaseUrl()),
                 provider.resolvedModel(requestedModel),
                 provider.getChatPath(),
                 provider.isJsonMode(),
@@ -133,6 +143,16 @@ public class ScreenModelService {
                 provider.getExtraBody() == null ? Map.of() : provider.getExtraBody(),
                 props.getRequestTimeoutSeconds(),
                 clients.get(provider.getId()));
+    }
+
+    /** 实际请求的完整端点（不含密钥），用于留痕与排查 */
+    static String endpointOf(ActiveModel model) {
+        if (model == null) {
+            return null;
+        }
+        String base = model.baseUrl() == null ? "" : model.baseUrl();
+        String path = model.chatPath() == null ? "" : model.chatPath();
+        return trimTrailingSlash(base) + path;
     }
 
     // ------------------------------------------------------------------ 切换
@@ -291,6 +311,7 @@ public class ScreenModelService {
     public record ActiveModel(
             String providerId,
             String providerLabel,
+            String baseUrl,
             String model,
             String chatPath,
             boolean jsonMode,

@@ -62,15 +62,64 @@ public class SemanticScreeningService {
 
     private final ScreenModelProperties screenModelProperties;
     private final ScreenModelService screenModelService;
+    private final AiInvocationService invocations;
     private final ObjectMapper objectMapper;
 
     /**
+     * @param recordingId  用于 AI 调用留痕
      * @param transcript  全文转写（DFA 命中偏移即基于此文本）
      * @param segmentsJson 转写分段 JSON（双声道时带 speaker/channel，用于给模型补充说话人信息）
      */
-    public AiScreenResult screen(String transcript, String segmentsJson, List<DfaHit> hits, List<CorpusExample> examples) {
-        ScreenModelService.ActiveModel model = screenModelService.requireActive();
+    public AiScreenResult screen(Long recordingId, String transcript, String segmentsJson,
+                                 List<DfaHit> hits, List<CorpusExample> examples) {
+        // 先取模型（不校验密钥）并组装请求体，再校验密钥：
+        // 这样即便因缺密钥失败，留痕里也能看到「本该发出去什么」，排查时和看报错同样重要
+        final ScreenModelService.ActiveModel model = screenModelService.active();
+        String requestJson = buildRequestBody(model, transcript, segmentsJson, hits, examples);
+        long start = System.currentTimeMillis();
 
+        try {
+            screenModelService.requireUsable(model);
+
+            JsonNode resp = model.client().post()
+                    .uri(model.chatPath())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestJson)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, clientResponse ->
+                            clientResponse.bodyToMono(String.class).map(errBody ->
+                                    new BizException("语义复筛调用失败 [" + model.display() + "] (HTTP "
+                                            + clientResponse.statusCode().value() + "): "
+                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody),
+                                            HttpStatus.INTERNAL_SERVER_ERROR)))
+                    .bodyToMono(JsonNode.class)
+                    .block(Duration.ofSeconds(model.timeoutSeconds()));
+
+            if (resp == null) {
+                throw new BizException("语义复筛超时或返回为空 [" + model.display() + "]",
+                        HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            String content = ScreenModelService.contentOf(resp);
+            AiScreenResult result = parseResult(content, model);
+            invocations.recordSuccess(recordingId, AiInvocationService.STAGE_SCREEN, model,
+                    requestJson, content, elapsed(start));
+            return result;
+        } catch (RuntimeException e) {
+            invocations.recordFailure(recordingId, AiInvocationService.STAGE_SCREEN, model,
+                    requestJson, e.getMessage(), elapsed(start));
+            throw e;
+        }
+    }
+
+    private static long elapsed(long start) {
+        return System.currentTimeMillis() - start;
+    }
+
+    /**
+     * 组装并序列化请求体。发送的就是这个字符串，留痕里存的也是它，保证「看到的 == 发出去的」。
+     */
+    private String buildRequestBody(ScreenModelService.ActiveModel model, String transcript,
+                                    String segmentsJson, List<DfaHit> hits, List<CorpusExample> examples) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (model.extraBody() != null) {
             body.putAll(model.extraBody());
@@ -86,33 +135,12 @@ public class SemanticScreeningService {
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", buildUserPrompt(transcript, segmentsJson, hits, examples))));
-
-        JsonNode resp;
         try {
-            resp = model.client().post()
-                    .uri(model.chatPath())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(body)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, clientResponse ->
-                            clientResponse.bodyToMono(String.class).map(errBody ->
-                                    new BizException("语义复筛调用失败 [" + model.display() + "] (HTTP "
-                                            + clientResponse.statusCode().value() + "): "
-                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody),
-                                            HttpStatus.INTERNAL_SERVER_ERROR)))
-                    .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(model.timeoutSeconds()));
-        } catch (BizException e) {
-            throw e;
+            return objectMapper.writeValueAsString(body);
         } catch (Exception e) {
-            throw new BizException("语义复筛调用异常 [" + model.display() + "]: " + e.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            log.warn("复筛请求体序列化失败（留痕将缺失请求内容）: {}", e.getMessage());
+            return null;
         }
-
-        if (resp == null) {
-            throw new BizException("语义复筛超时或返回为空 [" + model.display() + "]", HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-        return parseResult(ScreenModelService.contentOf(resp), model);
     }
 
     private AiScreenResult parseResult(String content, ScreenModelService.ActiveModel model) {

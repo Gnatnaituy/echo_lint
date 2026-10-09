@@ -6,6 +6,7 @@ import com.echolint.dfa.WordNormalizer;
 import com.echolint.domain.ViolationType;
 import com.echolint.domain.WordSeverity;
 import com.echolint.domain.WordSource;
+import com.echolint.exception.BizException;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
@@ -43,6 +44,7 @@ public class WordMiningService {
             """;
 
     private final ScreenModelService screenModelService;
+    private final AiInvocationService invocationService;
     private final ObjectMapper objectMapper;
     private final DictionaryWordRepository dictionaryWordRepository;
     private final PipelineLogRepository pipelineLogRepository;
@@ -54,7 +56,7 @@ public class WordMiningService {
      */
     public int mineAndSuggest(Recording recording, ViolationType type) {
         try {
-            List<String> keywords = extractKeywords(recording.getTranscript(), type);
+            List<String> keywords = extractKeywords(recording, type);
             int added = 0;
             List<String> addedWords = new ArrayList<>();
             for (String kw : keywords) {
@@ -89,13 +91,9 @@ public class WordMiningService {
         }
     }
 
-    private List<String> extractKeywords(String transcript, ViolationType type) throws Exception {
-        // 未配置密钥时静默跳过（词挖掘是闭环的锦上添花，不应阻塞复检）
-        ScreenModelService.ActiveModel model = screenModelService.active();
-        if (!model.apiKeyConfigured()) {
-            log.debug("跳过词挖掘：模型「{}」未配置 API Key", model.display());
-            return List.of();
-        }
+    private List<String> extractKeywords(Recording recording, ViolationType type) throws Exception {
+        Long recordingId = recording.getId();
+        final ScreenModelService.ActiveModel model = screenModelService.active();
 
         Map<String, Object> body = new LinkedHashMap<>();
         if (model.extraBody() != null) {
@@ -112,28 +110,41 @@ public class WordMiningService {
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", "违规类型: " + type.name() + "\n转写文本:\n\"\"\"\n"
-                        + ScreenModelService.truncate(transcript == null ? "" : transcript, 8000) + "\n\"\"\"")));
+                        + ScreenModelService.truncate(recording.getTranscript() == null ? "" : recording.getTranscript(), 8000)
+                        + "\n\"\"\"")));
 
-        JsonNode resp = model.client().post()
-                .uri(model.chatPath())
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, clientResponse ->
-                        clientResponse.bodyToMono(String.class).map(errBody ->
-                                new RuntimeException("HTTP " + clientResponse.statusCode().value() + ": "
-                                        + ScreenModelService.extractErrorMessage(objectMapper, errBody))))
-                .bodyToMono(JsonNode.class)
-                .block(Duration.ofSeconds(model.timeoutSeconds()));
+        String requestJson = objectMapper.writeValueAsString(body);
+        long start = System.currentTimeMillis();
+        try {
+            screenModelService.requireUsable(model);
 
-        if (resp == null) {
-            return List.of();
+            JsonNode resp = model.client().post()
+                    .uri(model.chatPath())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestJson)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, clientResponse ->
+                            clientResponse.bodyToMono(String.class).map(errBody ->
+                                    new BizException("词挖掘调用失败 [" + model.display() + "] (HTTP "
+                                            + clientResponse.statusCode().value() + "): "
+                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody))))
+                    .bodyToMono(JsonNode.class)
+                    .block(Duration.ofSeconds(model.timeoutSeconds()));
+
+            if (resp == null) {
+                throw new BizException("词挖掘超时或返回为空 [" + model.display() + "]");
+            }
+            String content = ScreenModelService.contentOf(resp);
+            List<String> keywords = new ArrayList<>();
+            objectMapper.readTree(content).path("keywords").forEach(k -> keywords.add(k.asText()));
+            invocationService.recordSuccess(recordingId, AiInvocationService.STAGE_MINING, model,
+                    requestJson, content, System.currentTimeMillis() - start);
+            return keywords;
+        } catch (Exception e) {
+            invocationService.recordFailure(recordingId, AiInvocationService.STAGE_MINING, model,
+                    requestJson, e.getMessage(), System.currentTimeMillis() - start);
+            throw e;
         }
-        String content = ScreenModelService.contentOf(resp);
-        JsonNode node = objectMapper.readTree(content);
-        List<String> keywords = new ArrayList<>();
-        node.path("keywords").forEach(k -> keywords.add(k.asText()));
-        return keywords;
     }
 
     private void saveLog(Long recordingId, String stage, String level, String message) {
