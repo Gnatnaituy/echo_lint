@@ -3,6 +3,7 @@ package com.echolint.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.RecordingStatus;
+import com.echolint.entity.AiInvocation;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
@@ -39,6 +40,7 @@ public class RecordingService {
 
     private final RecordingRepository recordingRepository;
     private final PipelineLogRepository pipelineLogRepository;
+    private final AiInvocationService aiInvocationService;
     private final PipelineService pipelineService;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -121,10 +123,17 @@ public class RecordingService {
         return pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id);
     }
 
+    /** AI 调用留痕（完整请求 + 原始回复） */
+    public List<AiInvocation> aiInvocations(Long id) {
+        get(id); // 录音不存在时直接 404
+        return aiInvocationService.listByRecording(id);
+    }
+
     @Transactional
     public void delete(Long id) {
         Recording recording = get(id);
         pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
+        aiInvocationService.deleteByRecording(id);
         recordingRepository.delete(recording);
         deleteFile(recording.getFilePath());
         // 双声道分轨文件一并清理

@@ -3,6 +3,7 @@ package com.echolint.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.dto.RecordingSummary;
+import com.echolint.entity.AiInvocation;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.service.RecordingService;
@@ -61,6 +62,12 @@ public class RecordingController {
     @GetMapping("/{id}/logs")
     public List<PipelineLog> logs(@PathVariable Long id) {
         return recordingService.logs(id);
+    }
+
+    /** AI 调用留痕：完整 prompt 与模型原始回复，用于回溯「AI 为什么这么判」 */
+    @GetMapping("/{id}/ai-invocations")
+    public List<AiInvocation> aiInvocations(@PathVariable Long id) {
+        return recordingService.aiInvocations(id);
     }
 
     @PostMapping("/{id}/retry")

@@ -36,6 +36,10 @@ export const api = {
   recordingLogs(id) {
     return http.get(`/recordings/${id}/logs`)
   },
+  /** AI 调用留痕：完整 prompt 与模型原始回复 */
+  recordingAiInvocations(id) {
+    return http.get(`/recordings/${id}/ai-invocations`)
+  },
   /** 手动推进/重新处理（PENDING/FAILED/卡住的中间态，后端会做在途与状态守卫） */
   reprocessRecording(id) {
     return http.post(`/recordings/${id}/retry`)

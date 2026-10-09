@@ -217,6 +217,39 @@
                     </span>
                     <span v-if="aiResult.degraded" class="chip warn">降级转人工</span>
                   </div>
+
+                  <!-- AI 调用留痕：点开看完整提示词与模型原始回复 -->
+                  <el-collapse v-if="aiInvocations.length" class="ai-collapse">
+                    <el-collapse-item :name="0">
+                      <template #title>
+                        <span class="ai-toggle tiny">查看 AI 调用详情（{{ aiInvocations.length }} 次）</span>
+                      </template>
+                      <div v-for="inv in aiInvocations" :key="inv.id" class="ai-inv">
+                        <div class="ai-inv-head tiny">
+                          <span class="chip" :class="inv.stage === 'MINING' ? 'info' : 'brand'">
+                            {{ inv.stage === 'MINING' ? '敏感词挖掘' : '语义复筛' }}
+                          </span>
+                          <span class="mono">{{ inv.providerLabel }} · {{ inv.model }}</span>
+                          <span v-if="!inv.success" class="chip danger">失败</span>
+                          <span class="spacer"></span>
+                          <span class="num dim">{{ inv.latencyMs }}ms</span>
+                        </div>
+                        <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
+                          <div class="ai-part-head tiny">
+                            <span class="ai-role" :class="m.role">
+                              {{ m.role === 'system' ? '系统提示词' : '用户提示词' }}
+                            </span>
+                          </div>
+                          <pre class="ai-raw">{{ m.content }}</pre>
+                        </div>
+                        <div class="ai-part">
+                          <div class="ai-part-head tiny"><span class="ai-role reply">模型回复</span></div>
+                          <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
+                          <pre v-else class="ai-raw error">{{ inv.errorMessage || '（无回复）' }}</pre>
+                        </div>
+                      </div>
+                    </el-collapse-item>
+                  </el-collapse>
                 </div>
 
                 <div class="form">
@@ -384,6 +417,7 @@ const route = useRoute()
 const tab = ref('pending')
 const pendingRows = ref([])
 const current = ref(null)
+const aiInvocations = ref([])
 const detailLoading = ref(false)
 const alreadyReviewed = ref(false)
 const submitting = ref(false)
@@ -459,6 +493,22 @@ function queueTooltip(r) {
 
 const dfaHits = computed(() => parseJson(current.value?.dfaHitsJson, []))
 const aiResult = computed(() => parseJson(current.value?.aiResultJson, null))
+
+/* ---------- AI 调用留痕 ---------- */
+function messagesOf(inv) {
+  try {
+    return JSON.parse(inv.requestJson || '{}').messages || []
+  } catch {
+    return []
+  }
+}
+function prettyJson(raw) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
 const historyHits = computed(() => parseJson(historyDetail.value?.dfaHitsJson, []))
 const segments = computed(() => parseJson(current.value?.segmentsJson, []))
 /** 无 durationSeconds 时用最后一句的结束时间兜底 */
@@ -516,10 +566,15 @@ async function select(r) {
   // 切换录音时重置播放进度与视图模式
   currentTime.value = 0
   audioChannel.value = 'mix'
+  aiInvocations.value = []
   detailLoading.value = true
   try {
-    const detail = await api.recordingDetail(r.id)
+    const [detail, invocations] = await Promise.all([
+      api.recordingDetail(r.id),
+      api.recordingAiInvocations(r.id)
+    ])
     current.value = detail
+    aiInvocations.value = invocations || []
     alreadyReviewed.value = detail.status !== 'NEEDS_REVIEW'
     // 首次遇到双轨录音默认用双栏对话；若当前模式不适用则回退逐句
     if (dialogueAvailable.value && !modeInitialized.value) {
@@ -1033,6 +1088,69 @@ watch(
 }
 .verdict-model .mono {
   color: var(--ink-600);
+}
+
+/* AI 调用留痕 */
+.ai-collapse {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  border-bottom: none;
+}
+.ai-toggle {
+  color: var(--brand-600);
+  font-weight: 600;
+}
+.ai-inv + .ai-inv {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.ai-inv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--ink-600);
+}
+.ai-part {
+  margin-top: 10px;
+}
+.ai-part-head {
+  margin-bottom: 5px;
+}
+.ai-role {
+  font-weight: 600;
+  color: var(--ink-600);
+}
+.ai-role.system {
+  color: var(--brand-600);
+}
+.ai-role.reply {
+  color: var(--ok);
+}
+.ai-raw {
+  margin: 0;
+  padding: 9px 11px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--ink-50);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--ink-600);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-raw.reply {
+  background: var(--ok-soft);
+  border-color: #cfe9d9;
+}
+.ai-raw.error {
+  background: var(--danger-soft);
+  border-color: #f3cccc;
+  color: #a32424;
 }
 
 /* 结论表单 */

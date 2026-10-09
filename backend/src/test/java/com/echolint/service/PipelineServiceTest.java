@@ -87,7 +87,7 @@ class PipelineServiceTest {
         when(dictionaryWordRepository.findByWordIgnoreCase(anyString())).thenReturn(Optional.empty());
         when(corpusService.getFewShotExamples(anyInt())).thenReturn(List.of());
         when(screenModelService.active()).thenReturn(new ScreenModelService.ActiveModel(
-                "deepseek", "DeepSeek", "deepseek-flash", "/chat/completions",
+                "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash", "/chat/completions",
                 true, true, null, java.util.Map.of(), 30, null));
     }
 
@@ -95,7 +95,7 @@ class PipelineServiceTest {
     void screeningFailureDegradesToManualReview() throws Exception {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
-        when(semanticScreeningService.screen(anyString(), any(), any(), any()))
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any()))
                 .thenThrow(new BizException("当前复筛模型「DeepSeek · deepseek-flash」未配置 API Key"));
 
         pipeline.run(1L);
@@ -111,7 +111,7 @@ class PipelineServiceTest {
     void screeningVerdictRecordsWhichModelJudged() throws Exception {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
-        when(semanticScreeningService.screen(anyString(), any(), any(), any())).thenReturn(
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
                 new AiScreenResult(true, com.echolint.domain.ViolationType.INSULT, "辱骂", "直接辱骂客户",
                         0.92, "you stupid bitch", "deepseek", "DeepSeek", "deepseek-flash"));
 
