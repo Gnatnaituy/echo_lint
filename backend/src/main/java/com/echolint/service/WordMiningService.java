@@ -6,7 +6,6 @@ import com.echolint.dfa.WordNormalizer;
 import com.echolint.domain.ViolationType;
 import com.echolint.domain.WordSeverity;
 import com.echolint.domain.WordSource;
-import com.echolint.exception.BizException;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
@@ -14,11 +13,8 @@ import com.echolint.repository.DictionaryWordRepository;
 import com.echolint.repository.PipelineLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +44,8 @@ public class WordMiningService {
     private final ObjectMapper objectMapper;
     private final DictionaryWordRepository dictionaryWordRepository;
     private final PipelineLogRepository pipelineLogRepository;
+    private final AiModelCaller aiModelCaller;
+    private final AiQuotaService quotaService;
 
     /**
      * 挖掘并入库新词。落库结果通过返回统计；处理异常不抛出（只记日志），避免阻塞复检。
@@ -117,28 +115,16 @@ public class WordMiningService {
         long start = System.currentTimeMillis();
         try {
             screenModelService.requireUsable(model);
+            // 与语义复筛共用配额/限流（超限不发起调用，词挖掘失败只记日志、不阻塞复检）
+            quotaService.checkBeforeCall(model);
 
-            JsonNode resp = model.client().post()
-                    .uri(model.chatPath())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(requestJson)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, clientResponse ->
-                            clientResponse.bodyToMono(String.class).map(errBody ->
-                                    new BizException("词挖掘调用失败 [" + model.display() + "] (HTTP "
-                                            + clientResponse.statusCode().value() + "): "
-                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody))))
-                    .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(model.timeoutSeconds()));
-
-            if (resp == null) {
-                throw new BizException("词挖掘超时或返回为空 [" + model.display() + "]");
-            }
+            JsonNode resp = aiModelCaller.call(model, requestJson, "词挖掘");
             String content = ScreenModelService.contentOf(resp);
+            AiUsage usage = AiUsage.extract(resp).pricedWith(model);
             List<String> keywords = new ArrayList<>();
             objectMapper.readTree(content).path("keywords").forEach(k -> keywords.add(k.asText()));
             invocationService.recordSuccess(recordingId, AiInvocationService.STAGE_MINING, model,
-                    requestJson, content, System.currentTimeMillis() - start);
+                    requestJson, content, System.currentTimeMillis() - start, usage);
             return keywords;
         } catch (Exception e) {
             invocationService.recordFailure(recordingId, AiInvocationService.STAGE_MINING, model,

@@ -13,10 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -30,9 +28,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * AI 全文分块与严格解析（Batch 2b-2）：
+ * AI 全文分块与严格解析（Batch 2b-2）+ 用量/成本快照与配额（Batch 3a）：
  * 分块合并（任一块违规=整体违规、取最高置信度）、缺字段/非 JSON=失败降级、
- * 低置信度违规=degraded、正常合规可自动放行、超出 max-chunks 截断。
+ * 低置信度违规=degraded、正常合规可自动放行、超出 max-chunks 截断、
+ * usage 提取与成本计算、配额超限不发起调用。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -49,55 +48,45 @@ class SemanticScreeningServiceTest {
     private ScreenModelService screenModelService;
     @Mock
     private AiInvocationService invocations;
+    @Mock
+    private AiModelCaller aiModelCaller;
+    @Mock
+    private AiQuotaService quotaService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Deque<JsonNode> modelReplies = new ArrayDeque<>();
 
     private ScreenModelProperties properties;
     private SemanticScreeningService service;
-    @SuppressWarnings("rawtypes")
-    private WebClient.RequestBodyUriSpec uriSpec;
-    private WebClient.RequestBodySpec bodySpec;
-    @SuppressWarnings("rawtypes")
-    private WebClient.RequestHeadersSpec headersSpec;
-    private WebClient.ResponseSpec responseSpec;
 
     @BeforeEach
     void setUp() {
         properties = new ScreenModelProperties();
         properties.setFewShotCount(0);
 
-        WebClient client = mock(WebClient.class);
-        uriSpec = mock(WebClient.RequestBodyUriSpec.class);
-        bodySpec = mock(WebClient.RequestBodySpec.class);
-        headersSpec = mock(WebClient.RequestHeadersSpec.class);
-        responseSpec = mock(WebClient.ResponseSpec.class);
-        when(client.post()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(bodySpec);
-        when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
-        when(bodySpec.bodyValue(any())).thenReturn(headersSpec);
-        when(headersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.onStatus(any(), any())).thenReturn(responseSpec);
-        when(responseSpec.bodyToMono(JsonNode.class)).thenAnswer(invocation -> {
+        when(aiModelCaller.call(any(), anyString(), anyString())).thenAnswer(invocation -> {
             JsonNode reply = modelReplies.poll();
             if (reply == null) {
-                return Mono.error(new IllegalStateException("测试没有预置足够的模型回复"));
+                throw new IllegalStateException("测试没有预置足够的模型回复");
             }
-            return Mono.just(reply);
+            return reply;
         });
 
         ScreenModelService.ActiveModel model = new ScreenModelService.ActiveModel(
                 "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash",
-                "/chat/completions", true, true, null, Map.of(), 30, client);
+                "/chat/completions", true, true, null, Map.of(), 30, null,
+                new BigDecimal("0.001"), new BigDecimal("0.002"));
         when(screenModelService.active()).thenReturn(model);
 
-        service = new SemanticScreeningService(properties, screenModelService, invocations, objectMapper);
+        service = new SemanticScreeningService(properties, screenModelService, invocations, objectMapper,
+                aiModelCaller, quotaService);
     }
 
-    /** 构造 OpenAI 兼容响应，content 即模型输出的 JSON 文本 */
+    /** 构造 OpenAI 兼容响应，content 即模型输出的 JSON 文本；带 usage 用于成本快照 */
     private JsonNode reply(String content) {
         ObjectNode root = objectMapper.createObjectNode();
         root.putArray("choices").addObject().putObject("message").put("content", content);
+        root.putObject("usage").put("prompt_tokens", 100).put("completion_tokens", 50);
         return root;
     }
 
@@ -124,7 +113,8 @@ class SemanticScreeningServiceTest {
         assertEquals("deepseek", result.providerId());
         assertEquals("deepseek-flash", result.model());
         verify(invocations).recordSuccess(eq(1L), eq(AiInvocationService.STAGE_SCREEN), any(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any());
+        verify(quotaService).checkBeforeCall(any());
     }
 
     @Test
@@ -141,6 +131,22 @@ class SemanticScreeningServiceTest {
     }
 
     @Test
+    void usageAndCostAreSnapshottedFromResponse() {
+        queueReplies(COMPLIANT);
+
+        screen("have a nice day");
+
+        ArgumentCaptor<AiUsage> usageCaptor = ArgumentCaptor.forClass(AiUsage.class);
+        verify(invocations).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), usageCaptor.capture());
+        AiUsage usage = usageCaptor.getValue();
+        assertEquals(100, usage.inputTokens());
+        assertEquals(50, usage.outputTokens());
+        // 100/1000*0.001 + 50/1000*0.002 = 0.0002 USD = 200 微美元
+        assertEquals(200L, usage.costMicros());
+    }
+
+    @Test
     void missingViolationFieldIsTreatedAsFailure() {
         queueReplies("{\"violation_type\":\"INSULT\",\"confidence\":0.99,\"reason\":\"no boolean\"}");
 
@@ -149,7 +155,8 @@ class SemanticScreeningServiceTest {
         assertTrue(error.getMessage().contains("violation"), error.getMessage());
         verify(invocations).recordFailure(eq(1L), eq(AiInvocationService.STAGE_SCREEN), any(),
                 anyString(), anyString(), anyLong());
-        verify(invocations, never()).recordSuccess(any(), anyString(), any(), anyString(), anyString(), anyLong());
+        verify(invocations, never()).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), any());
     }
 
     @Test
@@ -207,11 +214,13 @@ class SemanticScreeningServiceTest {
         assertTrue(result.violation(), "任一块违规即整体违规");
         assertEquals(0.92, result.confidence(), 1e-9);
         assertTrue(result.reason().contains("第 3/3 块"), result.reason());
-        verify(invocations, times(3)).recordSuccess(any(), anyString(), any(), anyString(), anyString(), anyLong());
+        verify(invocations, times(3)).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), any());
+        verify(quotaService, times(3)).checkBeforeCall(any());
 
         ArgumentCaptor<String> requests = ArgumentCaptor.forClass(String.class);
         verify(invocations, times(3)).recordSuccess(any(), anyString(), any(), requests.capture(),
-                anyString(), anyLong());
+                anyString(), anyLong(), any());
         List<String> bodies = requests.getAllValues();
         assertTrue(bodies.get(0).contains("第 1/3 块"), bodies.get(0));
         assertTrue(bodies.get(1).contains("第 2/3 块"), bodies.get(1));
@@ -229,7 +238,8 @@ class SemanticScreeningServiceTest {
 
         assertFalse(result.violation());
         assertFalse(result.degraded());
-        verify(invocations, times(2)).recordSuccess(any(), anyString(), any(), anyString(), anyString(), anyLong());
+        verify(invocations, times(2)).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), any());
     }
 
     @Test
@@ -242,8 +252,25 @@ class SemanticScreeningServiceTest {
 
         assertThrows(BizException.class, () -> screen(transcript));
         // 第一块成功留痕、第二块失败留痕；第二块失败后整体中止，不会自动放行
-        verify(invocations, times(1)).recordSuccess(any(), anyString(), any(), anyString(), anyString(), anyLong());
-        verify(invocations, times(1)).recordFailure(any(), anyString(), any(), anyString(), anyString(), anyLong());
+        verify(invocations, times(1)).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), any());
+        verify(invocations, times(1)).recordFailure(any(), anyString(), any(), anyString(), anyString(),
+                anyLong());
+    }
+
+    @Test
+    void quotaExceededSkipsModelCallAndRecordsFailure() {
+        doThrow(new BizException("AI 每日 token 配额已用尽（上限 1000000）", org.springframework.http.HttpStatus.TOO_MANY_REQUESTS))
+                .when(quotaService).checkBeforeCall(any());
+
+        BizException error = assertThrows(BizException.class, () -> screen("whatever"));
+
+        assertTrue(error.getMessage().contains("配额"), error.getMessage());
+        verify(aiModelCaller, never()).call(any(), anyString(), anyString());
+        verify(invocations).recordFailure(eq(1L), eq(AiInvocationService.STAGE_SCREEN), any(),
+                anyString(), anyString(), anyLong());
+        verify(invocations, never()).recordSuccess(any(), anyString(), any(), anyString(), anyString(),
+                anyLong(), any());
     }
 
     @Test

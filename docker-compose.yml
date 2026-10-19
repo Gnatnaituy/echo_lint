@@ -43,6 +43,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # AI 复筛/词挖掘可切换到 DeepSeek（系统设置页运行时切换，重启后仍生效）
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # AI 供应商密钥加密主密钥（生产必须配置；变更后旧密文无法解密，需要重新录入供应商密钥）
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      # AI 配额（0=不限）：每日 token 上限 / 每分钟请求数
+      APP_SCREEN_DAILY_TOKEN_LIMIT: ${APP_SCREEN_DAILY_TOKEN_LIMIT:-0}
+      APP_SCREEN_REQUESTS_PER_MINUTE: ${APP_SCREEN_REQUESTS_PER_MINUTE:-0}
       # 首次启动的默认复筛供应商（未在界面切换过时生效）：openai | deepseek
       APP_SCREEN_PROVIDER: ${APP_SCREEN_PROVIDER:-openai}
       # 首次启动引导管理员（仅当用户表为空时创建；生产务必覆盖默认密码）

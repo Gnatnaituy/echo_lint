@@ -50,6 +50,12 @@ const routes = [
     meta: { title: '操作审计', roles: ['ADMIN'] }
   },
   {
+    // AI 用量与成本看板：仅管理员（后端接口同样 ADMIN 校验）
+    path: '/costs',
+    component: () => import('../views/Costs.vue'),
+    meta: { title: '成本看板', roles: ['ADMIN'] }
+  },
+  {
     path: '/settings',
     component: () => import('../views/Settings.vue'),
     meta: { title: '系统设置' }

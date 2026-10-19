@@ -11,7 +11,7 @@
 |---|---|---|
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
 | 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 ✅ |
-| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 待开始 |
+| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b 待开始 |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 待开始 |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
 
@@ -253,7 +253,67 @@
 - 偏差：未加 Flyway V2（`sampled` 列仍由 ddl-auto 添加，生产升级前需备份）；通知设置 GET 未返回抽样比例（前端以 env 说明占位）。
 - 后续（Batch 3）：AI 供应商后台 CRUD/密钥加密、配额与成本、异步任务持久化、成本看板、模型 A/B。
 
-## Batch 3 · AI 治理与异步可靠性
+## 3a · AI 治理与成本（✅ 已完成）
+
+### 密钥与供应商
+- `APP_SECRET_KEY`：AES 主密钥（Base64 32 字节或任意字符串经 SHA-256 派生）。未配置时用开发默认值并 WARN。
+- 新增 `SecretCipher`（AES/GCM/NoPadding，随机 12 字节 IV，Base64(iv||ciphertext)），密钥只存密文 + 末 4 位掩码。
+- 新表 `ai_providers`：key(unique)、label、base_url、chat_path、api_key_cipher、api_key_masked、
+  default_model、models_json、json_mode、max_tokens、input_price_per_1k、output_price_per_1k、
+  enabled、built_in、created_at、updated_at。
+- 启动时把 yml `app.screen-models.providers` 中不存在的供应商加密落库（built_in=true），不删除库中已有自定义项。
+- `ScreenModelService` 改为从注册表（DB 优先，yml 兜底）解析供应商，密钥解密后按调用构造 WebClient；
+  `PUT /api/settings/screen-model` 需校验供应商存在且 enabled。
+- API（ADMIN）：
+  - GET `/api/settings/providers`（密钥只回掩码/是否配置）
+  - POST `/api/settings/providers`（自定义供应商，key 唯一）
+  - PUT `/api/settings/providers/{key}`（apiKey 可选，空表示不修改）
+  - DELETE `/api/settings/providers/{key}`（仅自定义、且非当前生效）
+  - POST `/api/settings/providers/{key}/test`（可选 model）
+- 审计动作：PROVIDER_CREATE / PROVIDER_UPDATE / PROVIDER_DELETE / PROVIDER_TEST。
+
+### 用量与成本
+- `AiInvocation` 增加 inputTokens、outputTokens、costMicros（Long，1e-6 USD）。
+- 从模型响应 `usage.prompt_tokens / completion_tokens` 提取；按供应商单价（每 1K tokens）计算成本，调用时快照。
+- `GET /api/stats/ai-usage?from&to`（ADMIN）：requests / inputTokens / outputTokens / costUsd，
+  以及 byDay / byProvider / byModel 明细。
+- 前端新增 `/costs`（ADMIN）成本看板：汇总卡 + 日期范围 + byDay/byProvider/byModel 表格。
+
+### 配额与重试
+- 配置 `app.screen-models.daily-token-limit`（0=不限）与 `requests-per-minute`（0=不限）；
+  调用前检查当日 tokens（DB）与进程内每分钟请求数，超限抛错 → 流水线降级人工。
+- 对 429/5xx 做最多 2 次重试（500ms/1500ms 退避）；最终失败仍走降级。
+- 环境变量：APP_SCREEN_DAILY_TOKEN_LIMIT / APP_SCREEN_REQUESTS_PER_MINUTE。
+
+### 前端
+- 系统设置页「AI 供应商」管理（ADMIN）：列表（掩码/启用/内置标记/价格）、新增、编辑、删除（自定义）、连通性测试、
+  仍可切换当前生效供应商/模型。
+- 新增 `/costs` 成本看板（ADMIN），侧栏入口；API client 增加 providers/ai-usage。
+- 不新增依赖；保持现有视觉与原功能。
+
+### 验收
+- 后端 `mvn clean test`、前端 build/test 全绿。
+- 本机 MySQL 冒烟：内置供应商加密落库、掩码正确、CRUD/测试接口、切换模型、
+  成本统计（构造带 usage 的调用）、超配额降级、429 重试。
+- 明确不在本批：模型 A/B、评测样本集、异步任务持久化（放 Batch 3b）。
+
+### 3a 完成记录
+
+- 后端 275 个单测全绿（新增/改写 68 个）；前端 build + 53 个单测全绿。
+- 冒烟（打包 jar + 临时 MySQL）：
+  - 内置供应商启动加密落库（AES-GCM，密文 64 字符、DB 无明文、掩码 `****1234`/`****5678`），重启幂等不覆盖。
+  - 供应商 CRUD / 密钥轮换（留空保持）/ 测试端点 / 内置与生效供应商删除守卫 / 未知或停用供应商切换拒绝，均符合预期。
+  - `GET /api/settings/providers`、`GET /api/stats/ai-usage` 仅 ADMIN（reviewer 403）；`GET /api/settings/screen-model` 仍登录可读。
+  - ai-usage：空形状正确；构造调用后汇总与 byDay/byProvider/byModel 正确（失败调用不计入）。
+  - 审计 PROVIDER_CREATE/UPDATE/DELETE/TEST 落库且不包含密钥。
+- 已知限制：内置供应商单价默认 0（需在设置页录入后成本才有金额）；`APP_SECRET_KEY` 变更后旧密文不可解密；配额/每分钟计数为全局/单实例语义；PUT 供应商为全量更新（apiKey 可选）。
+
+## Batch 3b · 异步可靠性（待开始）
+
+- [ ] 异步任务持久化（DB 任务表/Outbox）、自动重试、死信、任务视图
+- [ ] 模型 A/B 分流 + 评测样本集
+
+## Batch 3 · AI 治理与异步可靠性（原始清单）
 
 - [ ] AI 供应商后台 CRUD（不再改 YAML 重启）、密钥加密存储与轮换
 - [ ] token 成本统计、配额/限流、失败退避重试、超时细分

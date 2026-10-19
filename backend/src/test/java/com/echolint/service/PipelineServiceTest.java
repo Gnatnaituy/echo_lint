@@ -112,7 +112,8 @@ class PipelineServiceTest {
     private ScreenModelService.ActiveModel activeModel() {
         return new ScreenModelService.ActiveModel(
                 "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash", "/chat/completions",
-                true, true, null, java.util.Map.of(), 30, null);
+                true, true, null, java.util.Map.of(), 30, null,
+                java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO);
     }
 
     private List<PipelineLog> pipelineLogs() {

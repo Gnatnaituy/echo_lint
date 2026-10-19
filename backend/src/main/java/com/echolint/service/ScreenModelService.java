@@ -1,11 +1,13 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.entity.AppSetting;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AppSettingRepository;
+import com.echolint.service.ProviderRegistry.ResolvedProvider;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,14 +30,16 @@ import java.util.Optional;
 /**
  * AI 复筛模型注册表：解析当前生效的供应商/模型、运行时切换（落库）、连通性测试。
  *
- * 复筛（{@link SemanticScreeningService}）与词挖掘（{@link WordMiningService}）共用同一份选择，
- * 因此「换个模型试试」只需在系统设置页点一下，无需重启。
+ * <p>复筛（{@link SemanticScreeningService}）与词挖掘（{@link WordMiningService}）共用同一份选择，
+ * 因此「换个模型试试」只需在系统设置页点一下，无需重启。</p>
  *
- * 选择结果存放在 app_settings 表（screen.provider / screen.model）；表里没有记录时，
- * 回退到 application.yml 的 app.screen-models.default-provider。
+ * <p>Batch 3a 起供应商来源改为 {@link ProviderRegistry}：数据库优先、yml 兜底；
+ * 每次解析时解密 API Key 并按需构造 WebClient，供应商 CRUD 后立即生效（无需重启）。
+ * 当前选择仍存放在 app_settings（screen.provider / screen.model）。</p>
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ScreenModelService {
 
     /** 运行时选择持久化键 */
@@ -44,67 +49,40 @@ public class ScreenModelService {
     private final ScreenModelProperties props;
     private final AppSettingRepository settingRepository;
     private final ObjectMapper objectMapper;
-
-    /** 供应商 id -> WebClient（base-url / api-key 启动时固定，故只建一次） */
-    private final Map<String, WebClient> clients;
-
-    public ScreenModelService(ScreenModelProperties props, AppSettingRepository settingRepository, ObjectMapper objectMapper) {
-        this.props = props;
-        this.settingRepository = settingRepository;
-        this.objectMapper = objectMapper;
-        this.clients = buildClients(props);
-    }
-
-    private Map<String, WebClient> buildClients(ScreenModelProperties properties) {
-        Map<String, WebClient> map = new LinkedHashMap<>();
-        for (ScreenModelProperties.Provider p : properties.getProviders()) {
-            if (!StringUtils.hasText(p.getId())) {
-                log.warn("忽略未配置 id 的模型供应商：{}", p.getBaseUrl());
-                continue;
-            }
-            if (map.containsKey(p.getId())) {
-                log.warn("模型供应商 id 重复，后者覆盖前者：{}", p.getId());
-            }
-            HttpClient httpClient = HttpClient.create()
-                    .responseTimeout(Duration.ofSeconds(properties.getRequestTimeoutSeconds()));
-            map.put(p.getId(), WebClient.builder()
-                    .baseUrl(trimTrailingSlash(p.getBaseUrl()))
-                    .clientConnector(new ReactorClientHttpConnector(httpClient))
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + p.getApiKey())
-                    .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                    .build());
-        }
-        return map;
-    }
-
-    private static String trimTrailingSlash(String url) {
-        if (!StringUtils.hasText(url)) {
-            return "";
-        }
-        String trimmed = url.trim();
-        return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
-    }
+    private final ProviderRegistry providers;
 
     // ------------------------------------------------------------------ 解析
 
     /**
-     * 当前生效的模型（未做密钥校验，供设置页展示）
+     * 当前生效的模型（未做密钥校验，供设置页展示）。
+     *
+     * <p>已保存的供应商被删除或停用时回退到默认供应商（yml default-provider），
+     * 其旧模型名一并作废，避免拿旧模型名去打新供应商。</p>
      */
     public ActiveModel active() {
         String storedProvider = read(KEY_PROVIDER).orElse(null);
         String storedModel = read(KEY_MODEL).orElse(null);
 
-        Optional<ScreenModelProperties.Provider> found = props.find(storedProvider);
+        Optional<ResolvedProvider> found = providers.find(storedProvider).filter(ResolvedProvider::enabled);
         if (StringUtils.hasText(storedProvider) && found.isEmpty()) {
-            log.warn("已保存的复筛供应商 {} 不在当前配置中，回退到默认供应商", storedProvider);
+            log.warn("已保存的复筛供应商 {} 不存在或已停用，回退到默认供应商", storedProvider);
         }
-        ScreenModelProperties.Provider provider = found
-                .or(() -> props.defaultProvider())
+        ResolvedProvider provider = found
+                .or(this::defaultProvider)
                 .orElseThrow(() -> new BizException(
-                        "未配置任何 AI 复筛供应商（app.screen-models.providers）", HttpStatus.INTERNAL_SERVER_ERROR));
-        // 供应商已从配置中移除时，配套的模型名也一并作废，避免拿旧模型名去打新供应商
+                        "没有可用的 AI 复筛供应商（配置或系统设置中的供应商均已停用/缺失）",
+                        HttpStatus.INTERNAL_SERVER_ERROR));
         String model = found.isPresent() ? storedModel : null;
         return toActive(provider, model);
+    }
+
+    /** 默认供应商：配置的 default-provider（需启用），否则第一个启用的供应商 */
+    private Optional<ResolvedProvider> defaultProvider() {
+        Optional<ResolvedProvider> configured = providers.find(props.getDefaultProvider())
+                .filter(ResolvedProvider::enabled);
+        return configured.or(() -> providers.all().stream()
+                .filter(ResolvedProvider::enabled)
+                .findFirst());
     }
 
     /**
@@ -124,25 +102,45 @@ public class ScreenModelService {
         if (model != null && model.apiKeyConfigured()) {
             return;
         }
-        ScreenModelProperties.Provider provider = props.find(model == null ? null : model.providerId()).orElse(null);
+        String hint = model == null ? "" : providers.find(model.providerId())
+                .map(ResolvedProvider::apiKeyHint)
+                .orElse("");
         throw new BizException("当前复筛模型「" + (model == null ? "未知" : model.display()) + "」未配置 API Key："
-                + (provider == null ? "" : provider.apiKeyHint()) + "；或在「系统设置」中切换到其它模型",
+                + hint + "；或在「系统设置」中切换到其它模型",
                 HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    private ActiveModel toActive(ScreenModelProperties.Provider provider, String requestedModel) {
+    private ActiveModel toActive(ResolvedProvider provider, String requestedModel) {
         return new ActiveModel(
-                provider.getId(),
+                provider.providerKey(),
                 provider.displayLabel(),
-                trimTrailingSlash(provider.getBaseUrl()),
+                ProviderRegistry.trimTrailingSlash(provider.baseUrl()),
                 provider.resolvedModel(requestedModel),
-                provider.getChatPath(),
-                provider.isJsonMode(),
+                provider.chatPath(),
+                provider.jsonMode(),
                 provider.apiKeyConfigured(),
-                provider.getMaxTokens(),
-                provider.getExtraBody() == null ? Map.of() : provider.getExtraBody(),
+                provider.maxTokens(),
+                provider.extraBody() == null ? Map.of() : provider.extraBody(),
                 props.getRequestTimeoutSeconds(),
-                clients.get(provider.getId()));
+                buildClient(provider),
+                provider.inputPricePer1k(),
+                provider.outputPricePer1k());
+    }
+
+    /**
+     * 按调用构造 WebClient：供应商 CRUD 后无需重建缓存，密钥在解析时解密。
+     */
+    private WebClient buildClient(ResolvedProvider provider) {
+        HttpClient httpClient = HttpClient.create()
+                .responseTimeout(Duration.ofSeconds(props.getRequestTimeoutSeconds()));
+        WebClient.Builder builder = WebClient.builder()
+                .baseUrl(ProviderRegistry.trimTrailingSlash(provider.baseUrl()))
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        if (provider.apiKeyConfigured()) {
+            builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + provider.apiKey());
+        }
+        return builder.build();
     }
 
     /** 实际请求的完整端点（不含密钥），用于留痕与排查 */
@@ -152,22 +150,26 @@ public class ScreenModelService {
         }
         String base = model.baseUrl() == null ? "" : model.baseUrl();
         String path = model.chatPath() == null ? "" : model.chatPath();
-        return trimTrailingSlash(base) + path;
+        return ProviderRegistry.trimTrailingSlash(base) + path;
     }
 
     // ------------------------------------------------------------------ 切换
 
     /**
-     * 运行时切换复筛模型（立即生效，落库持久化）
+     * 运行时切换复筛模型（立即生效，落库持久化）。未知/已停用的供应商一律拒绝。
      */
     public View switchTo(String providerId, String requestedModel) {
-        ScreenModelProperties.Provider provider = props.find(providerId)
+        ResolvedProvider provider = providers.find(providerId)
                 .orElseThrow(() -> new BizException("未知的模型供应商: " + providerId));
+        if (!provider.enabled()) {
+            throw new BizException("模型供应商已停用，请先在「AI 供应商」中启用: " + provider.displayLabel(),
+                    HttpStatus.CONFLICT);
+        }
         String model = provider.resolvedModel(requestedModel);
         if (!StringUtils.hasText(model)) {
             throw new BizException("请指定模型名称（供应商 " + provider.displayLabel() + " 未配置 default-model）");
         }
-        save(KEY_PROVIDER, provider.getId());
+        save(KEY_PROVIDER, provider.providerKey());
         save(KEY_MODEL, model);
         log.info("AI 复筛模型已切换为 {} · {}{}", provider.displayLabel(), model,
                 provider.apiKeyConfigured() ? "" : "（注意：该供应商尚未配置 API Key）");
@@ -177,25 +179,25 @@ public class ScreenModelService {
     // ------------------------------------------------------------------ 视图
 
     /**
-     * 设置页所需的完整视图：当前选择 + 全部候选供应商
+     * 设置页所需的完整视图：当前选择 + 全部候选供应商（DB + yml 兜底）。
      */
     public View snapshot() {
         ActiveModel active = active();
-        // 只有在配置里确实存在该供应商时，才算「来自界面切换」
-        boolean fromDb = props.find(read(KEY_PROVIDER).orElse(null)).isPresent();
+        boolean fromDb = providers.find(read(KEY_PROVIDER).orElse(null)).isPresent();
+        List<ResolvedProvider> all = providers.all();
         List<ProviderView> views = new ArrayList<>();
-        for (ScreenModelProperties.Provider p : props.getProviders()) {
-            boolean isActive = p.getId() != null && p.getId().equalsIgnoreCase(active.providerId());
+        for (ResolvedProvider p : all) {
+            boolean isActive = p.providerKey().equalsIgnoreCase(active.providerId());
             views.add(new ProviderView(
-                    p.getId(),
+                    p.providerKey(),
                     p.displayLabel(),
-                    trimTrailingSlash(p.getBaseUrl()),
-                    p.getChatPath(),
+                    ProviderRegistry.trimTrailingSlash(p.baseUrl()),
+                    p.chatPath(),
                     p.resolvedModel(null),
-                    List.copyOf(p.getModels()),
-                    p.isJsonMode(),
+                    p.models() == null ? List.of() : List.copyOf(p.models()),
+                    p.jsonMode(),
                     p.apiKeyConfigured(),
-                    p.getApiKeyEnv(),
+                    p.apiKeyEnv(),
                     isActive ? active.model() : p.resolvedModel(null),
                     isActive));
         }
@@ -210,56 +212,60 @@ public class ScreenModelService {
      * 失败不抛异常，通过 ok=false + message 返回，便于界面直接展示。
      */
     public TestResult test(String providerId, String requestedModel) {
-        ScreenModelProperties.Provider provider = props.find(providerId)
+        ResolvedProvider provider = providers.find(providerId)
                 .orElseThrow(() -> new BizException("未知的模型供应商: " + providerId));
         String model = provider.resolvedModel(requestedModel);
 
         if (!provider.apiKeyConfigured()) {
-            return new TestResult(false, provider.getId(), provider.displayLabel(), model, 0, "",
+            return new TestResult(false, provider.providerKey(), provider.displayLabel(), model, 0, "",
                     "未配置 API Key：" + provider.apiKeyHint());
         }
-        WebClient client = clients.get(provider.getId());
-        if (client == null) {
-            return new TestResult(false, provider.getId(), provider.displayLabel(), model, 0, "",
-                    "供应商 WebClient 未初始化，请检查 base-url 配置");
+        if (!StringUtils.hasText(model)) {
+            return new TestResult(false, provider.providerKey(), provider.displayLabel(), "", 0, "",
+                    "未配置默认模型，请指定 model");
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        if (provider.getExtraBody() != null) {
-            body.putAll(provider.getExtraBody());
+        if (provider.extraBody() != null) {
+            body.putAll(provider.extraBody());
         }
         body.put("model", model);
         body.put("temperature", 0);
         body.put("messages", List.of(
                 Map.of("role", "system", "content", "你是连通性测试助手，只输出 JSON，不要输出其他内容。"),
                 Map.of("role", "user", "content", "请只回复一个 JSON 对象：{\"ok\": true}")));
-        if (provider.isJsonMode()) {
+        if (provider.jsonMode()) {
             body.put("response_format", Map.of("type", "json_object"));
+        }
+        if (provider.maxTokens() != null && provider.maxTokens() > 0) {
+            body.put("max_tokens", provider.maxTokens());
         }
 
         long start = System.currentTimeMillis();
         try {
-            JsonNode resp = client.post()
-                    .uri(provider.getChatPath())
+            JsonNode resp = buildClient(provider).post()
+                    .uri(provider.chatPath())
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, cr -> cr.bodyToMono(String.class).map(err ->
-                            new BizException("HTTP " + cr.statusCode().value() + ": " + extractErrorMessage(objectMapper, err))))
+                            new BizException("HTTP " + cr.statusCode().value() + ": "
+                                    + extractErrorMessage(objectMapper, err))))
                     .bodyToMono(JsonNode.class)
                     .block(Duration.ofSeconds(Math.min(props.getRequestTimeoutSeconds(), 60)));
             long cost = System.currentTimeMillis() - start;
             if (resp == null) {
-                return new TestResult(false, provider.getId(), provider.displayLabel(), model, cost, "", "响应为空");
+                return new TestResult(false, provider.providerKey(), provider.displayLabel(), model, cost, "",
+                        "响应为空");
             }
             String reply = contentOf(resp);
-            return new TestResult(true, provider.getId(), provider.displayLabel(), model, cost,
+            return new TestResult(true, provider.providerKey(), provider.displayLabel(), model, cost,
                     truncate(reply, 200), "连通正常");
         } catch (BizException e) {
-            return new TestResult(false, provider.getId(), provider.displayLabel(), model,
+            return new TestResult(false, provider.providerKey(), provider.displayLabel(), model,
                     System.currentTimeMillis() - start, "", e.getMessage());
         } catch (Exception e) {
-            return new TestResult(false, provider.getId(), provider.displayLabel(), model,
+            return new TestResult(false, provider.providerKey(), provider.displayLabel(), model,
                     System.currentTimeMillis() - start, "", "调用异常: " + e.getMessage());
         }
     }
@@ -306,7 +312,7 @@ public class ScreenModelService {
     // ------------------------------------------------------------------ DTO
 
     /**
-     * 当前生效的模型及其调用句柄
+     * 当前生效的模型及其调用句柄（单价用于成本快照，Batch 3a）
      */
     public record ActiveModel(
             String providerId,
@@ -319,7 +325,9 @@ public class ScreenModelService {
             Integer maxTokens,
             Map<String, Object> extraBody,
             long timeoutSeconds,
-            WebClient client) {
+            WebClient client,
+            BigDecimal inputPricePer1k,
+            BigDecimal outputPricePer1k) {
 
         public String display() {
             return providerLabel + " · " + model;

@@ -53,6 +53,10 @@ management:
         include: health,info,prometheus
 
 app:
+  # AI 供应商 API Key 的 AES-GCM 主密钥（Batch 3a）。
+  # 可填 Base64 编码的 32 字节，或任意字符串（自动 SHA-256 派生）；未配置时用开发默认值并 WARN。
+  # 生产必须配置，且轮换后需重新录入供应商密钥（旧密文无法解密）。
+  secret-key: ${APP_SECRET_KEY:}
   upload-dir: ${APP_UPLOAD_DIR:data/uploads}
   # 上传大小上限。放宽到 200MB 以配合本地 whisper.cpp（无 25MB 限制）；
   # 若转写仍指向 OpenAI 官方 API，单文件仍受其 25MB 限制（启动日志会提示）。
@@ -98,6 +102,10 @@ app:
     max-chunks: ${APP_SCREEN_MAX_CHUNKS:6}
     # violation=true 但置信度低于该值时降级人工复核（不允许自动放行）
     min-confidence: ${APP_SCREEN_MIN_CONFIDENCE:0.6}
+    # AI 配额（Batch 3a）：0 = 不限。每日 token 为输入+输出合计（查 ai_invocations 当日累计）；
+    # 每分钟调用次数按供应商在进程内计数。超限不发起调用，抛错后流水线降级人工复核。
+    daily-token-limit: ${APP_SCREEN_DAILY_TOKEN_LIMIT:0}
+    requests-per-minute: ${APP_SCREEN_REQUESTS_PER_MINUTE:0}
     providers:
       - id: openai
         label: OpenAI

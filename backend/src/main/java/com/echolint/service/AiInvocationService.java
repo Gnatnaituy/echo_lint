@@ -36,11 +36,11 @@ public class AiInvocationService {
     }
 
     /**
-     * 记录一次成功的调用
+     * 记录一次成功的调用（含 token 用量 / 成本快照，Batch 3a）。
      */
     public void recordSuccess(Long recordingId, String stage, ScreenModelService.ActiveModel model,
-                              String requestJson, String responseJson, long latencyMs) {
-        save(recordingId, stage, model, requestJson, responseJson, null, latencyMs, false);
+                              String requestJson, String responseJson, long latencyMs, AiUsage usage) {
+        save(recordingId, stage, model, requestJson, responseJson, null, latencyMs, false, usage);
     }
 
     /**
@@ -49,12 +49,12 @@ public class AiInvocationService {
      */
     public void recordFailure(Long recordingId, String stage, ScreenModelService.ActiveModel model,
                               String requestJson, String errorMessage, long latencyMs) {
-        save(recordingId, stage, model, requestJson, null, errorMessage, latencyMs, true);
+        save(recordingId, stage, model, requestJson, null, errorMessage, latencyMs, true, null);
     }
 
     private void save(Long recordingId, String stage, ScreenModelService.ActiveModel model,
                       String requestJson, String responseJson, String errorMessage,
-                      long latencyMs, boolean degraded) {
+                      long latencyMs, boolean degraded, AiUsage usage) {
         try {
             AiInvocation inv = new AiInvocation();
             inv.setRecordingId(recordingId);
@@ -73,6 +73,11 @@ public class AiInvocationService {
             inv.setLatencyMs((int) Math.min(latencyMs, Integer.MAX_VALUE));
             inv.setRequestChars(requestJson == null ? 0 : requestJson.length());
             inv.setResponseChars(responseJson == null ? 0 : responseJson.length());
+            if (usage != null) {
+                inv.setInputTokens(usage.inputTokens());
+                inv.setOutputTokens(usage.outputTokens());
+                inv.setCostMicros(usage.costMicros());
+            }
             repository.save(inv);
         } catch (Exception e) {
             log.warn("AI 调用留痕写入失败（不影响主流程）recordingId={} stage={}: {}",

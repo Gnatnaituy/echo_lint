@@ -11,12 +11,9 @@ import com.echolint.service.AiScreenResult.CorpusExample;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,6 +78,8 @@ public class SemanticScreeningService {
     private final ScreenModelService screenModelService;
     private final AiInvocationService invocations;
     private final ObjectMapper objectMapper;
+    private final AiModelCaller aiModelCaller;
+    private final AiQuotaService quotaService;
 
     /**
      * @param recordingId  用于 AI 调用留痕
@@ -124,29 +123,15 @@ public class SemanticScreeningService {
         long start = System.currentTimeMillis();
         try {
             screenModelService.requireUsable(model);
+            // 配额/限流在每次真正调用前校验；超限直接抛错，不发起请求（流水线降级人工复核）
+            quotaService.checkBeforeCall(model);
 
-            JsonNode resp = model.client().post()
-                    .uri(model.chatPath())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(requestJson)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, clientResponse ->
-                            clientResponse.bodyToMono(String.class).map(errBody ->
-                                    new BizException("语义复筛调用失败 [" + model.display() + "] (HTTP "
-                                            + clientResponse.statusCode().value() + "): "
-                                            + ScreenModelService.extractErrorMessage(objectMapper, errBody),
-                                            HttpStatus.INTERNAL_SERVER_ERROR)))
-                    .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(model.timeoutSeconds()));
-
-            if (resp == null) {
-                throw new BizException("语义复筛超时或返回为空 [" + model.display() + "]",
-                        HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+            JsonNode resp = aiModelCaller.call(model, requestJson, "语义复筛");
             String content = ScreenModelService.contentOf(resp);
+            AiUsage usage = AiUsage.extract(resp).pricedWith(model);
             AiScreenResult result = parseResult(content, model, index);
             invocations.recordSuccess(recordingId, AiInvocationService.STAGE_SCREEN, model,
-                    requestJson, content, elapsed(start));
+                    requestJson, content, elapsed(start), usage);
             return new ChunkResult(index, result);
         } catch (RuntimeException e) {
             invocations.recordFailure(recordingId, AiInvocationService.STAGE_SCREEN, model,

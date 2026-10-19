@@ -11,33 +11,10 @@
  * - 抽样比例：仅接受 0~1 的有限数字（超出范围视为无效，避免把 50 误显示成 5000%）
  */
 
-function asObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-}
+import { asObject, pick, toBoolean, toNumber } from './shape.js'
 
-/** 依次取第一个非 null/undefined 的字段，兼容后端字段重命名 */
-function pick(source, keys) {
-  for (const key of keys) {
-    if (source[key] !== undefined && source[key] !== null) return source[key]
-  }
-  return undefined
-}
-
-/** 宽松布尔：true/false、1/0、'true'/'false' 可识别，其余返回 null（未知） */
-export function toBoolean(value) {
-  if (value === undefined || value === null || value === '') return null
-  if (typeof value === 'boolean') return value
-  if (value === 1 || value === '1' || value === 'true' || value === 'TRUE') return true
-  if (value === 0 || value === '0' || value === 'false' || value === 'FALSE') return false
-  return null
-}
-
-/** 宽松数字：非数字 / 空值返回 null */
-export function toNumber(value) {
-  if (value === undefined || value === null || value === '') return null
-  const num = Number(value)
-  return Number.isFinite(num) ? num : null
-}
+// 通用布尔 / 数字归一化对既有调用方保持可导入（实现收敛在 utils/shape.js）
+export { toBoolean, toNumber } from './shape.js'
 
 /** 抽样比例：约定 0~1，越界视为后端未提供有效值 */
 export function normalizeSamplingRate(value) {

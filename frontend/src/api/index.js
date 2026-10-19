@@ -5,6 +5,11 @@ import {
   normalizeNotificationSettings,
   normalizeNotificationTest
 } from '../utils/notifications'
+import {
+  normalizeProviderTest,
+  normalizeProviders
+} from '../utils/providers'
+import { normalizeAiUsage } from '../utils/aiUsage'
 
 const http = axios.create({
   baseURL: '/api',
@@ -311,6 +316,19 @@ export const api = {
   statsReport({ from, to } = {}) {
     return http.get('/stats/report', { params: { from: param(from), to: param(to) } })
   },
+  /**
+   * AI 用量与成本（ADMIN）：from/to 可空（yyyy-MM-dd）。
+   * 返回归一化的 {requests, inputTokens, outputTokens, costUsd, byDay[], byProvider[], byModel[]}；
+   * silent：成本看板自行展示 403/404 错误与重试，不弹全局提示。
+   */
+  aiUsage({ from, to } = {}) {
+    return http
+      .get('/stats/ai-usage', {
+        params: { from: param(from), to: param(to) },
+        silent: true
+      })
+      .then((data) => normalizeAiUsage(data))
+  },
 
   // 报表导出（登录即可）：返回 { blob, filename }，由调用方 saveBlob
   exportRecordingsCsv(params = {}) {
@@ -347,6 +365,36 @@ export const api = {
     return http
       .post('/settings/notifications/test', undefined, { silent: true })
       .then((data) => normalizeNotificationTest(data))
+  },
+
+  // 系统设置：AI 供应商注册表（ADMIN）；列表/测试 silent，由设置页卡片内展示降级提示
+  /** GET /api/settings/providers -> 归一化供应商数组（密钥只有掩码） */
+  listProviders() {
+    return http
+      .get('/settings/providers', { silent: true })
+      .then((data) => normalizeProviders(data))
+  },
+  /** POST /api/settings/providers（自定义供应商，key 唯一） */
+  createProvider(payload) {
+    return http.post('/settings/providers', payload)
+  },
+  /** PUT /api/settings/providers/{key}；payload.apiKey 为空时后端保持原密钥 */
+  updateProvider(key, payload) {
+    return http.put(`/settings/providers/${encodeURIComponent(key)}`, payload)
+  },
+  /** DELETE /api/settings/providers/{key}（仅自定义，且不能是当前生效供应商） */
+  deleteProvider(key) {
+    return http.delete(`/settings/providers/${encodeURIComponent(key)}`)
+  },
+  /** 连通性测试：model 可选，空表示使用该供应商默认模型 -> {ok, latencyMs, model, reply, message} */
+  testProvider(key, model) {
+    return http
+      .post(
+        `/settings/providers/${encodeURIComponent(key)}/test`,
+        { model: param(model) },
+        { silent: true }
+      )
+      .then((data) => normalizeProviderTest(data))
   }
 }
 

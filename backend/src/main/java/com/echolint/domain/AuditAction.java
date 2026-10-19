@@ -26,5 +26,10 @@ public enum AuditAction {
     CORPUS_DELETE,
     SETTINGS_UPDATE,
     /** 系统设置页发送 Webhook 测试通知（Batch 2b-2） */
-    NOTIFY_TEST
+    NOTIFY_TEST,
+    /** AI 供应商管理（Batch 3a）：新增 / 修改 / 删除 / 连通性测试 */
+    PROVIDER_CREATE,
+    PROVIDER_UPDATE,
+    PROVIDER_DELETE,
+    PROVIDER_TEST
 }

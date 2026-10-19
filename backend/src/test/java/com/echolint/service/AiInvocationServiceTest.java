@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -35,7 +36,8 @@ class AiInvocationServiceTest {
     private ScreenModelService.ActiveModel model() {
         return new ScreenModelService.ActiveModel(
                 "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash",
-                "/chat/completions", true, true, 2048, Map.of(), 300, null);
+                "/chat/completions", true, true, 2048, Map.of(), 300, null,
+                new BigDecimal("0.001"), new BigDecimal("0.002"));
     }
 
     private AiInvocation captured() {
@@ -48,7 +50,8 @@ class AiInvocationServiceTest {
     void recordsSuccessfulExchange() {
         String request = "{\"model\":\"deepseek-flash\"}";
         String response = "{\"violation\":true}";
-        service.recordSuccess(7L, AiInvocationService.STAGE_SCREEN, model(), request, response, 1234L);
+        service.recordSuccess(7L, AiInvocationService.STAGE_SCREEN, model(), request, response, 1234L,
+                new AiUsage(100, 50, 250L));
 
         AiInvocation inv = captured();
         assertEquals(7L, inv.getRecordingId());
@@ -64,6 +67,9 @@ class AiInvocationServiceTest {
         assertEquals(1234, inv.getLatencyMs());
         assertEquals(request.length(), inv.getRequestChars());
         assertEquals(response.length(), inv.getResponseChars());
+        assertEquals(100, inv.getInputTokens());
+        assertEquals(50, inv.getOutputTokens());
+        assertEquals(250L, inv.getCostMicros());
     }
 
     @Test
@@ -80,6 +86,9 @@ class AiInvocationServiceTest {
         assertEquals("{\"messages\":[]}", inv.getRequestJson());
         assertNull(inv.getResponseJson());
         assertEquals(0, inv.getResponseChars());
+        assertNull(inv.getInputTokens(), "失败调用没有 usage");
+        assertNull(inv.getOutputTokens());
+        assertNull(inv.getCostMicros());
     }
 
     @Test
@@ -87,7 +96,7 @@ class AiInvocationServiceTest {
         when(repository.save(any(AiInvocation.class))).thenThrow(new RuntimeException("db down"));
 
         assertDoesNotThrow(() -> service.recordSuccess(1L, AiInvocationService.STAGE_SCREEN, model(),
-                "{}", "{}", 1L));
+                "{}", "{}", 1L, new AiUsage(1, 1, 0L)));
     }
 
     @Test

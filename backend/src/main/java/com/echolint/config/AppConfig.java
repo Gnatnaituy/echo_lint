@@ -76,6 +76,7 @@ public class AppConfig {
 
     @Bean
     public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties,
+                                           ScreenModelProperties screenModelProperties,
                                            NotifyProperties notifyProperties) {
         return args -> {
             if (whisperProperties.apiKeyConfigured()) {
@@ -120,6 +121,14 @@ public class AppConfig {
                 log.warn("Webhook 通知已开启但未配置可用的 http(s) webhook-url —— 通知将被跳过");
             } else {
                 log.info("Webhook 通知未开启（app.notify.enabled=false）");
+            }
+            if (screenModelProperties.getDailyTokenLimit() > 0 || screenModelProperties.getRequestsPerMinute() > 0) {
+                log.info("AI 配额已开启：每日 token 上限 {}（0=不限），每供应商每分钟 {} 次（0=不限）；"
+                                + "超限将跳过调用并降级人工复核",
+                        screenModelProperties.getDailyTokenLimit(),
+                        screenModelProperties.getRequestsPerMinute());
+            } else {
+                log.info("AI 配额未开启（daily-token-limit=0、requests-per-minute=0）");
             }
         };
     }

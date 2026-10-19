@@ -5,6 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,6 +51,15 @@ public class ScreenModelProperties {
      * 不允许自动放行（Batch 2b-2）。
      */
     private double minConfidence = 0.6;
+
+    /**
+     * 每日 token 配额（输入 + 输出，所有供应商合计），0 = 不限。
+     * 超限后不再发起 AI 调用，抛错由流水线降级人工复核（Batch 3a）。
+     */
+    private long dailyTokenLimit = 0;
+
+    /** 单个供应商每分钟调用次数上限，0 = 不限（进程内计数，Batch 3a） */
+    private int requestsPerMinute = 0;
 
     private List<Provider> providers = new ArrayList<>();
 
@@ -118,6 +128,12 @@ public class ScreenModelProperties {
 
         /** 输出上限，防止 JSON 被中途截断；为空则不发送该字段 */
         private Integer maxTokens;
+
+        /** 输入单价（USD / 1K tokens），随供应商落库后用于成本快照 */
+        private BigDecimal inputPricePer1k = BigDecimal.ZERO;
+
+        /** 输出单价（USD / 1K tokens） */
+        private BigDecimal outputPricePer1k = BigDecimal.ZERO;
 
         /** 透传的额外请求字段（如 DeepSeek 的 thinking / reasoning_effort） */
         private Map<String, Object> extraBody = new LinkedHashMap<>();

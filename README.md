@@ -92,6 +92,7 @@ echolint/
 - **敏感词库**：KPI 概览、DFA 检测工具（命中实时高亮预览）、词条表含命中次数条形图，AI 挖掘词带「待审核」标记。
 - **报表**：日期范围 + 坐席/团队/方向筛选，汇总卡与按坐席/团队/违规类型统计，导出录音/违规/复核 CSV；敏感词库支持 CSV 导入导出与批量启停。
 - **合规抽样与告警**：可按比例抽检 DFA 未命中的录音（界面显示「抽样」标记）；复核确认违规、流水线失败、待复核积压可推送 Webhook（支持 HMAC 签名），系统设置页可发送测试通知。
+- **AI 治理与成本**：系统设置页可维护 AI 供应商（新增/编辑/停用/删除、密钥轮换与掩码展示、单价录入、连通性测试）；「成本看板」按日期/供应商/模型查看调用量、token 与预估成本。密钥以 AES-GCM 加密落库。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -323,6 +324,9 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_SCREEN_CHUNK_CHARS` | `12000` | AI 复筛单块字符数，超长转写自动分块 |
 | `APP_SCREEN_MAX_CHUNKS` | `6` | 单条录音最多复核块数（超出截断并告警） |
 | `APP_SCREEN_MIN_CONFIDENCE` | `0.6` | 判违规但置信度低于此值时降级人工复核 |
+| `APP_SECRET_KEY` | (dev fallback) | AI 供应商密钥加密主密钥，**生产必须配置**；变更后旧密文需重新录入 |
+| `APP_SCREEN_DAILY_TOKEN_LIMIT` | `0` | 每日 token 配额（0=不限；成功调用的 input+output） |
+| `APP_SCREEN_REQUESTS_PER_MINUTE` | `0` | 每分钟 AI 请求数上限（0=不限，进程内按供应商计数） |
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
@@ -351,6 +355,10 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
 | GET | `/api/settings/notifications` | 抽样与 Webhook 通知配置（ADMIN，不返回密钥） |
 | POST | `/api/settings/notifications/test` | 发送测试 Webhook 并返回结果（ADMIN） |
+| GET/POST | `/api/settings/providers` | AI 供应商列表/新增（ADMIN，密钥只回掩码） |
+| PUT/DELETE | `/api/settings/providers/{key}` | 修改（全量，apiKey 可选）/ 删除自定义供应商（ADMIN） |
+| POST | `/api/settings/providers/{key}/test` | 供应商连通性测试（ADMIN） |
+| GET | `/api/stats/ai-usage?from=&to=` | AI 调用量/成本统计（ADMIN，按日/供应商/模型） |
 
 报表与运营：
 

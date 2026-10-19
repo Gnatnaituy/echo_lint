@@ -150,6 +150,10 @@ export const AUDIT_ACTION_META = {
   REPORT_EXPORT: { label: '报表导出', type: 'primary' },
   SETTINGS_UPDATE: { label: '修改设置', type: 'warning' },
   NOTIFY_TEST: { label: '测试通知', type: 'info' },
+  PROVIDER_CREATE: { label: '新增 AI 供应商', type: 'success' },
+  PROVIDER_UPDATE: { label: '更新 AI 供应商', type: 'warning' },
+  PROVIDER_DELETE: { label: '删除 AI 供应商', type: 'danger' },
+  PROVIDER_TEST: { label: '测试 AI 供应商', type: 'info' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }
 

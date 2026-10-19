@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/segments.test.mjs tests/recording-actions.test.mjs tests/workflow.test.mjs tests/download.test.mjs tests/notifications.test.mjs"
+    "test": "node --test tests/segments.test.mjs tests/recording-actions.test.mjs tests/workflow.test.mjs tests/download.test.mjs tests/notifications.test.mjs tests/ai-governance.test.mjs"
   },
   "dependencies": {
     "axios": "^1.7.7",

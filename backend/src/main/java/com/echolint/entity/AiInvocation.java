@@ -24,7 +24,9 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "ai_invocations", indexes = {
-        @Index(name = "idx_ai_inv_recording", columnList = "recordingId")
+        @Index(name = "idx_ai_inv_recording", columnList = "recordingId"),
+        // 配额/成本统计按时间范围聚合，避免全表扫描
+        @Index(name = "idx_ai_inv_created", columnList = "createdAt")
 })
 @Getter
 @Setter
@@ -77,6 +79,15 @@ public class AiInvocation {
     private Integer requestChars;
 
     private Integer responseChars;
+
+    /** 输入 tokens（模型响应 usage.prompt_tokens）；旧记录/失败调用为空 */
+    private Integer inputTokens;
+
+    /** 输出 tokens（模型响应 usage.completion_tokens） */
+    private Integer outputTokens;
+
+    /** 成本快照（微美元，1e-6 USD），按调用时的供应商单价计算；0 表示未配置单价 */
+    private Long costMicros;
 
     /** 是否降级转人工（复筛失败时为 true） */
     @Column(nullable = false)

@@ -93,8 +93,15 @@ public class SecurityConfig {
                         // 系统设置：通知查看/测试与所有写操作为 ADMIN；复筛模型只读信息仍对登录用户开放
                         .requestMatchers(HttpMethod.GET, "/api/settings/notifications").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/settings/notifications/**").hasRole("ADMIN")
+                        // AI 供应商管理（Batch 3a）：列表只回掩码，仍属敏感配置，仅 ADMIN 可读
+                        .requestMatchers(HttpMethod.GET, "/api/settings/providers").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/settings/providers/**").hasRole("ADMIN")
+                        // AI 成本看板（Batch 3a）仅 ADMIN
+                        .requestMatchers(HttpMethod.GET, "/api/stats/ai-usage").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/settings/**").hasRole("ADMIN")
+                        // 供应商删除仅 ADMIN（POST/PUT 规则不覆盖 DELETE）
+                        .requestMatchers(HttpMethod.DELETE, "/api/settings/**").hasRole("ADMIN")
                         // 语料删除仅 ADMIN（文档 1.3：ADMIN only 包含「语料删除」）
                         .requestMatchers(HttpMethod.DELETE, "/api/corpus/**").hasRole("ADMIN")
                         // 录音指派 / 重开仅 ADMIN（复核工作流 1.6 的接口级要求更严格，按保守方案执行）

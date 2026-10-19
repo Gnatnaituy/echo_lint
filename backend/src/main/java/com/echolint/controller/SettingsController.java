@@ -1,23 +1,35 @@
 package com.echolint.controller;
 
 import com.echolint.domain.AuditAction;
+import com.echolint.dto.ProviderRequest;
+import com.echolint.dto.ProviderTestRequest;
 import com.echolint.dto.ScreenModelRequest;
 import com.echolint.service.AuditService;
 import com.echolint.service.NotificationService;
+import com.echolint.service.ProviderAdminService;
+import com.echolint.service.ProviderRegistry.ProviderSnapshot;
 import com.echolint.service.ScreenModelService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试；
- * Batch 2b-2 起增加 Webhook 通知配置查看与测试发送（均仅 ADMIN，见 SecurityConfig）。
+ * Batch 2b-2 起增加 Webhook 通知配置查看与测试发送；
+ * Batch 3a 起增加 AI 供应商 CRUD（密钥只回掩码）与供应商连通性测试。
+ * 除 GET /screen-model 外均仅 ADMIN（见 SecurityConfig）。
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -25,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SettingsController {
 
     private final ScreenModelService screenModelService;
+    private final ProviderAdminService providerAdminService;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
@@ -34,7 +47,7 @@ public class SettingsController {
         return screenModelService.snapshot();
     }
 
-    /** 运行时切换（落库持久化，立即生效，无需重启） */
+    /** 运行时切换（落库持久化，立即生效，无需重启；未知/停用的供应商会被拒绝） */
     @PutMapping("/screen-model")
     public ScreenModelService.View updateScreenModel(@Valid @RequestBody ScreenModelRequest request) {
         ScreenModelService.View view = screenModelService.switchTo(request.providerId(), request.model());
@@ -52,6 +65,56 @@ public class SettingsController {
         }
         return screenModelService.test(request.providerId(), request.model());
     }
+
+    // ------------------------------------------------------------------ AI 供应商（Batch 3a）
+
+    /** 供应商列表（ADMIN）：密钥只回末 4 位掩码与是否已配置，绝不返回密文 */
+    @GetMapping("/providers")
+    public List<ProviderSnapshot> providers() {
+        return providerAdminService.list();
+    }
+
+    @PostMapping("/providers")
+    public ResponseEntity<ProviderSnapshot> createProvider(@Valid @RequestBody ProviderRequest request) {
+        ProviderSnapshot created = providerAdminService.create(request);
+        auditService.record(AuditAction.PROVIDER_CREATE, "PROVIDER", created.key(),
+                "新增 AI 供应商 " + created.key() + "（" + created.baseUrl() + "，API Key "
+                        + (created.apiKeyConfigured() ? "已配置" : "未配置") + "）");
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PutMapping("/providers/{key}")
+    public ProviderSnapshot updateProvider(@PathVariable String key,
+                                           @Valid @RequestBody ProviderRequest request) {
+        ProviderSnapshot updated = providerAdminService.update(key, request);
+        auditService.record(AuditAction.PROVIDER_UPDATE, "PROVIDER", updated.key(),
+                "更新 AI 供应商 " + updated.key() + "（" + (updated.enabled() ? "启用" : "停用")
+                        + "，API Key " + (updated.apiKeyConfigured() ? "已配置" : "未配置") + "）");
+        return updated;
+    }
+
+    @DeleteMapping("/providers/{key}")
+    public ResponseEntity<Void> deleteProvider(@PathVariable String key) {
+        providerAdminService.delete(key);
+        auditService.record(AuditAction.PROVIDER_DELETE, "PROVIDER", key, "删除 AI 供应商 " + key);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 供应商连通性测试（可选 model）；失败也返回 200 + ok=false，便于界面展示原因 */
+    @PostMapping("/providers/{key}/test")
+    public ScreenModelService.TestResult testProvider(@PathVariable String key,
+                                                      @RequestBody(required = false) ProviderTestRequest request) {
+        String model = request == null ? null : request.model();
+        ScreenModelService.TestResult result = screenModelService.test(key, model);
+        auditService.record(AuditAction.PROVIDER_TEST, "PROVIDER", key,
+                "AI 供应商连通性测试" + (result.ok() ? "成功" : "失败")
+                        + "（" + result.providerLabel() + " · " + result.model()
+                        + "，耗时 " + result.latencyMs() + "ms）"
+                        + (result.ok() ? "" : "：" + result.message()));
+        return result;
+    }
+
+    // ------------------------------------------------------------------ Webhook 通知
 
     /** Webhook 通知设置（ADMIN）：返回 enabled/urlConfigured/积压阈值/固定事件列表，不返回密钥与完整 URL */
     @GetMapping("/notifications")

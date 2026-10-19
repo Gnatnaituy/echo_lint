@@ -1,16 +1,20 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.ScreenModelProperties;
+import com.echolint.config.SecretCipher;
+import com.echolint.entity.AiProvider;
 import com.echolint.entity.AppSetting;
 import com.echolint.exception.BizException;
+import com.echolint.repository.AiProviderRepository;
 import com.echolint.repository.AppSettingRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,19 +24,25 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 /**
- * AI 复筛模型切换：默认值解析、落库优先级、切换校验、密钥缺失提示
+ * AI 复筛模型切换：默认值解析、落库优先级、切换校验（未知/停用）、密钥缺失提示、
+ * 数据库供应商优先 + yml 兜底（Batch 3a）。
  */
 @ExtendWith(MockitoExtension.class)
 class ScreenModelServiceTest {
 
     @Mock
     private AppSettingRepository settingRepository;
+    @Mock
+    private AiProviderRepository providerRepository;
 
     /** 内存版 app_settings，模拟持久化 */
     private final Map<String, AppSetting> store = new HashMap<>();
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SecretCipher cipher = new SecretCipher("test-secret");
     private ScreenModelService service;
 
     @BeforeEach
@@ -45,7 +55,11 @@ class ScreenModelServiceTest {
             store.put(s.getSettingKey(), s);
             return s;
         });
-        service = new ScreenModelService(properties(), settingRepository, new ObjectMapper());
+        lenient().when(providerRepository.findAllByOrderByBuiltInDescProviderKeyAsc()).thenReturn(List.of());
+        lenient().when(providerRepository.findByProviderKeyIgnoreCase(anyString())).thenReturn(Optional.empty());
+
+        ProviderRegistry registry = new ProviderRegistry(providerRepository, properties(), cipher, objectMapper);
+        service = new ScreenModelService(properties(), settingRepository, objectMapper, registry);
     }
 
     private ScreenModelProperties properties() {
@@ -77,6 +91,24 @@ class ScreenModelServiceTest {
         p.setModels(models);
         p.setJsonMode(jsonMode);
         return p;
+    }
+
+    private AiProvider dbProvider(String key, String apiKey, boolean enabled) {
+        AiProvider row = new AiProvider();
+        row.setProviderKey(key);
+        row.setLabel("DB " + key);
+        row.setBaseUrl("https://db.example.com");
+        row.setChatPath("/v1/chat/completions");
+        row.setApiKeyCipher(apiKey == null ? null : cipher.encrypt(apiKey));
+        row.setApiKeyMasked(cipher.mask(apiKey));
+        row.setDefaultModel("db-model");
+        row.setModelsJson("[\"db-model\",\"db-model-pro\"]");
+        row.setJsonMode(true);
+        row.setInputPricePer1k(new BigDecimal("0.010000"));
+        row.setOutputPricePer1k(new BigDecimal("0.020000"));
+        row.setEnabled(enabled);
+        row.setBuiltIn(false);
+        return row;
     }
 
     @Test
@@ -117,6 +149,23 @@ class ScreenModelServiceTest {
     }
 
     @Test
+    void databaseProviderWinsOverConfigAndCarriesPricing() {
+        when(providerRepository.findByProviderKeyIgnoreCase("openai"))
+                .thenReturn(Optional.of(dbProvider("openai", "sk-db-key-1234", true)));
+        store.put("screen.provider", AppSetting.of("screen.provider", "openai"));
+        store.put("screen.model", AppSetting.of("screen.model", "db-model-pro"));
+
+        ScreenModelService.ActiveModel active = service.active();
+
+        assertEquals("DB openai", active.providerLabel(), "DB 行优先于 yml");
+        assertEquals("https://db.example.com", active.baseUrl());
+        assertEquals("db-model-pro", active.model());
+        assertTrue(active.apiKeyConfigured(), "密钥应从密文解密");
+        assertEquals(0, new BigDecimal("0.01").compareTo(active.inputPricePer1k()));
+        assertEquals(0, new BigDecimal("0.02").compareTo(active.outputPricePer1k()));
+    }
+
+    @Test
     void switchPersistsProviderAndResolvesDefaultModel() {
         ScreenModelService.View view = service.switchTo("deepseek", null);
 
@@ -146,6 +195,17 @@ class ScreenModelServiceTest {
     }
 
     @Test
+    void switchRejectsDisabledProvider() {
+        when(providerRepository.findByProviderKeyIgnoreCase("legacy"))
+                .thenReturn(Optional.of(dbProvider("legacy", "sk-legacy", false)));
+
+        BizException e = assertThrows(BizException.class, () -> service.switchTo("legacy", "db-model"));
+
+        assertTrue(e.getMessage().contains("已停用"), e.getMessage());
+        assertTrue(store.isEmpty(), "校验失败不应写入任何设置");
+    }
+
+    @Test
     void requireActiveExplainsMissingApiKey() {
         service.switchTo("deepseek", null);
 
@@ -168,5 +228,18 @@ class ScreenModelServiceTest {
         assertEquals("openai", active.providerId(), "配置里已删除的供应商应回退到默认");
         assertEquals("gpt-4o-mini", active.model(), "旧模型名一并作废，回退到默认供应商的模型");
         assertEquals("DEFAULT", service.snapshot().source(), "回退后的选择不再算作界面切换");
+    }
+
+    @Test
+    void disabledStoredProviderFallsBackToDefault() {
+        when(providerRepository.findByProviderKeyIgnoreCase("legacy"))
+                .thenReturn(Optional.of(dbProvider("legacy", "sk-legacy", false)));
+        store.put("screen.provider", AppSetting.of("screen.provider", "legacy"));
+        store.put("screen.model", AppSetting.of("screen.model", "db-model"));
+
+        ScreenModelService.ActiveModel active = service.active();
+
+        assertEquals("openai", active.providerId(), "已停用的供应商不应继续生效");
+        assertEquals("gpt-4o-mini", active.model());
     }
 }
