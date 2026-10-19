@@ -300,6 +300,29 @@ curl http://<host>/api/open/recordings/1 -H "X-API-Key: elk_xxx"
 - 上传复用内部校验/去重/持久任务队列；查询只返回状态、命中数、违规类型、复核结论、错误信息等限定字段。
 - 密钥停用后立即失效；当前开放 API 未提供限流与租户隔离，请只在可信网络内使用。
 
+## 集成适配器（多租户 / SSO / 流式 ASR / 说话人分离）
+
+四类需要外部选型/部署的能力做成了**可插拔适配器 + 配置 + 状态接口**，**默认全部关闭、零行为变化**。
+完整配置项、接口契约、OIDC/LDAP/流式 ASR/diarization 接入步骤、数据隔离分阶段方案与回滚说明见
+**[docs/integrations.md](docs/integrations.md)**。
+
+```bash
+# 管理端状态（ADMIN）：是否启用/已配置、供应商、SSO 登录地址；不含任何密钥
+curl http://localhost:8082/api/settings/integrations -b cookies.txt
+
+# 登录页 SSO 公开配置（匿名可读；loginUrl 为空表示客户端适配器尚未实现）
+curl http://localhost:8082/api/auth/sso/config
+```
+
+- **多租户**：默认单租户（`default`）。设 `APP_TENANT_ENABLED=true` + `APP_TENANT_MODE=HEADER` 后，
+  `/api/**` 必须携带 `APP_TENANT_HEADER`（默认 `X-Tenant-Id`）指定的租户头，缺失/非法返回 JSON 400；
+  本轮只提供租户上下文，**不做数据隔离**（迁移方案见文档）。
+- **SSO/LDAP**：默认关闭，登录仍走本地账号；本轮只暴露适配器契约与只读状态，
+  真实 OIDC/LDAP 对接需引入对应客户端依赖并实现 `SsoProvider`（步骤见文档）。
+- **流式 ASR**：默认关闭，**不改变现有批量转写流程**；接入点（WebSocket/SSE、会话生命周期、背压）见文档。
+- **说话人分离**：默认关闭，仅单声道需要；双声道仍走左右声道方案，降级策略见文档。
+- 密钥（`client-secret`、`api-key`）只从环境变量/配置注入，接口与日志均不返回；关闭开关即可回滚。
+
 ## 本地开发
 
 ```bash
@@ -357,6 +380,23 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
 | `APP_STEREO_LEFT_SPEAKER` | `坐席` | 左声道说话人名称 |
 | `APP_STEREO_RIGHT_SPEAKER` | `客户` | 右声道说话人名称 |
+| `APP_TENANT_ENABLED` | `false` | 多租户解析开关（关闭=单租户 `default`） |
+| `APP_TENANT_MODE` | `SINGLE` | `SINGLE` / `HEADER`（HEADER 模式校验租户头） |
+| `APP_TENANT_HEADER` | `X-Tenant-Id` | HEADER 模式读取的租户请求头 |
+| `APP_SSO_ENABLED` | `false` | SSO/LDAP 开关（关闭时仍用本地账号登录） |
+| `APP_SSO_PROVIDER` | `OIDC` | `OIDC` / `LDAP` |
+| `APP_SSO_ISSUER` | (空) | OIDC issuer；LDAP 为 `ldap(s)://host:port` |
+| `APP_SSO_CLIENT_ID` | (空) | OIDC client_id；LDAP 为绑定 DN |
+| `APP_SSO_CLIENT_SECRET` | (空) | OIDC client_secret；LDAP 为绑定密码（不通过接口返回） |
+| `APP_SSO_ROLE_MAPPING_JSON` | (空) | IdP 组 → 本地角色映射 JSON（`{"group":"ADMIN"}`） |
+| `APP_ASR_STREAMING_ENABLED` | `false` | 实时（流式）转写开关，不影响批量转写 |
+| `APP_ASR_STREAMING_PROVIDER` | (空) | 流式转写供应商标识 |
+| `APP_ASR_STREAMING_ENDPOINT` | (空) | 流式转写网关地址（`wss(s)://`/`https://`） |
+| `APP_ASR_STREAMING_API_KEY` | (空) | 流式转写密钥（不通过接口返回） |
+| `APP_DIARIZATION_ENABLED` | `false` | 单声道说话人分离开关（双声道不受影响） |
+| `APP_DIARIZATION_PROVIDER` | (空) | 说话人分离供应商标识 |
+| `APP_DIARIZATION_ENDPOINT` | (空) | 说话人分离服务地址（`http(s)://`） |
+| `APP_DIARIZATION_API_KEY` | (空) | 说话人分离密钥（不通过接口返回） |
 
 ## API 一览
 
@@ -381,6 +421,7 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | POST | `/api/settings/screen-model/evaluate` | 基于标注语料评测模型 `{providerId, model?, sampleSize?}`（ADMIN，≤20 条） |
 | GET | `/api/settings/notifications` | 抽样与 Webhook 通知配置（ADMIN，不返回密钥） |
 | POST | `/api/settings/notifications/test` | 发送测试 Webhook 并返回结果（ADMIN） |
+| GET | `/api/settings/integrations` | 集成适配器状态：多租户/SSO/流式ASR/说话人分离（ADMIN，不返回密钥） |
 | GET/POST | `/api/settings/providers` | AI 供应商列表/新增（ADMIN，密钥只回掩码） |
 | PUT/DELETE | `/api/settings/providers/{key}` | 修改（全量，apiKey 可选）/ 删除自定义供应商（ADMIN） |
 | POST | `/api/settings/providers/{key}/test` | 供应商连通性测试（ADMIN） |
@@ -410,6 +451,7 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/auth/login` | `{username,password}` → 用户信息；失败 401 |
+| GET | `/api/auth/sso/config` | 登录页 SSO 公开配置 `{enabled,provider,configured,loginUrl}`（匿名可读，不含密钥） |
 | POST | `/api/auth/logout` | 注销会话 |
 | GET | `/api/auth/me` | 当前登录用户 |
 | POST | `/api/auth/password` | 修改密码 `{oldPassword,newPassword}` |
@@ -454,7 +496,11 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 - **卡住的录音**：`待处理 / 转写中 / 初筛中 / 复筛中` 停超过 2 分钟会标记「疑似卡住」，可用行内按钮手动推进。
 - **服务重启自动恢复**：启动时会把上次中断在中间态的录音置为 `FAILED`（附原因「服务重启导致处理中断」），
   使其可被「重新处理」，不会永久卡死（见 `PipelineRecoveryService`）。
-- **在途保护**：流水线运行期间重复点击「重新处理」会被后端忽略（进程内 in-flight 标记），不会重复调用 Whisper。
+- **在途保护**：流水线运行期间重复点击「重新处理」会返回 400（该录音正在处理中）；任务由 `pipeline_tasks`
+  持久化队列调度，服务重启后 RUNNING 任务会自动恢复续跑，不会重复调用 Whisper。
+- **集成适配器**：多租户 / SSO / 流式 ASR / 说话人分离默认全部关闭、互不影响；多租户本轮只解析租户上下文
+  （HEADER 模式缺失/非法租户头返回 400），**不做数据隔离**；SSO 与实时转写目前是适配器契约，
+  真实对接步骤与回滚说明见 [docs/integrations.md](docs/integrations.md)。
 - **切换复筛模型**：选择存在 `app_settings` 表，进程内不缓存，改完立即对新录音生效；配置里删掉某个供应商时，表里的旧选择会自动回退到 `APP_SCREEN_PROVIDER`（旧的模型名一并作废，避免拿旧模型名打新供应商）。密钥只从环境变量/配置读取，**不会**通过接口下发或写库。
 - **Spring 代理坑**：`PipelineService` 有 `@Async` 方法，**不要让它实现接口**，否则 Spring 使用 JDK 动态代理，
   其它 Bean 按具体类型注入会启动失败（`was actually of type 'jdk.proxy2.$Proxy'`）。

@@ -6,6 +6,7 @@ import com.echolint.dto.ProviderRequest;
 import com.echolint.dto.ProviderTestRequest;
 import com.echolint.dto.ScreenModelRequest;
 import com.echolint.service.AuditService;
+import com.echolint.service.IntegrationStatusService;
 import com.echolint.service.ModelEvaluationService;
 import com.echolint.service.NotificationService;
 import com.echolint.service.ProviderAdminService;
@@ -30,7 +31,8 @@ import java.util.List;
 /**
  * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试；
  * Batch 2b-2 起增加 Webhook 通知配置查看与测试发送；
- * Batch 3a 起增加 AI 供应商 CRUD（密钥只回掩码）与供应商连通性测试。
+ * Batch 3a 起增加 AI 供应商 CRUD（密钥只回掩码）与供应商连通性测试；
+ * Batch 5 起增加集成适配器状态（多租户/SSO/流式 ASR/说话人分离，不含密钥）。
  * 除 GET /screen-model 外均仅 ADMIN（见 SecurityConfig）。
  */
 @RestController
@@ -43,6 +45,7 @@ public class SettingsController {
     private final ModelEvaluationService modelEvaluationService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final IntegrationStatusService integrationStatusService;
 
     /** 当前生效的模型 + 全部候选供应商 */
     @GetMapping("/screen-model")
@@ -154,5 +157,16 @@ public class SettingsController {
                         + "（耗时 " + result.latencyMs() + "ms）"
                         + (result.ok() ? "" : "：" + result.message()));
         return result;
+    }
+
+    // ------------------------------------------------------------------ 集成适配器（Batch 5）
+
+    /**
+     * 集成适配器状态（ADMIN）：多租户 / SSO / 流式 ASR / 说话人分离。
+     * 只返回是否启用/配置、供应商名与 SSO 登录地址，不包含任何密钥或完整端点密钥参数。
+     */
+    @GetMapping("/integrations")
+    public IntegrationStatusService.IntegrationsView integrations() {
+        return integrationStatusService.status();
     }
 }

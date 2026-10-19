@@ -1,8 +1,12 @@
 package com.echolint;
 
 import com.echolint.config.AppProperties;
+import com.echolint.config.DiarizationProperties;
 import com.echolint.config.NotifyProperties;
 import com.echolint.config.ScreenModelProperties;
+import com.echolint.config.SsoProperties;
+import com.echolint.config.StreamingProperties;
+import com.echolint.config.TenantProperties;
 import com.echolint.config.WhisperProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -18,7 +22,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 // 每日 09:00（Asia/Shanghai）待复核积压检查见 ReviewBacklogScheduler
 @EnableScheduling
 @EnableConfigurationProperties({AppProperties.class, WhisperProperties.class, ScreenModelProperties.class,
-        NotifyProperties.class})
+        NotifyProperties.class, TenantProperties.class, SsoProperties.class, StreamingProperties.class,
+        DiarizationProperties.class})
 public class EchoLintApplication {
 
     public static void main(String[] args) {

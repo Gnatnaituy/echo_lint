@@ -5,6 +5,7 @@ import com.echolint.domain.WordSeverity;
 import com.echolint.domain.ViolationType;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.repository.DictionaryWordRepository;
+import com.echolint.service.IntegrationStatusService;
 import com.echolint.service.ScreenModelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,7 +78,8 @@ public class AppConfig {
     @Bean
     public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties,
                                            ScreenModelProperties screenModelProperties,
-                                           NotifyProperties notifyProperties) {
+                                           NotifyProperties notifyProperties,
+                                           IntegrationStatusService integrationStatusService) {
         return args -> {
             if (whisperProperties.apiKeyConfigured()) {
                 log.info("语音转写：{}（模型 {}，上传上限 {}MB）",
@@ -139,6 +141,17 @@ public class AppConfig {
             } else {
                 log.info("AI 语义复筛 A/B 分流未开启（app.screen-models.ab.enabled=false）");
             }
+            // 集成适配器（Batch 5）：只打印启用/配置状态与供应商名，绝不打印任何密钥
+            IntegrationStatusService.IntegrationsView integrations = integrationStatusService.status();
+            log.info("集成适配器：租户={}({}) SSO={}({}) 流式ASR={}({}) 说话人分离={}({})",
+                    integrations.tenant().enabled() ? "启用" : "关闭",
+                    integrations.tenant().mode(),
+                    integrations.sso().enabled() ? "启用" : "关闭",
+                    integrations.sso().provider(),
+                    integrations.streaming().enabled() ? "启用" : "关闭",
+                    integrations.streaming().provider(),
+                    integrations.diarization().enabled() ? "启用" : "关闭",
+                    integrations.diarization().provider());
         };
     }
 }

@@ -13,7 +13,7 @@
 | 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 ✅ |
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 ✅（P1 完成） |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 4a ✅；4b ✅（P2 可独立项完成） |
-| 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
+| 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | ✅ 已完成 |
 
 ---
 
@@ -439,6 +439,60 @@
 - CSV 含 UTF-8 BOM，Excel 直接打开中文不乱码。
 - 词库导入去重、批量启停后 DFA 生效。
 
+
+## 5 · 集成适配器（✅ 已完成）
+
+> 目标：把需要外部选型/部署的能力做成**可插拔接口 + 配置 + 状态 API + 接入文档**，
+> 默认关闭、零行为变化；选型确定后只需实现适配器，不改主流程。
+
+### 多租户（租户解析适配器）
+- 接口 `TenantResolver { String resolve(HttpServletRequest) }`；默认 `SingleTenantResolver` 返回 `default`。
+- 配置 `app.tenant.enabled=false`、`app.tenant.mode=SINGLE|HEADER`、`app.tenant.header=X-Tenant-Id`。
+  HEADER 模式下缺失/非法租户 ID → 400 JSON。
+- `TenantContext`（ThreadLocal）+ `TenantFilter`（/api/**，设置/清理上下文）。
+- **本轮不做数据隔离**：在 docs/integrations.md 给出 tenant_id 列、查询过滤、迁移与回滚的分阶段方案。
+
+### SSO / LDAP（身份源适配器）
+- 接口 `SsoProvider { id(); enabled(); configured(); loginUrl(); metadata() }`；默认 `DisabledSsoProvider`。
+- 配置 `app.sso.enabled=false`、`app.sso.provider=OIDC|LDAP`、`issuer`、`client-id`、`client-secret`、
+  `app.sso.role-mapping`（JSON 字符串）。状态/接口绝不返回 secret。
+- 公开只读接口 `GET /api/auth/sso/config`（permitAll）：`{enabled, provider, configured, loginUrl}`，供登录页展示。
+- 真正 OIDC/LDAP 对接需引入对应客户端依赖与 IdP，文档给出步骤与安全注意（state/nonce、角色映射、登出）。
+
+### 实时转写（流式 ASR 适配器）
+- 接口 `StreamingTranscriptionProvider`：`id()/configured()/start(config)` + `StreamSession{send,finish,close}`；
+  默认 `UnsupportedStreamingProvider`（显式抛出未配置）。
+- 配置 `app.asr.streaming.enabled=false`、`provider`、`endpoint`、`api-key`（状态只显示是否配置）。
+- 不改变现有批量转写流程；文档说明接入流式 ASR（WebSocket/SSE）与前端实时展示的改造点。
+
+### 说话人分离（diarization 适配器）
+- 接口 `DiarizationProvider`：`id()/configured()/diarize(Path) -> List<SpeakerSegment>`；
+  默认 `UnsupportedDiarizationProvider`。
+- 配置 `app.diarization.enabled=false`、`provider`、`endpoint`、`api-key`。
+- 单声道录音才需要；双声道仍按现有左右声道方案。文档给出与分段的合并/降级策略。
+
+### 集成状态 API 与文档
+- `GET /api/settings/integrations`（ADMIN）：
+  `{tenant:{enabled,mode,provider,configured}, sso:{enabled,provider,configured,loginUrl},
+    streaming:{enabled,provider,configured}, diarization:{enabled,provider,configured}}`，无 secret。
+- 新增 `docs/integrations.md`：四类集成的配置项、接口契约、接入步骤、安全与回滚注意事项；
+  README 增加入口与配置表。
+- 单测：各适配器默认关闭、配置解析、租户模式/缺失 header、状态 API 与权限、secret 不外泄。
+
+### 验收
+- 后端 `mvn clean test` 全绿（无新依赖）。
+- 启动冒烟：默认全关 → 状态 API 全 disabled；租户 HEADER 模式缺失 header 400、合法 header 通过；
+  SSO 公开状态接口匿名可读且不含 secret；应用日志 0 ERROR。
+
+### 5 完成记录
+
+- 后端 438 个单测全绿（新增 52 个）；`mvn package` 成功；零新依赖。
+- 冒烟（打包 jar + 临时 MySQL，三轮）：
+  - 默认全关：启动日志四类「关闭」，`/api/settings/integrations` 匿名 401 / VIEWER 403 / ADMIN 200，四类均 disabled，响应无密钥字段。
+  - 租户 HEADER 模式：缺失/非法 header 400 JSON 且不回显原值；合法 header 下登录/SSO 配置/状态接口均正常；OPTIONS 预检放行。
+  - 已配置适配器：状态与公开 SSO 配置正确；响应与日志 0 处密钥；应用日志 0 ERROR；优雅停机正常。
+- 文档：`docs/integrations.md`（配置、接口契约、OIDC/LDAP 接入步骤、租户隔离迁移与回滚、流式/diarization 接入点、安全清单）；README 增加章节与配置表/API。
+- 已知限制：SSO `loginUrl` 默认空（客户端适配器未实现，前端不应展示 SSO 入口）；HEADER 租户对全部 `/api/**` 生效（生产建议网关注入或登录态推导）；本轮不做数据隔离；流式 ASR/diarization 仅接口+配置+状态，未接入现网调用路径。
 
 ## 审计补充项（并入 Batch 2/3）
 

@@ -87,8 +87,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 容器内部 ERROR 转发不拦截，避免异常处理被 401/403 覆盖
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        // 匿名可访问：登录入口、健康检查与指标（部署层限制为内网/回环）、OpenAPI 文档
-                        .requestMatchers("/api/auth/login",
+                        // 匿名可访问：登录入口、SSO 公开配置（登录页展示用，不含密钥）、
+                        // 健康检查与指标（部署层限制为内网/回环）、OpenAPI 文档
+                        .requestMatchers("/api/auth/login", "/api/auth/sso/config",
                                 "/actuator/health", "/actuator/info", "/actuator/prometheus",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // 开放 API（Batch 4a）：不依赖会话，由 ApiKeyAuthFilter 校验 X-API-Key
@@ -108,6 +109,8 @@ public class SecurityConfig {
                         // 系统设置：通知查看/测试与所有写操作为 ADMIN；复筛模型只读信息仍对登录用户开放
                         .requestMatchers(HttpMethod.GET, "/api/settings/notifications").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/settings/notifications/**").hasRole("ADMIN")
+                        // 集成适配器状态（Batch 5，多租户/SSO/流式ASR/说话人分离）仅 ADMIN（无密钥）
+                        .requestMatchers(HttpMethod.GET, "/api/settings/integrations").hasRole("ADMIN")
                         // AI 供应商管理（Batch 3a）：列表只回掩码，仍属敏感配置，仅 ADMIN 可读
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers/**").hasRole("ADMIN")

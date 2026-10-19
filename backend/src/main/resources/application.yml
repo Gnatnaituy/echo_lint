@@ -84,6 +84,37 @@ app:
     webhook-secret: ${APP_NOTIFY_WEBHOOK_SECRET:}
     timeout-seconds: ${APP_NOTIFY_TIMEOUT_SECONDS:5}
     backlog-threshold: ${APP_NOTIFY_BACKLOG_THRESHOLD:50}
+  # ===================== 集成适配器（Batch 5） =====================
+  # 全部默认关闭，关闭时行为与之前完全一致；状态见 GET /api/settings/integrations（ADMIN）。
+  # 契约、接入步骤与安全/回滚说明见 docs/integrations.md。
+  # 多租户：本轮只解析租户上下文，不做数据隔离。HEADER 模式下 /api/** 必须带租户头，
+  # 缺失/非法（1~64 位字母/数字/下划线/中划线）返回 JSON 400。
+  tenant:
+    enabled: ${APP_TENANT_ENABLED:false}
+    mode: ${APP_TENANT_MODE:SINGLE}
+    header: ${APP_TENANT_HEADER:X-Tenant-Id}
+  # SSO / LDAP：只暴露状态与登录跳转地址，不引入身份源客户端；密钥只从环境变量注入。
+  sso:
+    enabled: ${APP_SSO_ENABLED:false}
+    provider: ${APP_SSO_PROVIDER:OIDC}
+    issuer: ${APP_SSO_ISSUER:}
+    client-id: ${APP_SSO_CLIENT_ID:}
+    client-secret: ${APP_SSO_CLIENT_SECRET:}
+    # IdP 组 → 本地角色（ADMIN/REVIEWER/VIEWER）映射，JSON 字符串
+    role-mapping-json: ${APP_SSO_ROLE_MAPPING_JSON:}
+  # 实时（流式）转写：默认关闭，不改变现有批量转写流程。
+  asr:
+    streaming:
+      enabled: ${APP_ASR_STREAMING_ENABLED:false}
+      provider: ${APP_ASR_STREAMING_PROVIDER:}
+      endpoint: ${APP_ASR_STREAMING_ENDPOINT:}
+      api-key: ${APP_ASR_STREAMING_API_KEY:}
+  # 单声道说话人分离：默认关闭；双声道仍走现有左右声道方案。
+  diarization:
+    enabled: ${APP_DIARIZATION_ENABLED:false}
+    provider: ${APP_DIARIZATION_PROVIDER:}
+    endpoint: ${APP_DIARIZATION_ENDPOINT:}
+    api-key: ${APP_DIARIZATION_API_KEY:}
   # 首次启动引导管理员（用户表为空时创建；生产请务必通过环境变量覆盖密码）
   admin:
     username: ${APP_ADMIN_USERNAME:admin}

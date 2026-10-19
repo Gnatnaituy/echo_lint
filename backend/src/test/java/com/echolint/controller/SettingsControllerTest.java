@@ -3,6 +3,7 @@ package com.echolint.controller;
 import com.echolint.domain.AuditAction;
 import com.echolint.service.AuditService;
 import com.echolint.service.ModelEvaluationService;
+import com.echolint.service.IntegrationStatusService;
 import com.echolint.service.NotificationService;
 import com.echolint.service.ProviderAdminService;
 import com.echolint.service.ProviderRegistry.ProviderSnapshot;
@@ -41,13 +42,15 @@ class SettingsControllerTest {
     private AuditService auditService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private IntegrationStatusService integrationStatusService;
 
     private SettingsController controller;
 
     @BeforeEach
     void setUp() {
         controller = new SettingsController(screenModelService, providerAdminService, modelEvaluationService,
-                auditService, notificationService);
+                auditService, notificationService, integrationStatusService);
     }
 
     private ProviderSnapshot snapshot(String key, boolean builtIn, String masked, boolean configured) {
@@ -225,5 +228,23 @@ class SettingsControllerTest {
 
         verify(auditService).record(eq(AuditAction.MODEL_EVALUATE), eq("SETTINGS"), eq("screen-model"),
                 argThat(detail -> !detail.contains("sk-")));
+    }
+
+    // ------------------------------------------------------------------ 集成适配器（Batch 5）
+
+    @Test
+    void integrationsReturnStatusViewWithoutSecrets() {
+        IntegrationStatusService.IntegrationsView view = new IntegrationStatusService.IntegrationsView(
+                new IntegrationStatusService.TenantStatus(false, "SINGLE", "single", true),
+                new IntegrationStatusService.SsoStatus(false, "OIDC", false, ""),
+                new IntegrationStatusService.StreamingStatus(false, "unsupported", false),
+                new IntegrationStatusService.DiarizationStatus(false, "unsupported", false));
+        when(integrationStatusService.status()).thenReturn(view);
+
+        IntegrationStatusService.IntegrationsView result = controller.integrations();
+
+        assertSame(view, result);
+        assertFalse(result.sso().configured());
+        assertEquals("SINGLE", result.tenant().mode());
     }
 }
