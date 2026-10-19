@@ -256,7 +256,280 @@
       </div>
     </section>
 
-    <!-- ④ 生效范围 -->
+    <!-- ④ A/B 与模型评测（ADMIN）：A/B 配置只读展示 + 手动评测 -->
+    <section v-if="canWrite" class="panel">
+      <div class="panel-head">
+        <div class="section-title">A/B 与模型评测</div>
+        <span class="tiny dim">A/B 配置只读展示；评测为手动触发，单次最多 20 条语料</span>
+      </div>
+      <div class="panel-body">
+        <!-- A/B 配置 -->
+        <div v-if="abConfig" class="ab-grid">
+          <div class="ab-item">
+            <div class="ab-label">A/B 分流</div>
+            <div class="ab-value">
+              <span class="chip" :class="abState.type">{{ abState.label }}</span>
+            </div>
+            <div class="ab-sub tiny dim">{{ abState.note }}</div>
+          </div>
+          <div class="ab-item">
+            <div class="ab-label">B 组流量占比</div>
+            <div class="ab-value num">{{ formatAbPercent(abConfig.percent) }}</div>
+            <div class="ab-sub tiny dim">
+              按概率进入 B 组；关闭或备用供应商不可用时回退当前生效模型
+            </div>
+          </div>
+          <div class="ab-item">
+            <div class="ab-label">B 组供应商 / 模型</div>
+            <div class="ab-value ab-b">
+              <span class="strong ellipsis">{{ abProviderLabel }}</span>
+              <span class="chip info mono">{{ abConfig.model || '供应商默认' }}</span>
+            </div>
+            <div class="ab-sub tiny dim">仅语义复筛参与分流；敏感词挖掘始终使用当前生效模型</div>
+          </div>
+        </div>
+        <div v-else class="eval-empty tiny dim">
+          {{ view
+            ? '接口未返回 A/B 配置（后端可能为旧版本，或 A/B 未配置）'
+            : 'A/B 配置随「当前 AI 复筛模型」加载，暂不可用' }}
+        </div>
+
+        <!-- 评测表单 -->
+        <div class="eval-form">
+          <div class="eval-field">
+            <label class="eval-label">供应商</label>
+            <el-select
+              v-model="evalForm.providerId"
+              :disabled="evaluating"
+              placeholder="选择供应商"
+              @change="onEvalProviderChange"
+            >
+              <el-option
+                v-for="opt in evalProviderOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
+          </div>
+          <div class="eval-field">
+            <label class="eval-label">模型（可选）</label>
+            <el-select
+              v-model="evalForm.model"
+              :disabled="evaluating"
+              filterable
+              allow-create
+              clearable
+              default-first-option
+              placeholder="留空使用供应商默认模型"
+            >
+              <el-option v-for="m in evalModelOptions" :key="m" :label="m" :value="m" />
+            </el-select>
+          </div>
+          <div class="eval-field eval-size">
+            <label class="eval-label">样本数</label>
+            <el-input-number
+              v-model="evalForm.sampleSize"
+              :min="1"
+              :max="20"
+              :precision="0"
+              :disabled="evaluating"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </div>
+          <div class="eval-actions">
+            <el-button
+              type="primary"
+              :loading="evaluating"
+              :disabled="!evalForm.providerId || evaluating"
+              @click="runEvaluation"
+            >
+              <el-icon v-if="!evaluating" class="el-icon--left"><DataAnalysis /></el-icon>
+              运行评测
+            </el-button>
+            <span v-if="!evalProviderOptions.length" class="tiny dim">
+              供应商列表不可用：请前往上方「AI 供应商」检查配置
+            </span>
+          </div>
+        </div>
+
+        <div v-if="evaluating" class="eval-running tiny dim">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          正在逐条调用模型评测（1~20 条，可能需要数十秒）…
+        </div>
+
+        <!-- 卡内错误 / 403/404 降级：已有结果时保留旧结果并提示 -->
+        <div v-if="evaluationError" class="eval-error">
+          <el-icon :size="16"><WarningFilled /></el-icon>
+          <div class="eval-error-text">
+            <div class="strong">评测未完成</div>
+            <div class="tiny dim">{{ evaluationError }}</div>
+          </div>
+          <el-button size="small" :disabled="evaluating || !evalForm.providerId" @click="runEvaluation">
+            重试
+          </el-button>
+        </div>
+
+        <!-- 评测结果 -->
+        <template v-if="evaluation">
+          <div class="eval-kpis">
+            <div class="eval-kpi">
+              <div class="ab-label">Accuracy</div>
+              <div class="ab-value num">{{ formatRatioPercent(evaluation.accuracy) }}</div>
+            </div>
+            <div class="eval-kpi">
+              <div class="ab-label">Precision</div>
+              <div class="ab-value num">{{ formatRatioPercent(evaluation.precision) }}</div>
+            </div>
+            <div class="eval-kpi">
+              <div class="ab-label">Recall</div>
+              <div class="ab-value num">{{ formatRatioPercent(evaluation.recall) }}</div>
+            </div>
+            <div class="eval-kpi">
+              <div class="ab-label">已评测 / 总数</div>
+              <div class="ab-value num">{{ evaluatedText }}</div>
+              <div class="ab-sub tiny dim">
+                正确 {{ evaluation.correct ?? '—' }} · 失败 {{ evaluation.failed ?? '—' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="confusion-row">
+            <div class="confusion-grid">
+              <div class="conf-cell tp">
+                <span class="conf-label">TP</span><span class="conf-value num">{{ evaluation.tp }}</span>
+              </div>
+              <div class="conf-cell fp">
+                <span class="conf-label">FP</span><span class="conf-value num">{{ evaluation.fp }}</span>
+              </div>
+              <div class="conf-cell tn">
+                <span class="conf-label">TN</span><span class="conf-value num">{{ evaluation.tn }}</span>
+              </div>
+              <div class="conf-cell fn">
+                <span class="conf-label">FN</span><span class="conf-value num">{{ evaluation.fn }}</span>
+              </div>
+            </div>
+            <div class="conf-legend tiny dim">
+              <span>总计 {{ evaluation.total ?? '—' }}</span>
+              <span class="sep">·</span>
+              <span>耗时 {{ formatLatencyMs(evaluation.latencyMs) }}</span>
+              <span class="sep">·</span>
+              <span>失败样本不参与指标分母</span>
+            </div>
+          </div>
+
+          <div class="eval-section-head">
+            <div class="block-title">按标注类型</div>
+            <span class="tiny dim">按语料标注（违规 / 合规）统计</span>
+          </div>
+          <el-table :data="evaluation.byLabel" size="small">
+            <el-table-column label="标注类型" min-width="140">
+              <template #default="{ row }">
+                <span class="chip" :class="evaluationLabelMeta(row.label).type">
+                  {{ evaluationLabelMeta(row.label).label }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="样本数" width="110" align="right">
+              <template #default="{ row }">
+                <span class="num">{{ row.total }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="正确" width="110" align="right">
+              <template #default="{ row }">
+                <span class="num">{{ row.correct }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="准确率" width="130" align="right">
+              <template #default="{ row }">
+                <span class="num">{{ formatRatioPercent(labelAccuracy(row)) }}</span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <div class="empty-block">
+                <div class="empty-title">暂无分类统计</div>
+                <div class="tiny dim">后端返回 byLabel 后展示</div>
+              </div>
+            </template>
+          </el-table>
+
+          <div class="eval-section-head">
+            <div class="block-title">逐条结果</div>
+            <span class="tiny dim">共 {{ evaluation.results.length }} 条，失败行标注 error</span>
+          </div>
+          <el-table :data="evaluation.results" size="small" max-height="420">
+            <el-table-column label="语料 ID" width="110">
+              <template #default="{ row }">
+                <span class="mono">{{ row.corpusId || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="期望" width="100" align="center">
+              <template #default="{ row }">
+                <span class="chip" :class="evaluationLabelMeta(row.expected).type">
+                  {{ evaluationLabelMeta(row.expected).label }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="预测" width="100" align="center">
+              <template #default="{ row }">
+                <span v-if="row.error" class="chip danger">失败</span>
+                <span v-else class="chip" :class="evaluationLabelMeta(row.predicted).type">
+                  {{ evaluationLabelMeta(row.predicted).label }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="置信度" width="100" align="right">
+              <template #default="{ row }">
+                <span class="num">{{ row.confidence == null ? '—' : formatRatioPercent(row.confidence) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="理由" min-width="280">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.error || row.reason"
+                  :content="row.error || row.reason"
+                  placement="top"
+                  :show-after="300"
+                  :popper-style="{ maxWidth: '520px', wordBreak: 'break-all' }"
+                >
+                  <span class="eval-reason" :class="{ err: !!row.error }">
+                    {{ row.error || row.reason }}
+                  </span>
+                </el-tooltip>
+                <span v-else class="dim">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="88" align="center">
+              <template #default="{ row }">
+                <span class="chip" :class="row.error ? 'danger' : 'ok'">
+                  {{ row.error ? '失败' : '成功' }}
+                </span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <div class="empty-block">
+                <div class="empty-title">暂无逐条结果</div>
+                <div class="tiny dim">后端返回 results 后展示期望 / 预测 / 置信度 / 理由</div>
+              </div>
+            </template>
+          </el-table>
+        </template>
+
+        <!-- 空态 -->
+        <div v-else-if="!evaluating && !evaluationError" class="eval-empty tiny dim">
+          还没有评测结果：选择供应商（可选模型）与样本数后点击「运行评测」。
+          评测会从语料库均衡抽取已标注样本，单次最多 20 条。
+        </div>
+
+        <div class="hint tiny dim">
+          A/B 分流与评测接口均为 ADMIN 权限；评测调用真实模型并计入 AI 用量与配额，
+          单条失败计入失败数但不参与 accuracy / precision / recall 分母。
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑤ 生效范围 -->
     <section class="panel">
       <div class="panel-head">
         <div class="section-title">生效范围与密钥配置</div>
@@ -284,7 +557,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
       </div>
     </section>
 
-    <!-- ⑤ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
+    <!-- ⑥ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
         <div class="section-title">抽样与通知</div>
@@ -572,13 +845,20 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 import auth from '../auth'
 import { notifyEventMeta } from '../constants'
 import { formatSamplingRate } from '../utils/notifications'
 import { formatPricePer1k, isProviderEnabled } from '../utils/providers'
+import {
+  evaluationLabelMeta,
+  formatAbPercent,
+  formatLatencyMs,
+  formatRatioPercent,
+  normalizeScreenModel
+} from '../utils/evaluation'
 
 // 系统设置写操作仅 ADMIN：非管理员只读查看，后端仍会独立校验
 const canWrite = computed(() => auth.hasRole('ADMIN'))
@@ -612,6 +892,12 @@ const providerTestTarget = ref(null)
 const providerTestModel = ref('')
 const providerTestRunning = ref(false)
 const providerTestResult = ref(null)
+
+// A/B 与模型评测（仅 ADMIN）：ab 随 screen-model 视图下发（只读）；评测调用真实模型
+const evalForm = reactive({ providerId: '', model: '', sampleSize: 10 })
+const evaluating = ref(false)
+const evaluation = ref(null)
+const evaluationError = ref('')
 
 const currentProvider = computed(
   () => (view.value?.providers || []).find((p) => p.id === draft.providerId) || null
@@ -649,7 +935,7 @@ async function save() {
   testResult.value = null
   try {
     const data = await api.updateScreenModel({ providerId: draft.providerId, model: draft.model })
-    view.value = data
+    view.value = normalizeScreenModel(data)
     draft.providerId = data.providerId
     draft.model = data.model
     ElMessage.success(`已切换到 ${data.providerLabel} · ${data.model}`)

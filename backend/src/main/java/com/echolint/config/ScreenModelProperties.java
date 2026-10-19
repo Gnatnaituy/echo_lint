@@ -61,6 +61,12 @@ public class ScreenModelProperties {
     /** 单个供应商每分钟调用次数上限，0 = 不限（进程内计数，Batch 3a） */
     private int requestsPerMinute = 0;
 
+    /**
+     * 语义复筛 A/B 分流（Batch 3b-2，只读配置）：开启且备用供应商可用时，
+     * 按 percent 概率走 B 组；否则走当前生效模型（A 组）。词挖掘不参与分流。
+     */
+    private Ab ab = new Ab();
+
     private List<Provider> providers = new ArrayList<>();
 
     /** 生效的单块字符数：下限 500，避免配置过小把提示词切碎 */
@@ -92,6 +98,31 @@ public class ScreenModelProperties {
     /** 默认供应商；配置里的 default-provider 写错时回退到第一个，避免整条流水线不可用 */
     public Optional<Provider> defaultProvider() {
         return find(defaultProvider).or(() -> providers.stream().findFirst());
+    }
+
+    /**
+     * 语义复筛 A/B 分流配置。
+     */
+    @Getter
+    @Setter
+    public static class Ab {
+
+        /** 是否开启分流；默认关闭 */
+        private boolean enabled = false;
+
+        /** B 组流量百分比（0~100），0 等价于不开启，100 表示全部走 B */
+        private int percent = 0;
+
+        /** B 组供应商 id（必须是已存在且启用的供应商） */
+        private String providerId;
+
+        /** B 组模型名；留空回退到该供应商的 default-model */
+        private String model;
+
+        /** 生效的 B 组百分比：钳制到 0~100，异常配置按 0 处理 */
+        public int effectivePercent() {
+            return Math.min(100, Math.max(0, percent));
+        }
     }
 
     /**

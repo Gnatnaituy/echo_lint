@@ -106,6 +106,13 @@ app:
     # 每分钟调用次数按供应商在进程内计数。超限不发起调用，抛错后流水线降级人工复核。
     daily-token-limit: ${APP_SCREEN_DAILY_TOKEN_LIMIT:0}
     requests-per-minute: ${APP_SCREEN_REQUESTS_PER_MINUTE:0}
+    # 语义复筛 A/B 分流（Batch 3b-2，只读配置）：按 percent 概率把复筛流量分流到备用供应商，
+    # 仅语义复筛参与，词挖掘仍走当前生效模型；备用不可用时自动回退 A 组。
+    ab:
+      enabled: ${APP_SCREEN_AB_ENABLED:false}
+      percent: ${APP_SCREEN_AB_PERCENT:0}
+      provider-id: ${APP_SCREEN_AB_PROVIDER:}
+      model: ${APP_SCREEN_AB_MODEL:}
     providers:
       - id: openai
         label: OpenAI

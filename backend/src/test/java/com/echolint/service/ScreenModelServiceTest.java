@@ -43,6 +43,7 @@ class ScreenModelServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final SecretCipher cipher = new SecretCipher("test-secret");
+    private ScreenModelProperties properties;
     private ScreenModelService service;
 
     @BeforeEach
@@ -58,8 +59,9 @@ class ScreenModelServiceTest {
         lenient().when(providerRepository.findAllByOrderByBuiltInDescProviderKeyAsc()).thenReturn(List.of());
         lenient().when(providerRepository.findByProviderKeyIgnoreCase(anyString())).thenReturn(Optional.empty());
 
-        ProviderRegistry registry = new ProviderRegistry(providerRepository, properties(), cipher, objectMapper);
-        service = new ScreenModelService(properties(), settingRepository, objectMapper, registry);
+        properties = properties();
+        ProviderRegistry registry = new ProviderRegistry(providerRepository, properties, cipher, objectMapper);
+        service = new ScreenModelService(properties, settingRepository, objectMapper, registry);
     }
 
     private ScreenModelProperties properties() {
@@ -241,5 +243,122 @@ class ScreenModelServiceTest {
 
         assertEquals("openai", active.providerId(), "已停用的供应商不应继续生效");
         assertEquals("gpt-4o-mini", active.model());
+    }
+
+    // ------------------------------------------------------------------ A/B 分流（Batch 3b-2）
+
+    /** 配置 DB 备用供应商并返回其名称（供 A/B 测试） */
+    private void enableAb(String providerId, String model, int percent, boolean enabled) {
+        properties.getAb().setEnabled(enabled);
+        properties.getAb().setPercent(percent);
+        properties.getAb().setProviderId(providerId);
+        properties.getAb().setModel(model);
+    }
+
+    @Test
+    void abDisabledAlwaysUsesPrimary() {
+        enableAb("backup", "backup-model", 100, false);
+
+        ScreenModelService.ScreeningModel selection = service.activeForScreening();
+
+        assertEquals("A", selection.variant());
+        assertEquals("openai", selection.model().providerId());
+    }
+
+    @Test
+    void abPercentZeroAlwaysUsesPrimary() {
+        enableAb("backup", "backup-model", 0, true);
+
+        ScreenModelService.ScreeningModel selection = service.activeForScreening();
+
+        assertEquals("A", selection.variant(), "percent=0 等价于不分流");
+        assertEquals("openai", selection.model().providerId());
+    }
+
+    @Test
+    void abPercentHundredAlwaysUsesAlternate() {
+        when(providerRepository.findByProviderKeyIgnoreCase("backup"))
+                .thenReturn(Optional.of(dbProvider("backup", "sk-backup-key", true)));
+        enableAb("backup", "backup-model-pro", 100, true);
+
+        for (int i = 0; i < 5; i++) {
+            ScreenModelService.ScreeningModel selection = service.activeForScreening();
+            assertEquals("B", selection.variant());
+            assertEquals("backup", selection.model().providerId());
+            assertEquals("backup-model-pro", selection.model().model());
+            assertTrue(selection.model().apiKeyConfigured());
+        }
+    }
+
+    @Test
+    void abAlternateMissingFallsBackToPrimary() {
+        enableAb("ghost", "ghost-model", 100, true);
+
+        ScreenModelService.ScreeningModel selection = service.activeForScreening();
+
+        assertEquals("A", selection.variant(), "备用供应商不存在时回退 A 组");
+        assertEquals("openai", selection.model().providerId());
+    }
+
+    @Test
+    void abAlternateDisabledFallsBackToPrimary() {
+        when(providerRepository.findByProviderKeyIgnoreCase("backup"))
+                .thenReturn(Optional.of(dbProvider("backup", "sk-backup-key", false)));
+        enableAb("backup", null, 100, true);
+
+        assertEquals("A", service.activeForScreening().variant(), "备用供应商停用时回退 A 组");
+    }
+
+    @Test
+    void abAlternateWithoutKeyFallsBackToPrimary() {
+        when(providerRepository.findByProviderKeyIgnoreCase("backup"))
+                .thenReturn(Optional.of(dbProvider("backup", null, true)));
+        enableAb("backup", null, 100, true);
+
+        assertEquals("A", service.activeForScreening().variant(), "备用供应商缺密钥时回退 A 组");
+    }
+
+    // ------------------------------------------------------------------ 评测/配置
+
+    @Test
+    void resolveModelUsesExplicitProviderAndModel() {
+        when(providerRepository.findByProviderKeyIgnoreCase("backup"))
+                .thenReturn(Optional.of(dbProvider("backup", "sk-backup-key", false)));
+
+        ScreenModelService.ActiveModel resolved = service.resolveModel("backup", "explicit-model");
+
+        assertEquals("backup", resolved.providerId());
+        assertEquals("explicit-model", resolved.model(), "显式模型优先于 default-model");
+        assertTrue(resolved.apiKeyConfigured());
+    }
+
+    @Test
+    void resolveModelRejectsUnknownProvider() {
+        BizException error = assertThrows(BizException.class,
+                () -> service.resolveModel("ghost", "m"));
+
+        assertTrue(error.getMessage().contains("未知的模型供应商"));
+    }
+
+    @Test
+    void snapshotExposesReadOnlyAbConfig() {
+        enableAb("deepseek", "deepseek-v4-pro", 30, true);
+
+        ScreenModelService.AbView ab = service.snapshot().ab();
+
+        assertNotNull(ab);
+        assertTrue(ab.enabled());
+        assertEquals(30, ab.percent());
+        assertEquals("deepseek", ab.providerId());
+        assertEquals("deepseek-v4-pro", ab.model());
+    }
+
+    @Test
+    void abPercentIsClampedToValidRange() {
+        ScreenModelProperties.Ab ab = new ScreenModelProperties.Ab();
+        ab.setPercent(-5);
+        assertEquals(0, ab.effectivePercent());
+        ab.setPercent(150);
+        assertEquals(100, ab.effectivePercent());
     }
 }

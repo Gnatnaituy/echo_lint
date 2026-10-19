@@ -11,6 +11,7 @@ import {
 } from '../utils/providers'
 import { normalizeAiUsage } from '../utils/aiUsage'
 import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
+import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
 
 const http = axios.create({
   baseURL: '/api',
@@ -368,8 +369,9 @@ export const api = {
   },
 
   // 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）
+  /** GET /api/settings/screen-model -> 原字段 + 归一化 ab 配置（缺失为 null） */
   screenModel() {
-    return http.get('/settings/screen-model')
+    return http.get('/settings/screen-model').then((data) => normalizeScreenModel(data))
   },
   updateScreenModel(payload) {
     return http.put('/settings/screen-model', payload)
@@ -377,6 +379,16 @@ export const api = {
   /** 连通性测试：传入 {providerId, model} 可测未保存的选择 */
   testScreenModel(payload = {}) {
     return http.post('/settings/screen-model/test', payload)
+  },
+  /**
+   * 模型评测（ADMIN）：POST {providerId, model?, sampleSize?}（sampleSize 1~20，默认 10）
+   * -> 归一化 {accuracy,precision,recall,tp,fp,tn,fn,total,evaluated,correct,failed,latencyMs,byLabel,results}
+   * silent：卡内展示 403/404 降级与失败原因，不弹全局提示。
+   */
+  evaluateScreenModel(payload = {}) {
+    return http
+      .post('/settings/screen-model/evaluate', payload, { silent: true })
+      .then((data) => normalizeEvaluation(data))
   },
 
   // 系统设置：运营通知（ADMIN）；silent 由页面自行展示 403/404 的降级提示

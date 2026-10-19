@@ -110,8 +110,10 @@ public class PipelineService {
             AiScreenResult ai;
             try {
                 var activeModel = screenModelService.active();
-                logStage(recordingId, "AI", "INFO", "使用模型 " + activeModel.display() + " 进行语义复筛"
-                        + (sampled ? "（抽样复核）" : ""));
+                logStage(recordingId, "AI", "INFO",
+                        "语义复筛开始（主模型 " + activeModel.display()
+                                + "，A/B 分流按 app.screen-models.ab 配置生效）"
+                                + (sampled ? "（抽样复核）" : ""));
                 var examples = corpusService.getFewShotExamples(screenModelProperties.getFewShotCount());
                 ai = semanticScreeningService.screen(recordingId, outcome.transcript(), outcome.segmentsJson(),
                         hits, examples);
@@ -134,6 +136,8 @@ public class PipelineService {
                     "screenProvider", ai.providerId(),
                     "screenProviderLabel", ai.providerLabel(),
                     "screenModel", ai.model(),
+                    // Batch 3b-2：A/B 分流组别（未开启为 "A"，失败未知为 null）
+                    "screenVariant", ai.screenVariant(),
                     "degraded", degraded)));
             recordingRepository.save(recording);
 

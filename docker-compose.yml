@@ -48,6 +48,11 @@ services:
       # AI 配额（0=不限）：每日 token 上限 / 每分钟请求数
       APP_SCREEN_DAILY_TOKEN_LIMIT: ${APP_SCREEN_DAILY_TOKEN_LIMIT:-0}
       APP_SCREEN_REQUESTS_PER_MINUTE: ${APP_SCREEN_REQUESTS_PER_MINUTE:-0}
+      # 语义复筛 A/B 分流（只读配置，仅语义复筛参与）
+      APP_SCREEN_AB_ENABLED: ${APP_SCREEN_AB_ENABLED:-false}
+      APP_SCREEN_AB_PERCENT: ${APP_SCREEN_AB_PERCENT:-0}
+      APP_SCREEN_AB_PROVIDER: ${APP_SCREEN_AB_PROVIDER:-}
+      APP_SCREEN_AB_MODEL: ${APP_SCREEN_AB_MODEL:-}
       # 首次启动的默认复筛供应商（未在界面切换过时生效）：openai | deepseek
       APP_SCREEN_PROVIDER: ${APP_SCREEN_PROVIDER:-openai}
       # 首次启动引导管理员（仅当用户表为空时创建；生产务必覆盖默认密码）

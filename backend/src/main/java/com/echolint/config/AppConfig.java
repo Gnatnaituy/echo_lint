@@ -130,6 +130,15 @@ public class AppConfig {
             } else {
                 log.info("AI 配额未开启（daily-token-limit=0、requests-per-minute=0）");
             }
+            ScreenModelProperties.Ab ab = screenModelProperties.getAb();
+            if (ab != null && ab.isEnabled()) {
+                log.info("AI 语义复筛 A/B 分流已开启：{}% 概率走 B 组供应商 {} · {}（不可用时回退当前生效模型）",
+                        ab.effectivePercent(),
+                        StringUtils.hasText(ab.getProviderId()) ? ab.getProviderId() : "（未配置）",
+                        StringUtils.hasText(ab.getModel()) ? ab.getModel() : "（供应商默认模型）");
+            } else {
+                log.info("AI 语义复筛 A/B 分流未开启（app.screen-models.ab.enabled=false）");
+            }
         };
     }
 }

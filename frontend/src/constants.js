@@ -182,6 +182,7 @@ export const AUDIT_ACTION_META = {
   PROVIDER_UPDATE: { label: '更新 AI 供应商', type: 'warning' },
   PROVIDER_DELETE: { label: '删除 AI 供应商', type: 'danger' },
   PROVIDER_TEST: { label: '测试 AI 供应商', type: 'info' },
+  MODEL_EVALUATE: { label: '模型评测', type: 'info' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }
 

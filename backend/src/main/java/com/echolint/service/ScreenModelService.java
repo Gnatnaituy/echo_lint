@@ -86,6 +86,67 @@ public class ScreenModelService {
     }
 
     /**
+     * 语义复筛选型（Batch 3b-2）：开启 A/B 且备用供应商可用时，按 percent 概率走 B 组；
+     * 否则走当前生效模型（A 组）。只用于语义复筛，词挖掘仍走 {@link #active()}。
+     *
+     * @return 实际使用的模型 + 分组标记（"A"/"B"）
+     */
+    public ScreeningModel activeForScreening() {
+        ActiveModel primary = active();
+        Optional<ActiveModel> alternate = alternateForScreening();
+        if (alternate.isEmpty()) {
+            return new ScreeningModel(primary, "A");
+        }
+        ScreenModelProperties.Ab ab = props.getAb();
+        int percent = ab == null ? 0 : ab.effectivePercent();
+        if (percent <= 0) {
+            return new ScreeningModel(primary, "A");
+        }
+        boolean useB = percent >= 100 || Math.random() * 100 < percent;
+        if (!useB) {
+            return new ScreeningModel(primary, "A");
+        }
+        log.debug("语义复筛 A/B 分流：本次走 B 组 {}（配置 {}%）", alternate.get().display(), percent);
+        return new ScreeningModel(alternate.get(), "B");
+    }
+
+    /**
+     * 解析 A/B 备用模型：供应商必须存在、启用且密钥就绪，模型名可解析；任一条件不满足回退 A 组。
+     * 配置错误只记 DEBUG，避免每条录音刷日志（启动日志会给出 A/B 配置状态）。
+     */
+    private Optional<ActiveModel> alternateForScreening() {
+        ScreenModelProperties.Ab ab = props.getAb();
+        if (ab == null || !ab.isEnabled() || !StringUtils.hasText(ab.getProviderId())) {
+            return Optional.empty();
+        }
+        Optional<ResolvedProvider> found = providers.find(ab.getProviderId());
+        if (found.isEmpty() || !found.get().enabled()) {
+            log.debug("A/B 备用供应商 {} 不存在或已停用，语义复筛回退 A 组", ab.getProviderId());
+            return Optional.empty();
+        }
+        ResolvedProvider provider = found.get();
+        if (!provider.apiKeyConfigured()) {
+            log.debug("A/B 备用供应商 {} 未配置 API Key，语义复筛回退 A 组", ab.getProviderId());
+            return Optional.empty();
+        }
+        if (!StringUtils.hasText(provider.resolvedModel(ab.getModel()))) {
+            log.debug("A/B 备用供应商 {} 无法解析模型名，语义复筛回退 A 组", ab.getProviderId());
+            return Optional.empty();
+        }
+        return Optional.of(toActive(provider, ab.getModel()));
+    }
+
+    /**
+     * 按供应商/模型解析调用句柄（供模型评测等显式指定模型的场景）。
+     * 不校验 enabled / 密钥：评测可以选择停用中的候选模型，密钥就绪由调用方用 {@link #requireUsable} 校验。
+     */
+    public ActiveModel resolveModel(String providerId, String requestedModel) {
+        ResolvedProvider provider = providers.find(providerId)
+                .orElseThrow(() -> new BizException("未知的模型供应商: " + providerId));
+        return toActive(provider, requestedModel);
+    }
+
+    /**
      * 当前生效的模型，且要求密钥就绪（供真正发起调用前校验）
      */
     public ActiveModel requireActive() {
@@ -202,7 +263,17 @@ public class ScreenModelService {
                     isActive));
         }
         return new View(active.providerId(), active.providerLabel(), active.model(),
-                active.apiKeyConfigured(), fromDb ? "DATABASE" : "DEFAULT", props.getFewShotCount(), views);
+                active.apiKeyConfigured(), fromDb ? "DATABASE" : "DEFAULT", props.getFewShotCount(), views,
+                abView());
+    }
+
+    /** A/B 配置（只读展示；前端据此提示当前分流策略） */
+    private AbView abView() {
+        ScreenModelProperties.Ab ab = props.getAb();
+        if (ab == null) {
+            return new AbView(false, 0, null, null);
+        }
+        return new AbView(ab.isEnabled(), ab.effectivePercent(), ab.getProviderId(), ab.getModel());
     }
 
     // ------------------------------------------------------------------ 连通性测试
@@ -352,6 +423,12 @@ public class ScreenModelService {
     }
 
     /**
+     * 语义复筛选型结果：实际使用的模型 + A/B 分组（"A"/"B"）
+     */
+    public record ScreeningModel(ActiveModel model, String variant) {
+    }
+
+    /**
      * 系统设置页视图
      */
     public record View(
@@ -361,7 +438,24 @@ public class ScreenModelService {
             boolean apiKeyConfigured,
             String source,
             int fewShotCount,
-            List<ProviderView> providers) {
+            List<ProviderView> providers,
+            AbView ab) {
+
+        /** 兼容既有调用方：不含 A/B 配置 */
+        public View(String providerId, String providerLabel, String model, boolean apiKeyConfigured,
+                    String source, int fewShotCount, List<ProviderView> providers) {
+            this(providerId, providerLabel, model, apiKeyConfigured, source, fewShotCount, providers, null);
+        }
+    }
+
+    /**
+     * A/B 分流配置（只读下发；配置来自 application.yml，运行时不可改）
+     */
+    public record AbView(
+            boolean enabled,
+            int percent,
+            String providerId,
+            String model) {
     }
 
     /**

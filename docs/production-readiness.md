@@ -11,7 +11,7 @@
 |---|---|---|
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
 | 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 ✅ |
-| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 待开始 |
+| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 ✅（P1 完成） |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 待开始 |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
 
@@ -345,7 +345,36 @@
   - 录音手动重试只保留一条活动任务（幂等）；日志 0 ERROR。
 - 已知限制：pipeline_tasks 未加 Flyway V2；删除录音不清理任务历史行；停机瞬间线程池拒单可能短暂 RUNNING，由启动恢复兜底。
 
-## Batch 3b-2 · 模型 A/B 与评测（待开始）
+## 3b-2 · 模型 A/B 与评测（✅ 已完成，P1 收尾）
+
+### A/B 分流
+- 配置 `app.screen-models.ab.enabled`（默认 false）、`ab.percent`（0~100）、`ab.provider-id`、`ab.model`（可空）。
+- `ScreenModelService.activeForScreening()`：开启且备用供应商可用时，按 percent 概率走 B 组；否则 A 组（当前生效）。
+  仅语义复筛参与分流，词挖掘仍走当前生效模型。
+- AI 结论 JSON 增加 `screenVariant`（"A"/"B"）；provider/model 仍照旧记录，成本报表可按供应商/模型对比。
+- `GET /api/settings/screen-model` 返回 ab 配置（只读）。
+- 测试：percent 0/100、关闭、备用不可用时回退 A、结论含 variant。
+
+### 模型评测
+- `POST /api/settings/screen-model/evaluate`（ADMIN）`{providerId, model?, sampleSize?}`
+  （sampleSize 默认 10，上限 20）。
+- 从语料库取已标注样本（VIOLATION / COMPLIANT 均衡抽样），逐条用复筛同款提示词与严格解析调用模型；
+  返回：
+  `{total, evaluated, correct, accuracy, precision, recall, tp, fp, tn, fn, latencyMs,
+    byLabel:[{label,total,correct}], results:[{corpusId,expected,predicted,confidence,reason}]}`
+- 单条失败计入 failed（不参与 accuracy/precision/recall 分母），结果中标注 error；调用前过 AI 配额。
+- 审计动作 `MODEL_EVALUATE`；`/api/settings/**` POST 已 ADMIN。
+- 前端系统设置页新增「A/B 与模型评测」卡片（ADMIN）：
+  展示 A/B 配置（只读）；选择供应商/模型/样本数 → 运行评测；展示 accuracy/precision/recall 与逐条结果表。
+- 不新增依赖；评测为管理员手动触发，单次样本数受限。
+
+### 验收
+- 后端 `mvn clean test`、前端 build/test 全绿。
+- 单测：A/B 选择确定性、评测指标（tp/fp/tn/fn、precision/recall/accuracy）、失败样本处理。
+- 本机 MySQL + 真实桩（本地 OpenAI 兼容模型）冒烟：A/B percent=100 走 B 且结论含 variant；
+  评测返回指标与逐条结果；权限与审计正确。
+
+
 
 - [ ] 异步任务持久化（DB 任务表/Outbox）、自动重试、死信、任务视图
 - [ ] 模型 A/B 分流 + 评测样本集

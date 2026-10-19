@@ -154,8 +154,25 @@ class PipelineServiceTest {
         assertEquals("deepseek", ai.path("screenProvider").asText());
         assertEquals("DeepSeek", ai.path("screenProviderLabel").asText());
         assertEquals("deepseek-flash", ai.path("screenModel").asText());
+        assertEquals("A", ai.path("screenVariant").asText(), "未开启 A/B 时默认 A 组");
         assertFalse(ai.path("degraded").asBoolean());
         assertEquals(0.92, ai.path("confidence").asDouble(), 1e-6);
+    }
+
+    @Test
+    void screeningVerdictRecordsAbVariant() throws Exception {
+        Recording r = stubRecording();
+        stubTranscriptionAndHit();
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
+                new AiScreenResult(true, ViolationType.INSULT, "辱骂", "B 组模型判定",
+                        0.91, "you idiot", "stub-b", "Stub B", "b-model", false, null, "B"));
+
+        pipeline.processNow(1L);
+
+        var ai = objectMapper.readTree(r.getAiResultJson());
+        assertEquals("B", ai.path("screenVariant").asText(), "aiResultJson 应记录 A/B 组别");
+        assertEquals("stub-b", ai.path("screenProvider").asText());
+        assertEquals("b-model", ai.path("screenModel").asText());
     }
 
     @Test

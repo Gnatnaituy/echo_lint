@@ -94,6 +94,7 @@ echolint/
 - **合规抽样与告警**：可按比例抽检 DFA 未命中的录音（界面显示「抽样」标记）；复核确认违规、流水线失败、待复核积压可推送 Webhook（支持 HMAC 签名），系统设置页可发送测试通知。
 - **AI 治理与成本**：系统设置页可维护 AI 供应商（新增/编辑/停用/删除、密钥轮换与掩码展示、单价录入、连通性测试）；「成本看板」按日期/供应商/模型查看调用量、token 与预估成本。密钥以 AES-GCM 加密落库。
 - **异步任务**：上传/重处理写入 `pipeline_tasks` 持久队列，失败自动退避重试（30/120/300s，最多 3 次），耗尽进死信并只在死信时告警；服务重启恢复 RUNNING 任务；「任务队列」页（ADMIN）可查看/重试。
+- **A/B 与评测**：可按比例把语义复筛流量分流到备用模型（只读配置，结论记录 `screenVariant`）；系统设置页可对标注语料抽样评测模型，返回 accuracy/precision/recall、混淆矩阵与逐条结果。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -328,6 +329,10 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_SECRET_KEY` | (dev fallback) | AI 供应商密钥加密主密钥，**生产必须配置**；变更后旧密文需重新录入 |
 | `APP_SCREEN_DAILY_TOKEN_LIMIT` | `0` | 每日 token 配额（0=不限；成功调用的 input+output） |
 | `APP_SCREEN_REQUESTS_PER_MINUTE` | `0` | 每分钟 AI 请求数上限（0=不限，进程内按供应商计数） |
+| `APP_SCREEN_AB_ENABLED` | `false` | 语义复筛 A/B 分流开关（只读配置，仅语义复筛参与） |
+| `APP_SCREEN_AB_PERCENT` | `0` | B 组流量百分比（0~100） |
+| `APP_SCREEN_AB_PROVIDER` | (空) | B 组供应商标识（缺失/停用/缺密钥自动回退 A） |
+| `APP_SCREEN_AB_MODEL` | (空) | B 组模型名（可空=供应商默认模型） |
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
@@ -354,6 +359,7 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET | `/api/settings/screen-model` | 当前复筛模型 + 全部候选供应商 |
 | PUT | `/api/settings/screen-model` | 切换复筛模型 `{providerId, model?}`（落库持久化） |
 | POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
+| POST | `/api/settings/screen-model/evaluate` | 基于标注语料评测模型 `{providerId, model?, sampleSize?}`（ADMIN，≤20 条） |
 | GET | `/api/settings/notifications` | 抽样与 Webhook 通知配置（ADMIN，不返回密钥） |
 | POST | `/api/settings/notifications/test` | 发送测试 Webhook 并返回结果（ADMIN） |
 | GET/POST | `/api/settings/providers` | AI 供应商列表/新增（ADMIN，密钥只回掩码） |

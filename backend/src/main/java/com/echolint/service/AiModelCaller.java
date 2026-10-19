@@ -47,15 +47,26 @@ public class AiModelCaller {
     }
 
     /**
-     * 发起一次 chat completions 调用（含重试）。
+     * 发起一次 chat completions 调用（含重试），超时取模型默认配置。
      *
-     * @param action 调用场景名（语义复筛 / 词挖掘），只用于错误信息与日志
+     * @param action 调用场景名（语义复筛 / 词挖掘 / 模型评测），只用于错误信息与日志
      * @return 响应 JSON（非空）
      */
     public JsonNode call(ScreenModelService.ActiveModel model, String requestJson, String action) {
+        return call(model, requestJson, action, model.timeoutSeconds());
+    }
+
+    /**
+     * 发起一次 chat completions 调用（含重试），显式指定单次请求超时（模型评测用于限制单条耗时）。
+     *
+     * @param timeoutSeconds 单次请求超时秒数；≤0 时回退默认值
+     */
+    public JsonNode call(ScreenModelService.ActiveModel model, String requestJson, String action,
+                         long timeoutSeconds) {
+        long effectiveTimeout = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
         for (int attempt = 0; ; attempt++) {
             try {
-                JsonNode response = doCall(model, requestJson, action);
+                JsonNode response = doCall(model, requestJson, action, effectiveTimeout);
                 if (response == null) {
                     throw new BizException(action + "超时或返回为空 [" + model.display() + "]",
                             HttpStatus.INTERNAL_SERVER_ERROR);
@@ -75,8 +86,8 @@ public class AiModelCaller {
         }
     }
 
-    private JsonNode doCall(ScreenModelService.ActiveModel model, String requestJson, String action) {
-        long timeoutSeconds = model.timeoutSeconds() > 0 ? model.timeoutSeconds() : DEFAULT_TIMEOUT_SECONDS;
+    private JsonNode doCall(ScreenModelService.ActiveModel model, String requestJson, String action,
+                            long timeoutSeconds) {
         return model.client().post()
                 .uri(model.chatPath())
                 .contentType(MediaType.APPLICATION_JSON)

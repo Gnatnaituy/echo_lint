@@ -57,6 +57,7 @@ class SemanticScreeningServiceTest {
     private final Deque<JsonNode> modelReplies = new ArrayDeque<>();
 
     private ScreenModelProperties properties;
+    private ScreeningPromptSupport promptSupport;
     private SemanticScreeningService service;
 
     @BeforeEach
@@ -76,10 +77,12 @@ class SemanticScreeningServiceTest {
                 "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash",
                 "/chat/completions", true, true, null, Map.of(), 30, null,
                 new BigDecimal("0.001"), new BigDecimal("0.002"));
-        when(screenModelService.active()).thenReturn(model);
+        when(screenModelService.activeForScreening())
+                .thenReturn(new ScreenModelService.ScreeningModel(model, "A"));
 
+        promptSupport = new ScreeningPromptSupport(properties, objectMapper);
         service = new SemanticScreeningService(properties, screenModelService, invocations, objectMapper,
-                aiModelCaller, quotaService);
+                aiModelCaller, quotaService, promptSupport);
     }
 
     /** 构造 OpenAI 兼容响应，content 即模型输出的 JSON 文本；带 usage 用于成本快照 */
@@ -112,9 +115,27 @@ class SemanticScreeningServiceTest {
         assertEquals(0.9, result.confidence(), 1e-9);
         assertEquals("deepseek", result.providerId());
         assertEquals("deepseek-flash", result.model());
+        assertEquals("A", result.screenVariant(), "未开启 A/B 时默认 A 组");
         verify(invocations).recordSuccess(eq(1L), eq(AiInvocationService.STAGE_SCREEN), any(),
                 anyString(), anyString(), anyLong(), any());
         verify(quotaService).checkBeforeCall(any());
+    }
+
+    @Test
+    void screeningResultCarriesSelectedAbVariant() {
+        ScreenModelService.ActiveModel bModel = new ScreenModelService.ActiveModel(
+                "stub-b", "Stub B", "https://b.example.com", "b-model",
+                "/v1/chat/completions", true, true, null, Map.of(), 30, null,
+                BigDecimal.ZERO, BigDecimal.ZERO);
+        when(screenModelService.activeForScreening())
+                .thenReturn(new ScreenModelService.ScreeningModel(bModel, "B"));
+        queueReplies(COMPLIANT);
+
+        AiScreenResult result = screen("have a nice day");
+
+        assertEquals("B", result.screenVariant(), "A/B 分流结果应携带实际组别");
+        assertEquals("stub-b", result.providerId());
+        assertEquals("b-model", result.model());
     }
 
     @Test

@@ -1,10 +1,12 @@
 package com.echolint.controller;
 
 import com.echolint.domain.AuditAction;
+import com.echolint.dto.ModelEvaluationRequest;
 import com.echolint.dto.ProviderRequest;
 import com.echolint.dto.ProviderTestRequest;
 import com.echolint.dto.ScreenModelRequest;
 import com.echolint.service.AuditService;
+import com.echolint.service.ModelEvaluationService;
 import com.echolint.service.NotificationService;
 import com.echolint.service.ProviderAdminService;
 import com.echolint.service.ProviderRegistry.ProviderSnapshot;
@@ -38,6 +40,7 @@ public class SettingsController {
 
     private final ScreenModelService screenModelService;
     private final ProviderAdminService providerAdminService;
+    private final ModelEvaluationService modelEvaluationService;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
@@ -64,6 +67,26 @@ public class SettingsController {
             return screenModelService.test(active.providerId(), active.model());
         }
         return screenModelService.test(request.providerId(), request.model());
+    }
+
+    /**
+     * 模型效果评测（Batch 3b-2，ADMIN）：用已标注语料跑一次离线评测，返回混淆矩阵与逐条结果。
+     * 同步执行，样本数封顶 20，单条调用超时 60s；失败样本计入 failed 并在 results 中带 error。
+     */
+    @PostMapping("/screen-model/evaluate")
+    public ModelEvaluationService.EvaluationResult evaluateScreenModel(
+            @Valid @RequestBody ModelEvaluationRequest request) {
+        ModelEvaluationService.EvaluationResult result = modelEvaluationService.evaluate(
+                request.providerId(), request.model(), request.sampleSize());
+        auditService.record(AuditAction.MODEL_EVALUATE, "SETTINGS", "screen-model",
+                "模型评测 " + result.providerId() + " · " + result.model()
+                        + "：样本 " + result.total() + "，有效 " + result.evaluated()
+                        + "，失败 " + result.failed()
+                        + "，accuracy=" + result.accuracy()
+                        + "，precision=" + result.precision()
+                        + "，recall=" + result.recall()
+                        + "（耗时 " + result.latencyMs() + "ms）");
+        return result;
     }
 
     // ------------------------------------------------------------------ AI 供应商（Batch 3a）

@@ -2,6 +2,7 @@ package com.echolint.controller;
 
 import com.echolint.domain.AuditAction;
 import com.echolint.service.AuditService;
+import com.echolint.service.ModelEvaluationService;
 import com.echolint.service.NotificationService;
 import com.echolint.service.ProviderAdminService;
 import com.echolint.service.ProviderRegistry.ProviderSnapshot;
@@ -35,6 +36,8 @@ class SettingsControllerTest {
     @Mock
     private ProviderAdminService providerAdminService;
     @Mock
+    private ModelEvaluationService modelEvaluationService;
+    @Mock
     private AuditService auditService;
     @Mock
     private NotificationService notificationService;
@@ -43,8 +46,8 @@ class SettingsControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new SettingsController(screenModelService, providerAdminService, auditService,
-                notificationService);
+        controller = new SettingsController(screenModelService, providerAdminService, modelEvaluationService,
+                auditService, notificationService);
     }
 
     private ProviderSnapshot snapshot(String key, boolean builtIn, String masked, boolean configured) {
@@ -187,5 +190,40 @@ class SettingsControllerTest {
         assertFalse(result.ok());
         verify(auditService).record(eq(AuditAction.PROVIDER_TEST), eq("PROVIDER"), eq("custom-a"),
                 contains("connect timed out"));
+    }
+
+    // ------------------------------------------------------------------ 模型评测（Batch 3b-2）
+
+    private ModelEvaluationService.EvaluationResult evaluationResult() {
+        return new ModelEvaluationService.EvaluationResult(
+                "custom-a", "model-a", 4, 3, 2, 1, 0.6667, 0.5, 1.0,
+                1, 1, 1, 0, 123,
+                List.of(new ModelEvaluationService.LabelStat("VIOLATION", 2, 1)),
+                List.of(new ModelEvaluationService.CaseResult(1L, "VIOLATION", "VIOLATION", 0.9, "ok", null),
+                        new ModelEvaluationService.CaseResult(2L, "COMPLIANT", null, 0, null, "HTTP 500")));
+    }
+
+    @Test
+    void evaluateEndpointPassesThroughResultAndAudits() {
+        ModelEvaluationService.EvaluationResult result = evaluationResult();
+        when(modelEvaluationService.evaluate("custom-a", "model-a", 5)).thenReturn(result);
+
+        ModelEvaluationService.EvaluationResult actual = controller.evaluateScreenModel(
+                new com.echolint.dto.ModelEvaluationRequest("custom-a", "model-a", 5));
+
+        assertSame(result, actual);
+        verify(auditService).record(eq(AuditAction.MODEL_EVALUATE), eq("SETTINGS"), eq("screen-model"),
+                argThat(detail -> detail.contains("custom-a") && detail.contains("model-a")
+                        && detail.contains("accuracy=0.6667")));
+    }
+
+    @Test
+    void evaluateAuditNeverContainsApiKeyMaterial() {
+        when(modelEvaluationService.evaluate("custom-a", null, null)).thenReturn(evaluationResult());
+
+        controller.evaluateScreenModel(new com.echolint.dto.ModelEvaluationRequest("custom-a", null, null));
+
+        verify(auditService).record(eq(AuditAction.MODEL_EVALUATE), eq("SETTINGS"), eq("screen-model"),
+                argThat(detail -> !detail.contains("sk-")));
     }
 }
