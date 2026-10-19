@@ -102,6 +102,13 @@
         tone="ok"
         :sub="`误判放行 ${falsePositive} 条`"
       />
+      <StatCard
+        label="抽样数"
+        :value="stats ? sampledCount : '—'"
+        icon="Aim"
+        tone="info"
+        :sub="sampledSub"
+      />
     </div>
 
     <!-- 加载失败：允许原地重试，不打断导出 -->
@@ -310,6 +317,14 @@ const falsePositive = computed(() =>
 const needsReview = computed(() => num(stats.value?.byStatus?.NEEDS_REVIEW))
 const compliant = computed(() => num(stats.value?.byStatus?.COMPLIANT))
 
+/** 抽样数：后端新增 stats.sampled；旧版本缺字段时按 0 展示，不臆造 */
+const sampledCount = computed(() => num(stats.value?.sampled ?? stats.value?.sampledCount))
+const sampledSub = computed(() =>
+  totalCount.value > 0
+    ? `占录音总量 ${pct(sampledCount.value, totalCount.value)}%`
+    : 'DFA 未命中的抽样抽检'
+)
+
 const violationRate = computed(() =>
   totalCount.value > 0 ? Math.round((confirmed.value / totalCount.value) * 1000) / 10 : 0
 )
@@ -458,11 +473,16 @@ onMounted(loadStats)
 /* 汇总卡 */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   border-radius: var(--r-lg);
 }
-@media (max-width: 1360px) {
+@media (max-width: 1500px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1000px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

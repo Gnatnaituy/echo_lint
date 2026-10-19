@@ -3,6 +3,7 @@ package com.echolint.controller;
 import com.echolint.domain.AuditAction;
 import com.echolint.dto.ScreenModelRequest;
 import com.echolint.service.AuditService;
+import com.echolint.service.NotificationService;
 import com.echolint.service.ScreenModelService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试
+ * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试；
+ * Batch 2b-2 起增加 Webhook 通知配置查看与测试发送（均仅 ADMIN，见 SecurityConfig）。
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -24,6 +26,7 @@ public class SettingsController {
 
     private final ScreenModelService screenModelService;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     /** 当前生效的模型 + 全部候选供应商 */
     @GetMapping("/screen-model")
@@ -48,5 +51,22 @@ public class SettingsController {
             return screenModelService.test(active.providerId(), active.model());
         }
         return screenModelService.test(request.providerId(), request.model());
+    }
+
+    /** Webhook 通知设置（ADMIN）：返回 enabled/urlConfigured/积压阈值/固定事件列表，不返回密钥与完整 URL */
+    @GetMapping("/notifications")
+    public NotificationService.SettingsView notifications() {
+        return notificationService.settings();
+    }
+
+    /** 发送测试 Webhook（ADMIN）：同步返回 {ok, latencyMs, message}，并记 NOTIFY_TEST 审计 */
+    @PostMapping("/notifications/test")
+    public NotificationService.TestResult testNotification() {
+        NotificationService.TestResult result = notificationService.test();
+        auditService.record(AuditAction.NOTIFY_TEST, "SETTINGS", "notifications",
+                (result.ok() ? "测试通知发送成功" : "测试通知发送失败")
+                        + "（耗时 " + result.latencyMs() + "ms）"
+                        + (result.ok() ? "" : "：" + result.message()));
+        return result;
     }
 }

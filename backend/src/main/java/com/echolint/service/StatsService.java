@@ -69,6 +69,7 @@ public class StatsService {
      * @param total         录音总数
      * @param confirmed     人工确认违规数
      * @param falsePositive 人工判定误报数
+     * @param sampled       抽样复核录音数（Batch 2b-2，app.sample.dfa-miss-rate）
      * @param byStatus      各状态数量（含全部状态键）
      * @param byViolationType 确认违规按类型分组（带中文标签）
      * @param topAgents     坐席 Top N（空坐席记为「未填写」）
@@ -79,6 +80,7 @@ public class StatsService {
             long total,
             long confirmed,
             long falsePositive,
+            long sampled,
             Map<String, Long> byStatus,
             List<TypeCount> byViolationType,
             List<NameCount> topAgents,
@@ -160,6 +162,7 @@ public class StatsService {
                 total,
                 byStatus.getOrDefault(RecordingStatus.VIOLATION_CONFIRMED.name(), 0L),
                 byStatus.getOrDefault(RecordingStatus.FALSE_POSITIVE.name(), 0L),
+                recordingRepository.countSampledBetween(from, to),
                 byStatus,
                 byViolationType,
                 topNames(recordingRepository.countByAgentBetween(from, to, PageRequest.of(0, TOP_N * 2))),

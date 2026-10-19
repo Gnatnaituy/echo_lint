@@ -68,6 +68,18 @@ app:
   # 复核工作流：一条录音需要几个复核人通过才落最终结论（1=单人，2=双人复核）
   review:
     required-approvals: ${APP_REVIEW_REQUIRED_APPROVALS:1}
+  # 合规抽样（Batch 2b-2）：DFA 未命中的录音按此概率也送 AI 语义复筛，用于发现词典漏检。
+  # 0=关闭（默认），1=全部抽检；AI 不可用/低置信度一律转人工复检，不会静默放行。
+  sample:
+    dfa-miss-rate: ${APP_SAMPLE_DFA_MISS_RATE:0.0}
+  # Webhook 通知告警（Batch 2b-2）：复核确认违规 / 流水线失败 / 每日待复核积压 / 测试通知。
+  # URL 只来自配置（避免运行时 SSRF）；配置 webhook-secret 后会带 X-EchoLint-Signature 签名头。
+  notify:
+    enabled: ${APP_NOTIFY_ENABLED:false}
+    webhook-url: ${APP_NOTIFY_WEBHOOK_URL:}
+    webhook-secret: ${APP_NOTIFY_WEBHOOK_SECRET:}
+    timeout-seconds: ${APP_NOTIFY_TIMEOUT_SECONDS:5}
+    backlog-threshold: ${APP_NOTIFY_BACKLOG_THRESHOLD:50}
   # 首次启动引导管理员（用户表为空时创建；生产请务必通过环境变量覆盖密码）
   admin:
     username: ${APP_ADMIN_USERNAME:admin}
@@ -80,6 +92,12 @@ app:
     temperature: 0.1
     few-shot-count: 5
     request-timeout-seconds: 300
+    # 全文分块复核（Batch 2b-2）：单次最多送 12000 字符，超出后带重叠分块逐块调用；
+    # 最多复核 6 段（其余截断并在日志注明），任一段违规即整体违规。
+    chunk-chars: ${APP_SCREEN_CHUNK_CHARS:12000}
+    max-chunks: ${APP_SCREEN_MAX_CHUNKS:6}
+    # violation=true 但置信度低于该值时降级人工复核（不允许自动放行）
+    min-confidence: ${APP_SCREEN_MIN_CONFIDENCE:0.6}
     providers:
       - id: openai
         label: OpenAI

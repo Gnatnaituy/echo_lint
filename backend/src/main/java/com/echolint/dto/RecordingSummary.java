@@ -29,6 +29,8 @@ public record RecordingSummary(
         String businessLine,
         Integer durationSeconds,
         RecordingStatus status,
+        /** 是否为 DFA 未命中后的抽样复核录音 */
+        boolean sampled,
         int hitCount,
         /** 声道数：2 = 双声道双轨（坐席/客户各一路） */
         Integer channelCount,
@@ -98,6 +100,7 @@ public record RecordingSummary(
                 r.getBusinessLine(),
                 r.getDurationSeconds(),
                 r.getStatus(),
+                r.isSampled(),
                 r.getHitCount() == null ? 0 : r.getHitCount(),
                 r.getChannelCount(),
                 r.getViolationType(),

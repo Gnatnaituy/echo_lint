@@ -24,5 +24,7 @@ public enum AuditAction {
     DICTIONARY_BULK_UPDATE,
     CORPUS_CREATE,
     CORPUS_DELETE,
-    SETTINGS_UPDATE
+    SETTINGS_UPDATE,
+    /** 系统设置页发送 Webhook 测试通知（Batch 2b-2） */
+    NOTIFY_TEST
 }

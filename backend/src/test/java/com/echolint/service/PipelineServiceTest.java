@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.dfa.DfaHit;
+import com.echolint.domain.NotifyEvent;
 import com.echolint.domain.RecordingStatus;
+import com.echolint.domain.ViolationType;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -29,10 +32,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 流水线编排：AI 复筛不可用时的降级路径（DFA 已命中，不能漏审）与判定模型留痕
+ * 流水线编排：AI 复筛不可用时的降级路径（DFA 已命中/抽样录音都不能漏审）、判定模型留痕、
+ * 合规抽样分支（Batch 2b-2）与失败告警。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -46,16 +56,18 @@ class PipelineServiceTest {
     @Mock private SemanticScreeningService semanticScreeningService;
     @Mock private ScreenModelService screenModelService;
     @Mock private CorpusService corpusService;
+    @Mock private NotificationService notificationService;
 
     @TempDir
     Path tempDir;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private AppProperties appProperties;
     private PipelineService pipeline;
 
     @BeforeEach
     void setUp() {
-        AppProperties appProperties = new AppProperties();
+        appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
 
         ScreenModelProperties screenProperties = new ScreenModelProperties();
@@ -64,7 +76,7 @@ class PipelineServiceTest {
         pipeline = new PipelineService(
                 recordingRepository, pipelineLogRepository, dictionaryWordRepository,
                 audioTranscriptionService, dfaService, semanticScreeningService, screenModelService,
-                corpusService, appProperties, screenProperties, objectMapper);
+                corpusService, appProperties, screenProperties, objectMapper, notificationService);
     }
 
     private Recording stubRecording() {
@@ -86,9 +98,32 @@ class PipelineServiceTest {
         when(dfaService.match(anyString())).thenReturn(List.of(new DfaHit("bitch", 0, 5)));
         when(dictionaryWordRepository.findByWordIgnoreCase(anyString())).thenReturn(Optional.empty());
         when(corpusService.getFewShotExamples(anyInt())).thenReturn(List.of());
-        when(screenModelService.active()).thenReturn(new ScreenModelService.ActiveModel(
+        when(screenModelService.active()).thenReturn(activeModel());
+    }
+
+    private void stubTranscriptionWithoutHit() {
+        when(audioTranscriptionService.transcribe(any(Path.class))).thenReturn(
+                new TranscriptionOutcome("have a nice day", "[]", 1, null, "en", 8, false));
+        when(dfaService.match(anyString())).thenReturn(List.of());
+        when(corpusService.getFewShotExamples(anyInt())).thenReturn(List.of());
+        when(screenModelService.active()).thenReturn(activeModel());
+    }
+
+    private ScreenModelService.ActiveModel activeModel() {
+        return new ScreenModelService.ActiveModel(
                 "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash", "/chat/completions",
-                true, true, null, java.util.Map.of(), 30, null));
+                true, true, null, java.util.Map.of(), 30, null);
+    }
+
+    private List<PipelineLog> pipelineLogs() {
+        ArgumentCaptor<PipelineLog> captor = ArgumentCaptor.forClass(PipelineLog.class);
+        verify(pipelineLogRepository, atLeastOnce()).save(captor.capture());
+        return captor.getAllValues();
+    }
+
+    private void assertLogged(String fragment) {
+        assertTrue(pipelineLogs().stream().anyMatch(l -> l.getMessage() != null && l.getMessage().contains(fragment)),
+                "流水线日志应包含：" + fragment);
     }
 
     @Test
@@ -112,7 +147,7 @@ class PipelineServiceTest {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
         when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
-                new AiScreenResult(true, com.echolint.domain.ViolationType.INSULT, "辱骂", "直接辱骂客户",
+                new AiScreenResult(true, ViolationType.INSULT, "辱骂", "直接辱骂客户",
                         0.92, "you stupid bitch", "deepseek", "DeepSeek", "deepseek-flash"));
 
         pipeline.run(1L);
@@ -129,13 +164,109 @@ class PipelineServiceTest {
     @Test
     void dfaMissStaysCompliantAndSkipsScreening() {
         Recording r = stubRecording();
-        when(audioTranscriptionService.transcribe(any(Path.class))).thenReturn(
-                new TranscriptionOutcome("have a nice day", "[]", 1, null, "en", 8, false));
-        when(dfaService.match(anyString())).thenReturn(List.of());
+        stubTranscriptionWithoutHit();
 
         pipeline.run(1L);
 
         assertEquals(RecordingStatus.COMPLIANT, r.getStatus());
+        assertFalse(r.isSampled(), "默认抽样率为 0，不应标记为抽样");
         assertNull(r.getAiResultJson(), "初筛未命中不应调用 AI 复筛");
+        verify(semanticScreeningService, never()).screen(any(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    void sampledDfaMissWithCompliantAiVerdictIsArchivedCompliant() throws Exception {
+        appProperties.getSample().setDfaMissRate(1.0);
+        Recording r = stubRecording();
+        stubTranscriptionWithoutHit();
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
+                new AiScreenResult(false, ViolationType.NONE, "无", "no violation", 0.88, "",
+                        "deepseek", "DeepSeek", "deepseek-flash"));
+
+        pipeline.run(1L);
+
+        assertEquals(RecordingStatus.COMPLIANT, r.getStatus(), "抽样录音 AI 判合规应自动归档");
+        assertTrue(r.isSampled(), "抽样命中的录音应标记 sampled=true");
+        assertNotNull(r.getProcessedTime());
+        assertEquals(0, r.getHitCount(), "抽样录音 DFA 无命中");
+        var ai = objectMapper.readTree(r.getAiResultJson());
+        assertFalse(ai.path("violation").asBoolean());
+        assertFalse(ai.path("degraded").asBoolean());
+        assertLogged("抽样复核：AI 判定合规");
+    }
+
+    @Test
+    void sampledDfaMissWithViolationGoesNeedsReview() throws Exception {
+        appProperties.getSample().setDfaMissRate(1.0);
+        Recording r = stubRecording();
+        stubTranscriptionWithoutHit();
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
+                new AiScreenResult(true, ViolationType.FRAUD, "诈骗诱导", "elevated risk language",
+                        0.9, "wire me the money", "deepseek", "DeepSeek", "deepseek-flash"));
+
+        pipeline.run(1L);
+
+        assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "抽样录音 AI 判违规应转人工复检");
+        assertTrue(r.isSampled());
+        var ai = objectMapper.readTree(r.getAiResultJson());
+        assertTrue(ai.path("violation").asBoolean());
+        assertFalse(ai.path("degraded").asBoolean());
+        assertLogged("抽样复核");
+    }
+
+    @Test
+    void sampledDfaMissWithoutAiMustNotAutoPass() throws Exception {
+        appProperties.getSample().setDfaMissRate(1.0);
+        Recording r = stubRecording();
+        stubTranscriptionWithoutHit();
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any()))
+                .thenThrow(new BizException("当前复筛模型「DeepSeek · deepseek-flash」未配置 API Key"));
+
+        pipeline.run(1L);
+
+        assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "抽样录音 AI 不可用时不能自动放行");
+        assertTrue(r.isSampled());
+        var ai = objectMapper.readTree(r.getAiResultJson());
+        assertTrue(ai.path("degraded").asBoolean(), "AI 不可用应标记 degraded");
+        assertFalse(ai.path("violation").asBoolean());
+    }
+
+    @Test
+    void lowConfidenceViolationVerdictIsTreatedAsDegraded() throws Exception {
+        Recording r = stubRecording();
+        stubTranscriptionAndHit();
+        when(semanticScreeningService.screen(any(), anyString(), any(), any(), any())).thenReturn(
+                new AiScreenResult(true, ViolationType.THREAT, "威胁", "maybe a threat", 0.42, "",
+                        "deepseek", "DeepSeek", "deepseek-flash").withDegraded("置信度低于阈值"));
+
+        pipeline.run(1L);
+
+        assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "低置信度违规不得自动放行");
+        var ai = objectMapper.readTree(r.getAiResultJson());
+        assertTrue(ai.path("degraded").asBoolean());
+    }
+
+    @Test
+    void pipelineFailureSendsRecordingFailedNotification() {
+        Recording r = stubRecording();
+        when(audioTranscriptionService.transcribe(any(Path.class)))
+                .thenThrow(new RuntimeException("ffmpeg crashed"));
+
+        pipeline.run(1L);
+
+        assertEquals(RecordingStatus.FAILED, r.getStatus());
+        verify(notificationService).notify(eq(NotifyEvent.RECORDING_FAILED), eq(1L),
+                anyString(), contains("ffmpeg crashed"), isNull());
+    }
+
+    @Test
+    void successfulPipelineDoesNotSendFailureNotification() {
+        stubRecording();
+        stubTranscriptionWithoutHit();
+
+        pipeline.run(1L);
+
+        verify(notificationService, never()).notify(eq(NotifyEvent.RECORDING_FAILED), any(), anyString(),
+                anyString(), any());
     }
 }

@@ -57,12 +57,14 @@ class StatsReportServiceTest {
                 new Object[]{"A组", 3L}));
         when(recordingRepository.countByDayBetween(any(), any())).thenReturn(List.<Object[]>of(
                 new Object[]{java.sql.Date.valueOf("2026-10-19"), 2L}));
+        when(recordingRepository.countSampledBetween(any(), any())).thenReturn(4L);
 
         StatsService.Report report = service.report(TimeRanges.parseRange("2026-10-19", "2026-10-20"));
 
         assertEquals(16, report.total());
         assertEquals(8, report.confirmed());
         assertEquals(3, report.falsePositive());
+        assertEquals(4, report.sampled(), "报表应返回抽样复核录音数");
         assertEquals(9, report.byStatus().size(), "byStatus 应含全部状态键");
         assertEquals(0L, report.byStatus().get("PENDING"));
         assertEquals(5L, report.byStatus().get("COMPLIANT"));
@@ -122,6 +124,7 @@ class StatsReportServiceTest {
         assertEquals(0, report.total());
         assertEquals(0, report.confirmed());
         assertEquals(0, report.falsePositive());
+        assertEquals(0, report.sampled());
         assertEquals(9, report.byStatus().size());
         assertTrue(report.byViolationType().isEmpty());
         assertTrue(report.topAgents().isEmpty());
@@ -136,6 +139,7 @@ class StatsReportServiceTest {
         service.report(TimeRanges.parseRange("2026-10-01", "2026-10-02"));
 
         verify(recordingRepository).countByStatusBetween(from, to);
+        verify(recordingRepository).countSampledBetween(from, to);
         verify(recordingRepository).countByDayBetween(from, to);
     }
 }

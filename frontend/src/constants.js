@@ -102,6 +102,15 @@ export function isFinalReviewStatus(status) {
 }
 
 /**
+ * 是否抽样录音：DFA 未命中时按配置比例进入 AI 语义复筛 / 人工复检的合规抽检。
+ * 后端契约是 boolean，这里兼容 0/1 与字符串；缺字段 / 未知值一律视为未抽样。
+ */
+export function isSampled(record) {
+  const value = record?.sampled
+  return value === true || value === 1 || value === '1' || value === 'true' || value === 'TRUE'
+}
+
+/**
  * 复核进度：reviewCount / requiredApprovals。
  * 后端缺省时为单人复核（required=1），前端只做展示与提交提示。
  */
@@ -140,6 +149,7 @@ export const AUDIT_ACTION_META = {
   CORPUS_DELETE: { label: '删除语料', type: 'danger' },
   REPORT_EXPORT: { label: '报表导出', type: 'primary' },
   SETTINGS_UPDATE: { label: '修改设置', type: 'warning' },
+  NOTIFY_TEST: { label: '测试通知', type: 'info' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }
 
@@ -154,6 +164,22 @@ export function auditActionMeta(action) {
 
 export function auditActionLabel(action) {
   return auditActionMeta(action).label
+}
+
+/* ==========================================================================
+   运营通知（Webhook）
+   ========================================================================== */
+
+/** 通知事件元数据：与后端 NotificationService 的事件名一一对应，未知事件回退原始 code */
+export const NOTIFY_EVENT_META = {
+  REVIEW_CONFIRMED_VIOLATION: { label: '复核确认违规', type: 'danger' },
+  RECORDING_FAILED: { label: '录音处理失败', type: 'warn' },
+  REVIEW_BACKLOG: { label: '待复核积压', type: 'warn' },
+  NOTIFY_TEST: { label: '测试事件', type: 'info' }
+}
+
+export function notifyEventMeta(event) {
+  return NOTIFY_EVENT_META[event] || { label: event ? String(event) : '—', type: 'info' }
 }
 
 /**

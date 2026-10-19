@@ -144,6 +144,11 @@
                   <span class="sep">·</span>
                   <span class="num">{{ formatTimeShort(row.uploadTime) }}</span>
                   <span v-if="row.channelCount === 2" class="chip brand ch-tag">双声道</span>
+                  <span
+                    v-if="isSampled(row)"
+                    class="chip warn ch-tag"
+                    title="DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检"
+                  >抽样</span>
                 </div>
               </div>
             </div>
@@ -346,6 +351,11 @@
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
                   <span v-if="detail.channelCount === 2" class="chip brand">双声道双轨</span>
+                  <span
+                    v-if="isSampled(detail)"
+                    class="chip warn"
+                    title="DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检"
+                  >抽样录音</span>
                   <PriorityTag :priority="detail.priority" />
                   <span class="chip">
                     {{ detail.assignedTo ? `指派：${detail.assignedTo}` : '未指派' }}
@@ -750,6 +760,7 @@ import {
   formatTime,
   formatTimeShort,
   isFinalReviewStatus,
+  isSampled,
   isStale,
   PRIORITY_OPTIONS,
   reprocessInfo,

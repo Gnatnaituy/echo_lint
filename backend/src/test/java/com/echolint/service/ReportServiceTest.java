@@ -75,6 +75,7 @@ class ReportServiceTest {
         r.setReviewCount(1);
         r.setUploadTime(LocalDateTime.of(2026, 10, 20, 9, 40));
         r.setDurationSeconds(30);
+        r.setSampled(true);
         r.setErrorMessage("bad\nline");
         return r;
     }
@@ -96,7 +97,7 @@ class ReportServiceTest {
 
         String text = decode(body);
         String[] lines = text.split("\r\n");
-        assertEquals("id,fileName,agentName,teamName,callTime,direction,businessLine,status,hitCount,"
+        assertEquals("id,fileName,agentName,teamName,callTime,direction,businessLine,status,sampled,hitCount,"
                 + "violationType,violationTypeLabel,aiViolation,aiConfidence,reviewer,reviewTime,uploadTime,"
                 + "durationSeconds,errorMessage", lines[0]);
         assertEquals(2, lines.length);
@@ -104,7 +105,8 @@ class ReportServiceTest {
         String row = lines[1];
         assertTrue(row.startsWith("1,\"call, \"\"urgent\"\".mp3\",张三,"), row);
         assertTrue(row.contains(",INBOUND,售后,"), row);
-        assertTrue(row.contains(",VIOLATION_CONFIRMED,3,INSULT,辱骂,true,0.91,bob,"), row);
+        assertTrue(row.contains(",VIOLATION_CONFIRMED,true,3,INSULT,辱骂,true,0.91,bob,"), row);
+        assertTrue(row.contains("sampled") || lines[0].contains("sampled"), "recordings.csv 应包含 sampled 列");
         assertTrue(row.contains("\"bad\nline\""), row);
 
         verify(auditService).record(eq(AuditAction.REPORT_EXPORT), eq("REPORT"), eq("recordings.csv"),

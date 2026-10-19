@@ -19,6 +19,7 @@ public class AppProperties {
     private Stereo stereo = new Stereo();
     private Review review = new Review();
     private Admin admin = new Admin();
+    private Sample sample = new Sample();
 
     /**
      * 复核工作流配置
@@ -44,6 +45,36 @@ public class AppProperties {
     /** 生效的复核通过人数（至少 1，避免配置错误导致流程卡死） */
     public int reviewRequiredApprovals() {
         return Math.max(1, review == null ? 1 : review.getRequiredApprovals());
+    }
+
+    /**
+     * 生效的 DFA 未命中抽样比例：钳制到 0~1，NaN/异常配置按 0（关闭）处理，
+     * 避免配置笔误把整条流水线变成「全部抽样」或抽样逻辑异常。
+     */
+    public double dfaMissSampleRate() {
+        double rate = sample == null ? 0.0 : sample.getDfaMissRate();
+        if (Double.isNaN(rate)) {
+            return 0.0;
+        }
+        return Math.min(1.0, Math.max(0.0, rate));
+    }
+
+    /** 是否开启抽样（供启动日志/系统设置展示） */
+    public boolean samplingEnabled() {
+        return dfaMissSampleRate() > 0.0;
+    }
+
+    /**
+     * 合规抽检配置（Batch 2b-2）。
+     *
+     * <p>DFA 词典初筛未命中的录音默认直接归档为 COMPLIANT；打开抽样后按比例把一部分
+     * 「看起来没问题」的录音也送进 AI 语义复筛 / 人工复核，用于发现词典漏检。</p>
+     */
+    @Getter
+    @Setter
+    public static class Sample {
+        /** DFA 未命中时的抽样比例 0~1（env APP_SAMPLE_DFA_MISS_RATE）；0 = 关闭，1 = 全部抽检 */
+        private double dfaMissRate = 0.0;
     }
 
     /**

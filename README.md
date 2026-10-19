@@ -91,6 +91,7 @@ echolint/
 - **双栏对话 + 分声道试听**：双轨录音默认以左右双栏对话展示（左=坐席、右=客户），播放器可切「混合 / 坐席 / 客户」单独试听某一路。
 - **敏感词库**：KPI 概览、DFA 检测工具（命中实时高亮预览）、词条表含命中次数条形图，AI 挖掘词带「待审核」标记。
 - **报表**：日期范围 + 坐席/团队/方向筛选，汇总卡与按坐席/团队/违规类型统计，导出录音/违规/复核 CSV；敏感词库支持 CSV 导入导出与批量启停。
+- **合规抽样与告警**：可按比例抽检 DFA 未命中的录音（界面显示「抽样」标记）；复核确认违规、流水线失败、待复核积压可推送 Webhook（支持 HMAC 签名），系统设置页可发送测试通知。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -313,6 +314,15 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_ADMIN_USERNAME` | `admin` | 首次启动引导管理员用户名（用户表为空时创建） |
 | `APP_ADMIN_PASSWORD` | `admin12345` | 引导管理员密码，**生产必须覆盖** |
 | `APP_REVIEW_REQUIRED_APPROVALS` | `1` | 一条录音需要几位复核人通过才落最终结论（2 = 双人复核） |
+| `APP_SAMPLE_DFA_MISS_RATE` | `0` | DFA 未命中时的抽样比例（0~1）；抽样录音也会走 AI 复筛 |
+| `APP_NOTIFY_ENABLED` | `false` | 是否启用 Webhook 通知 |
+| `APP_NOTIFY_WEBHOOK_URL` | (空) | Webhook 地址（仅配置，不在接口暴露） |
+| `APP_NOTIFY_WEBHOOK_SECRET` | (空) | HMAC-SHA256 签名密钥，请求头 `X-EchoLint-Signature` |
+| `APP_NOTIFY_TIMEOUT_SECONDS` | `5` | Webhook 超时 |
+| `APP_NOTIFY_BACKLOG_THRESHOLD` | `50` | 每日待复核积压告警阈值 |
+| `APP_SCREEN_CHUNK_CHARS` | `12000` | AI 复筛单块字符数，超长转写自动分块 |
+| `APP_SCREEN_MAX_CHUNKS` | `6` | 单条录音最多复核块数（超出截断并告警） |
+| `APP_SCREEN_MIN_CONFIDENCE` | `0.6` | 判违规但置信度低于此值时降级人工复核 |
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
@@ -339,6 +349,8 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET | `/api/settings/screen-model` | 当前复筛模型 + 全部候选供应商 |
 | PUT | `/api/settings/screen-model` | 切换复筛模型 `{providerId, model?}`（落库持久化） |
 | POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
+| GET | `/api/settings/notifications` | 抽样与 Webhook 通知配置（ADMIN，不返回密钥） |
+| POST | `/api/settings/notifications/test` | 发送测试 Webhook 并返回结果（ADMIN） |
 
 报表与运营：
 

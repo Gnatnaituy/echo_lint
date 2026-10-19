@@ -155,6 +155,99 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
         </div>
       </div>
     </section>
+
+    <!-- ④ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
+    <section v-if="canWrite" class="panel">
+      <div class="panel-head">
+        <div class="section-title">抽样与通知</div>
+        <div class="notify-head">
+          <span class="tiny dim">合规抽样与 Webhook 告警，仅管理员可查看</span>
+          <el-button size="small" :loading="notifyLoading" @click="loadNotifications">刷新</el-button>
+        </div>
+      </div>
+      <div v-loading="notifyLoading" class="panel-body">
+        <!-- 接口未上线 / 无权限（403、404）时降级为可重试的提示，不影响页面其他设置 -->
+        <div v-if="notifyError" class="notify-fallback">
+          <el-icon :size="16"><WarningFilled /></el-icon>
+          <div class="notify-fallback-text">
+            <div class="strong">通知设置暂不可用</div>
+            <div class="tiny dim">{{ notifyError }}</div>
+          </div>
+          <el-button size="small" @click="loadNotifications">重试</el-button>
+        </div>
+
+        <template v-else-if="notify">
+          <div class="notify-grid">
+            <div class="notify-item">
+              <div class="notify-label">DFA 未命中抽样比例</div>
+              <div class="notify-value num">{{ samplingRateText }}</div>
+              <div class="notify-sub tiny dim">{{ samplingRateNote }}</div>
+            </div>
+
+            <div class="notify-item">
+              <div class="notify-label">Webhook 通知</div>
+              <div class="notify-value">
+                <span class="chip" :class="webhookState.type">{{ webhookState.label }}</span>
+              </div>
+              <div class="notify-sub tiny dim">{{ webhookState.note }}</div>
+            </div>
+
+            <div class="notify-item">
+              <div class="notify-label">待复核积压阈值</div>
+              <div class="notify-value num">{{ backlogThresholdText }}</div>
+              <div class="notify-sub tiny dim">待人工复检数超过阈值时每日告警（Asia/Shanghai）</div>
+            </div>
+          </div>
+
+          <div class="notify-events">
+            <span class="notify-label">通知事件</span>
+            <div class="event-chips">
+              <span
+                v-for="event in notify.events"
+                :key="event"
+                class="chip"
+                :class="notifyEventMeta(event).type"
+              >{{ notifyEventMeta(event).label }}</span>
+              <span v-if="!notify.events.length" class="tiny dim">接口未返回事件列表（后端可能为旧版本）</span>
+            </div>
+          </div>
+
+          <div class="notify-test">
+            <el-button type="primary" :loading="notifyTesting" :disabled="!canTestWebhook" @click="testWebhook">
+              <el-icon v-if="!notifyTesting" class="el-icon--left"><Connection /></el-icon>
+              发送测试 Webhook
+            </el-button>
+            <span class="tiny dim">{{ testHint }}</span>
+          </div>
+
+          <div v-if="notifyTestResult" class="test-result" :class="notifyTestResult.ok ? 'ok' : 'bad'">
+            <el-icon :size="16">
+              <component :is="notifyTestResult.ok ? 'CircleCheckFilled' : 'CircleCloseFilled'" />
+            </el-icon>
+            <div class="test-text">
+              <div class="test-head">
+                <b>{{ notifyTestResult.ok ? '测试通知发送成功' : '测试通知发送失败' }}</b>
+                <span v-if="notifyTestResult.latencyMs != null" class="num dim">
+                  耗时 {{ notifyTestResult.latencyMs }} ms
+                </span>
+              </div>
+              <div class="test-msg">
+                {{ notifyTestResult.message ||
+                  (notifyTestResult.ok
+                    ? 'Webhook 已接收测试事件'
+                    : '请检查 Webhook 地址、签名密钥与网络连通性') }}
+              </div>
+            </div>
+          </div>
+
+          <div class="hint tiny dim">
+            抽样比例、Webhook 地址 / 密钥 / 超时、积压阈值均由后端环境变量配置
+            （APP_SAMPLE_DFA_MISS_RATE、APP_NOTIFY_*），修改后需重启后端。
+            通知只发送到后端配置的地址，前端不接触 URL 与签名密钥。
+          </div>
+        </template>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -163,6 +256,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 import auth from '../auth'
+import { notifyEventMeta } from '../constants'
+import { formatSamplingRate } from '../utils/notifications'
 
 // 系统设置写操作仅 ADMIN：非管理员只读查看，后端仍会独立校验
 const canWrite = computed(() => auth.hasRole('ADMIN'))
@@ -173,6 +268,14 @@ const saving = ref(false)
 /** 正在测试的目标：'active' | 'draft' | null */
 const testing = ref(null)
 const testResult = ref(null)
+
+// 抽样与通知（仅 ADMIN）：GET /api/settings/notifications 为 ADMIN 接口，
+// 后端未上线（404）或无权限（403）时降级为卡片内提示，不弹全局错误。
+const notify = ref(null)
+const notifyLoading = ref(false)
+const notifyError = ref('')
+const notifyTesting = ref(false)
+const notifyTestResult = ref(null)
 
 const currentProvider = computed(
   () => (view.value?.providers || []).find((p) => p.id === draft.providerId) || null
@@ -245,7 +348,102 @@ function testDraft() {
   runTest('draft', { providerId: draft.providerId, model: draft.model })
 }
 
-onMounted(load)
+/* ---------- 抽样与通知（ADMIN） ---------- */
+
+const samplingRateText = computed(() => formatSamplingRate(notify.value?.samplingRate))
+
+const samplingRateNote = computed(() =>
+  notify.value?.samplingRate != null
+    ? 'DFA 无命中的录音按该比例进入 AI 语义复筛 / 人工复检'
+    : '后端未返回当前值：由环境变量 APP_SAMPLE_DFA_MISS_RATE 配置（0~1，重启生效）'
+)
+
+/** Webhook 状态：接口字段缺失时显示「未知」，不臆造启用状态 */
+const webhookState = computed(() => {
+  const data = notify.value
+  if (!data) return { label: '—', type: 'info', note: '' }
+  if (data.enabled === false) {
+    return { label: '未启用', type: 'info', note: 'APP_NOTIFY_ENABLED 未开启，不会发送任何通知' }
+  }
+  if (data.enabled === true) {
+    if (data.urlConfigured === false) {
+      return { label: '待配置 URL', type: 'warn', note: '已启用但 Webhook URL 未配置，事件不会送达' }
+    }
+    if (data.urlConfigured === true) {
+      return { label: '已启用', type: 'ok', note: '地址与签名密钥由后端环境变量配置，前端只读' }
+    }
+    return { label: '已启用', type: 'ok', note: '接口未返回 URL 配置状态' }
+  }
+  if (data.urlConfigured === true) {
+    return { label: '已配置', type: 'ok', note: '接口未返回启用状态' }
+  }
+  return { label: '未知', type: 'info', note: '接口未返回通知状态，可能是后端版本较旧' }
+})
+
+const backlogThresholdText = computed(() => {
+  const threshold = notify.value?.backlogThreshold
+  return threshold === null || threshold === undefined ? '—' : `${threshold} 条`
+})
+
+/** 仅当能确认未启用 / URL 未配置时禁用测试，字段缺失时仍允许尝试（后端为准） */
+const canTestWebhook = computed(() => {
+  const data = notify.value
+  if (!data || notifyTesting.value) return false
+  return data.enabled !== false && data.urlConfigured !== false
+})
+
+const testHint = computed(() => {
+  const data = notify.value
+  if (!data) return ''
+  if (data.enabled === false) return '通知未启用：需在后端开启 APP_NOTIFY_ENABLED'
+  if (data.urlConfigured === false) return 'Webhook URL 未配置：需在后端配置 APP_NOTIFY_WEBHOOK_URL'
+  return '发送一条 NOTIFY_TEST 事件，验证地址连通性与签名，结果会写入操作审计'
+})
+
+/** 接口错误文案：区分 403/404，避免把后端未上线误报成普通失败 */
+function notifyErrorMessage(error, fallback) {
+  const status = error?.status
+  if (status === 403) return '当前账号无权限执行该操作（需要 ADMIN）'
+  if (status === 404) return '后端尚未提供该接口（HTTP 404），请确认后端版本'
+  return error?.message || fallback
+}
+
+async function loadNotifications() {
+  if (!canWrite.value) return
+  notifyLoading.value = true
+  notifyError.value = ''
+  try {
+    notify.value = await api.notificationSettings()
+  } catch (e) {
+    notify.value = null
+    notifyError.value = notifyErrorMessage(e, '通知设置加载失败，请稍后重试')
+  } finally {
+    notifyLoading.value = false
+  }
+}
+
+async function testWebhook() {
+  if (!canTestWebhook.value) return
+  notifyTesting.value = true
+  notifyTestResult.value = null
+  try {
+    notifyTestResult.value = await api.testNotification()
+  } catch (e) {
+    notifyTestResult.value = {
+      ok: false,
+      latencyMs: null,
+      message: notifyErrorMessage(e, '测试通知发送失败，请检查 Webhook 配置与网络')
+    }
+  } finally {
+    notifyTesting.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+  // 通知设置是 ADMIN 接口：非管理员不请求、不渲染该卡片
+  if (canWrite.value) loadNotifications()
+})
 </script>
 
 <style scoped>
@@ -478,5 +676,82 @@ onMounted(load)
   color: var(--ink-600);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 抽样与通知 */
+.notify-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.notify-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.notify-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
+}
+.notify-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 22px;
+}
+.notify-value {
+  margin-top: 5px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink-900);
+  letter-spacing: -0.01em;
+}
+.notify-sub {
+  margin-top: 6px;
+  line-height: 1.65;
+}
+.notify-events {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+}
+.notify-events .notify-label {
+  flex: none;
+}
+.event-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.notify-test {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.notify-fallback {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  color: #8a5a08;
+}
+.notify-fallback-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.6;
+}
+@media (max-width: 1100px) {
+  .notify-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

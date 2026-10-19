@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.CorpusLabel;
+import com.echolint.domain.NotifyEvent;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ReviewResult;
 import com.echolint.domain.UserRole;
@@ -59,6 +60,8 @@ class ReviewServiceTest {
     private ReviewRecordRepository reviewRecordRepository;
     @Mock
     private AuditService auditService;
+    @Mock
+    private NotificationService notificationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private AppProperties appProperties;
@@ -69,7 +72,7 @@ class ReviewServiceTest {
         appProperties = new AppProperties();
         service = new ReviewService(recordingRepository, pipelineLogRepository, corpusService,
                 new AsyncWordMiningTrigger(wordMiningService), objectMapper, reviewRecordRepository,
-                auditService, appProperties);
+                auditService, appProperties, notificationService);
         when(recordingRepository.save(any(Recording.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -141,6 +144,28 @@ class ReviewServiceTest {
         verify(corpusService).append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("确认辱骂"));
         verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
         verify(auditService).record(eq(AuditAction.REVIEW_SUBMIT), eq("RECORDING"), eq(7L), anyString());
+        // Batch 2b-2：确认违规应发出 Webhook 告警
+        verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
+                contains("辱骂"), contains("确认辱骂"), isNull());
+    }
+
+    @Test
+    void confirmedViolationNotificationIsSentOnlyAfterCommit() {
+        Recording recording = needsReview();
+        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        loginAs("alice", 5L);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
+
+            // 事务未提交前不能发告警，避免「通知已发但回滚」
+            verify(notificationService, never()).notify(any(), any(), anyString(), anyString(), any());
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+            verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
+                    anyString(), anyString(), isNull());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
@@ -202,6 +227,7 @@ class ReviewServiceTest {
 
         verify(corpusService, never()).append(any(), any(), any(), any());
         verify(wordMiningService, never()).mineAndSuggest(any(), any());
+        verify(notificationService, never()).notify(any(), any(), anyString(), anyString(), any());
     }
 
     @Test
@@ -222,6 +248,8 @@ class ReviewServiceTest {
         assertEquals(2, capturedReviewRecord().getRound());
         verify(corpusService).append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("第二票"));
         verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
+        verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
+                anyString(), contains("第二票"), isNull());
     }
 
     @Test
@@ -283,6 +311,8 @@ class ReviewServiceTest {
         assertEquals("alice", saved.getReviewer());
         verify(corpusService).append(eq(recording), eq(CorpusLabel.COMPLIANT), isNull(), eq("误报"));
         verify(wordMiningService, never()).mineAndSuggest(any(), any());
+        // 误报不触发告警（只有确认违规才发）
+        verify(notificationService, never()).notify(any(), any(), anyString(), anyString(), any());
     }
 
     @Test

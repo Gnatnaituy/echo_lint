@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
@@ -54,8 +55,28 @@ public class AppConfig {
         return executor;
     }
 
+    /**
+     * Webhook 通知专用线程池（Batch 2b-2）。
+     *
+     * <p>通知是尽力而为的旁路能力：独立小池子避免慢接收端占用流水线线程；
+     * 队列满时直接丢弃并 warn，绝不阻塞复核/流水线主流程。</p>
+     */
+    @Bean(name = "notificationExecutor")
+    public ThreadPoolTaskExecutor notificationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("notify-");
+        executor.setRejectedExecutionHandler((task, pool) ->
+                log.warn("通知队列已满，丢弃本次 Webhook 通知"));
+        executor.initialize();
+        return executor;
+    }
+
     @Bean
-    public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties) {
+    public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties,
+                                           NotifyProperties notifyProperties) {
         return args -> {
             if (whisperProperties.apiKeyConfigured()) {
                 log.info("语音转写：{}（模型 {}，上传上限 {}MB）",
@@ -83,6 +104,22 @@ public class AppConfig {
                 }
             } catch (Exception e) {
                 log.warn("AI 语义复筛模型解析失败：{}", e.getMessage());
+            }
+            if (appProperties.samplingEnabled()) {
+                log.info("合规抽样已开启：DFA 未命中录音按 {} 比例进入 AI 抽样复核（app.sample.dfa-miss-rate）",
+                        String.format("%.2f", appProperties.dfaMissSampleRate()));
+            } else {
+                log.info("合规抽样未开启（app.sample.dfa-miss-rate=0，DFA 未命中直接归档）");
+            }
+            if (notifyProperties.usable()) {
+                log.info("Webhook 通知已开启：积压阈值 {} 条，超时 {}s，{}", notifyProperties.effectiveBacklogThreshold(),
+                        notifyProperties.effectiveTimeoutSeconds(),
+                        StringUtils.hasText(notifyProperties.getWebhookSecret())
+                                ? "已配置 HMAC-SHA256 签名" : "未配置签名密钥");
+            } else if (notifyProperties.isEnabled()) {
+                log.warn("Webhook 通知已开启但未配置可用的 http(s) webhook-url —— 通知将被跳过");
+            } else {
+                log.info("Webhook 通知未开启（app.notify.enabled=false）");
             }
         };
     }

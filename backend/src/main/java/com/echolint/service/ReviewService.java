@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.CorpusLabel;
+import com.echolint.domain.NotifyEvent;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ReviewResult;
 import com.echolint.domain.ViolationType;
@@ -50,6 +51,7 @@ public class ReviewService {
     private final ReviewRecordRepository reviewRecordRepository;
     private final AuditService auditService;
     private final AppProperties appProperties;
+    private final NotificationService notificationService;
 
     @Transactional
     public Recording review(Long id, ReviewRequest request) {
@@ -137,6 +139,8 @@ public class ReviewService {
                     StringUtils.hasText(comment) ? comment : extractAiReason(recording));
             logStage(recording.getId(), "REVIEW", "WARN",
                     "人工复检确认违规（" + type.getLabel() + "）：" + (StringUtils.hasText(comment) ? comment : "无备注"));
+            // 外部告警（Webhook）同样放在事务提交后：避免「通知已发但事务回滚」的假告警
+            notifyConfirmedViolationAfterCommit(recording, type, comment);
             // 从确认违规录音挖掘新词典词（停用待审核）：AI 调用可能耗时数百秒，
             // 移到事务提交后异步执行，异常只记日志，不阻塞/回滚复检
             triggerMiningAfterCommit(recording, type);
@@ -153,6 +157,30 @@ public class ReviewService {
         recording.setReviewComment(comment);
         recording.setReviewer(reviewer);
         recording.setReviewTime(LocalDateTime.now());
+    }
+
+    /**
+     * 事务提交后发送「复核确认违规」Webhook 告警。
+     *
+     * <p>NotificationService 的发送本身是 @Async 且吞异常，这里只负责「提交后才发」的时序，
+     * 保证不会出现事务回滚但告警已发出的情况。</p>
+     */
+    private void notifyConfirmedViolationAfterCommit(Recording recording, ViolationType type, String comment) {
+        Runnable send = () -> notificationService.notify(NotifyEvent.REVIEW_CONFIRMED_VIOLATION,
+                recording.getId(), "复核确认违规（" + type.getLabel() + "）",
+                "录音 #" + recording.getId() + "（" + recording.getFileName() + "）经人工复核确认违规："
+                        + type.getLabel() + (StringUtils.hasText(comment) ? "，备注：" + comment : ""),
+                null);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
     }
 
     /**

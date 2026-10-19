@@ -69,6 +69,11 @@
               <span class="queue-meta">
                 <span class="dot" :style="{ background: priorityDot(r.priority) }"></span>
                 <span class="queue-type">{{ r.aiViolationTypeLabel || '未分类' }}</span>
+                <span
+                  v-if="isSampled(r)"
+                  class="queue-sampled"
+                  title="DFA 未命中，按抽样比例进入复检"
+                >抽样</span>
                 <span class="queue-prio" :class="priorityClass(r.priority)">{{ priorityMeta(r.priority).label }}</span>
                 <span
                   v-if="r.assignedTo"
@@ -101,6 +106,11 @@
                 <span class="chip">{{ formatDuration(current.durationSeconds) }}</span>
                 <span class="chip danger">DFA 命中 {{ current.hitCount }} 处</span>
                 <span v-if="aiResult?.violationTypeLabel" class="chip warn">AI：{{ aiResult.violationTypeLabel }}</span>
+                <span
+                  v-if="isSampled(current)"
+                  class="chip warn"
+                  title="DFA 未命中，按抽样比例进入 AI 语义复筛与人工复检"
+                >抽样</span>
                 <PriorityTag :priority="current.priority" />
                 <span class="chip" :class="{ brand: current.assignedTo === auth.username }">
                   {{ current.assignedTo
@@ -536,6 +546,7 @@
                 {{ historyDetail.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行' }}
               </span>
               <span v-if="historyDetail.violationTypeLabel" class="chip warn">{{ historyDetail.violationTypeLabel }}</span>
+              <span v-if="isSampled(historyDetail)" class="chip warn">抽样</span>
               <span class="chip">{{ historyDetail.reviewer || '—' }} · {{ formatTime(historyDetail.reviewTime) }}</span>
             </div>
           </div>
@@ -573,6 +584,7 @@ import {
   priorityMeta,
   PRIORITY_OPTIONS,
   reviewProgress,
+  isSampled,
   VIOLATION_TYPES,
   PROCESSING_STATUSES
 } from '../constants'
@@ -707,6 +719,7 @@ const priorityClass = (priority) => PRIORITY_CLASS[priority] || PRIORITY_CLASS.N
 function queueTooltip(r) {
   const conf = r.aiConfidence != null ? Math.round(r.aiConfidence * 100) + '%' : '—'
   const lines = [`${r.aiViolationTypeLabel || '未分类'} · 置信度 ${conf}`]
+  if (isSampled(r)) lines.push('DFA 未命中：按抽样比例进入复检')
   if (r.transcriptSnippet) lines.push(r.transcriptSnippet)
   return lines.join('\n')
 }
@@ -1714,6 +1727,19 @@ watch(
   padding: 0;
   background: transparent;
   color: var(--ink-400);
+}
+/* 抽样标记：DFA 未命中后按比例进入复检 */
+.queue-sampled {
+  font-size: 10px;
+  font-weight: 600;
+  height: 15px;
+  line-height: 15px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: #b06a06;
+  white-space: nowrap;
+  flex: none;
 }
 
 /* 复核进度 / 复核历史 */

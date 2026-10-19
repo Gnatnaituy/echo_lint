@@ -36,7 +36,40 @@ public class ScreenModelProperties {
 
     private long requestTimeoutSeconds = 300;
 
+    /**
+     * 单次送入模型的转写文本上限（字符）。超过后按 {@code chunkChars} 切块、带重叠逐块复核，
+     * 避免长录音被静默截断导致后半段漏检（Batch 2b-2）。
+     */
+    private int chunkChars = 12000;
+
+    /** 最多复核的分块数；超出的分块直接截断（日志注明），防止超长录音把成本放大到不可控 */
+    private int maxChunks = 6;
+
+    /**
+     * 判定违规所需的最低置信度：{@code violation=true} 但置信度低于该值时降级人工复核，
+     * 不允许自动放行（Batch 2b-2）。
+     */
+    private double minConfidence = 0.6;
+
     private List<Provider> providers = new ArrayList<>();
+
+    /** 生效的单块字符数：下限 500，避免配置过小把提示词切碎 */
+    public int effectiveChunkChars() {
+        return Math.max(500, chunkChars);
+    }
+
+    /** 生效的最大分块数：1~50，避免 0/负数导致不复核或异常配置放大成本 */
+    public int effectiveMaxChunks() {
+        return Math.min(50, Math.max(1, maxChunks));
+    }
+
+    /** 生效的最低置信度：钳制到 0~1，NaN 回退默认 0.6 */
+    public double effectiveMinConfidence() {
+        if (Double.isNaN(minConfidence)) {
+            return 0.6;
+        }
+        return Math.min(1.0, Math.max(0.0, minConfidence));
+    }
 
     public Optional<Provider> find(String id) {
         if (!StringUtils.hasText(id)) {

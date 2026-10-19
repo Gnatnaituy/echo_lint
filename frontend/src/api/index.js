@@ -1,6 +1,10 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download'
+import {
+  normalizeNotificationSettings,
+  normalizeNotificationTest
+} from '../utils/notifications'
 
 const http = axios.create({
   baseURL: '/api',
@@ -69,6 +73,8 @@ http.interceptors.response.use(
   async (error) => {
     const status = error.response?.status
     const url = String(error.config?.url || '')
+    // silent：调用方自行展示错误（如系统设置里的可选接口），不弹全局提示
+    const silent = error.config?.silent === true
 
     if (status === 401) {
       // 登录失败 / 会话探测失败交给调用方处理：不弹全局提示、不重复跳转
@@ -79,13 +85,17 @@ http.interceptors.response.use(
     }
 
     if (status === 403) {
-      ElMessage.error('无权限执行该操作')
-      return Promise.reject(new Error('无权限执行该操作'))
+      if (!silent) ElMessage.error('无权限执行该操作')
+      const denied = new Error('无权限执行该操作')
+      denied.status = 403
+      return Promise.reject(denied)
     }
 
     const msg = await pickMessage(error)
-    ElMessage.error(msg)
-    return Promise.reject(new Error(msg))
+    if (!silent) ElMessage.error(msg)
+    const failure = new Error(msg)
+    if (status) failure.status = status
+    return Promise.reject(failure)
   }
 )
 
@@ -187,6 +197,7 @@ export const api = {
     return http.post('/recordings/upload', fd)
   },
   listRecordings({ statuses, keyword, assignedTo, priority, agentName, teamName, direction, from, to, page, size } = {}) {
+    // 列表项透传后端 Summary 字段（含 sampled：DFA 未命中抽样标记），前端不做裁剪
     return http.get('/recordings', {
       params: {
         statuses: statuses?.join(',') || undefined,
@@ -204,6 +215,7 @@ export const api = {
     })
   },
   recordingDetail(id) {
+    // 详情透传 sampled（抽样标记）等后端新增字段
     return http.get(`/recordings/${id}`)
   },
   recordingLogs(id) {
@@ -295,7 +307,7 @@ export const api = {
   overview() {
     return http.get('/stats/overview')
   },
-  /** 报表统计：from/to 可空（yyyy-MM-dd 或 ISO 日期时间） */
+  /** 报表统计：from/to 可空（yyyy-MM-dd 或 ISO 日期时间）；响应含 sampled 抽样数 */
   statsReport({ from, to } = {}) {
     return http.get('/stats/report', { params: { from: param(from), to: param(to) } })
   },
@@ -321,6 +333,20 @@ export const api = {
   /** 连通性测试：传入 {providerId, model} 可测未保存的选择 */
   testScreenModel(payload = {}) {
     return http.post('/settings/screen-model/test', payload)
+  },
+
+  // 系统设置：运营通知（ADMIN）；silent 由页面自行展示 403/404 的降级提示
+  /** GET /api/settings/notifications -> 归一化的 {enabled, urlConfigured, backlogThreshold, samplingRate, events} */
+  notificationSettings() {
+    return http
+      .get('/settings/notifications', { silent: true })
+      .then((data) => normalizeNotificationSettings(data))
+  },
+  /** POST /api/settings/notifications/test -> 归一化的 {ok, latencyMs, message} */
+  testNotification() {
+    return http
+      .post('/settings/notifications/test', undefined, { silent: true })
+      .then((data) => normalizeNotificationTest(data))
   }
 }
 

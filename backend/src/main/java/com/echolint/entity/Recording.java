@@ -112,6 +112,13 @@ public class Recording {
     /** DFA 命中词个数 */
     private Integer hitCount = 0;
 
+    /**
+     * 是否为「DFA 未命中后的抽样复核」录音（Batch 2b-2，app.sample.dfa-miss-rate）。
+     * 历史数据为 false；抽样录音在列表/详情/CSV 中显式标记，便于回溯抽检覆盖率。
+     */
+    @Column(nullable = false)
+    private boolean sampled = false;
+
     /** AI 复筛结果 {violation,violationType,violationTypeLabel,reason,confidence,targetSentence} JSON */
     @Lob
     @Column(columnDefinition = "TEXT")

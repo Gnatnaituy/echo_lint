@@ -90,6 +90,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/dictionary/**").hasRole("ADMIN")
+                        // 系统设置：通知查看/测试与所有写操作为 ADMIN；复筛模型只读信息仍对登录用户开放
+                        .requestMatchers(HttpMethod.GET, "/api/settings/notifications").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/settings/notifications/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/settings/**").hasRole("ADMIN")
                         // 语料删除仅 ADMIN（文档 1.3：ADMIN only 包含「语料删除」）

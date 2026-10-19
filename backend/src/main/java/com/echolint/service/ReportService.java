@@ -40,7 +40,7 @@ public class ReportService {
 
     private static final String[] RECORDING_HEADER = {
             "id", "fileName", "agentName", "teamName", "callTime", "direction", "businessLine",
-            "status", "hitCount", "violationType", "violationTypeLabel",
+            "status", "sampled", "hitCount", "violationType", "violationTypeLabel",
             "aiViolation", "aiConfidence", "reviewer", "reviewTime", "uploadTime",
             "durationSeconds", "errorMessage"};
 
@@ -74,6 +74,7 @@ public class ReportService {
                     directionOf(r).name(),
                     r.getBusinessLine(),
                     str(r.getStatus()),
+                    str(r.isSampled()),
                     str(r.getHitCount() == null ? 0 : r.getHitCount()),
                     r.getViolationType(),
                     r.getViolationTypeLabel(),

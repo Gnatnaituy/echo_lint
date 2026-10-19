@@ -27,6 +27,9 @@ public interface RecordingRepository extends JpaRepository<Recording, Long>, Jpa
     /** 用于启动时恢复：找出中断在中间状态的录音 */
     List<Recording> findByStatusIn(List<RecordingStatus> statuses);
 
+    /** 待复核积压检查（每日通知）与工作台统计用 */
+    long countByStatus(RecordingStatus status);
+
     /** 上传去重：按音频内容 SHA-256 查找已存在的录音 */
     Optional<Recording> findByAudioSha256(String audioSha256);
 
@@ -46,6 +49,12 @@ public interface RecordingRepository extends JpaRepository<Recording, Long>, Jpa
             "and coalesce(r.callTime, r.uploadTime) < :to group by r.violationType")
     List<Object[]> countConfirmedByViolationTypeBetween(@Param("from") LocalDateTime from,
                                                        @Param("to") LocalDateTime to);
+
+    /** 抽样复核录音数（Batch 2b-2）：时间口径与其它报表统计一致 */
+    @Query("select count(r) from Recording r where r.sampled = true " +
+            "and coalesce(r.callTime, r.uploadTime) >= :from " +
+            "and coalesce(r.callTime, r.uploadTime) < :to")
+    long countSampledBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("select r.agentName, count(r) from Recording r " +
             "where coalesce(r.callTime, r.uploadTime) >= :from " +
