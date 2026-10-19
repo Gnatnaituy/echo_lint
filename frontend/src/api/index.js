@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download'
 
 const http = axios.create({
   baseURL: '/api',
@@ -10,8 +11,37 @@ const http = axios.create({
 
 const GENERIC_ERROR = '请求失败，请检查后端服务是否可用'
 
-function pickMessage(error) {
-  return error.response?.data?.message || error.message || GENERIC_ERROR
+/** 从普通 JSON 错误体里取 message（blob 错误体需异步解析，见 pickMessage） */
+function payloadMessage(data) {
+  if (!data) return ''
+  if (typeof data === 'string') return data
+  return data.message || data.error || ''
+}
+
+/**
+ * 统一错误文案。
+ * 下载接口（responseType:'blob'）失败时错误体会被包成 Blob，必须异步读取才能拿到 message，
+ * 否则会退化成「[object Blob]」或丢失后端提示。
+ */
+async function pickMessage(error) {
+  const data = error.response?.data
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    try {
+      const text = (await data.text()).trim()
+      if (text) {
+        try {
+          const parsed = JSON.parse(text)
+          return payloadMessage(parsed) || error.message || GENERIC_ERROR
+        } catch {
+          // 非 JSON（如 nginx 的 HTML 错误页）：不直接回显，避免污染界面
+        }
+      }
+    } catch {
+      // 读取 Blob 失败：退回 axios 自身 message
+    }
+    return error.message || GENERIC_ERROR
+  }
+  return payloadMessage(data) || error.message || GENERIC_ERROR
 }
 
 /**
@@ -30,11 +60,12 @@ async function handleUnauthorized(error) {
     const redirect = full && full !== '/' && !full.startsWith('/login') ? full : undefined
     router.push({ path: '/login', query: redirect ? { redirect } : {} })
   }
-  return Promise.reject(new Error(pickMessage(error)))
+  return Promise.reject(new Error(await pickMessage(error)))
 }
 
 http.interceptors.response.use(
-  (resp) => resp.data,
+  // rawResponse：下载类请求需要拿到完整响应（读取 Content-Disposition 文件名），其余直接返回 data
+  (resp) => (resp.config?.rawResponse ? resp : resp.data),
   async (error) => {
     const status = error.response?.status
     const url = String(error.config?.url || '')
@@ -42,7 +73,7 @@ http.interceptors.response.use(
     if (status === 401) {
       // 登录失败 / 会话探测失败交给调用方处理：不弹全局提示、不重复跳转
       if (url.includes('/auth/login') || url.includes('/auth/me')) {
-        return Promise.reject(new Error(pickMessage(error)))
+        return Promise.reject(new Error(await pickMessage(error)))
       }
       return handleUnauthorized(error)
     }
@@ -52,11 +83,53 @@ http.interceptors.response.use(
       return Promise.reject(new Error('无权限执行该操作'))
     }
 
-    const msg = pickMessage(error)
+    const msg = await pickMessage(error)
     ElMessage.error(msg)
     return Promise.reject(new Error(msg))
   }
 )
+
+/** multipart 可选字段：空值不发送（后端对空串/缺失的处理可能不同，按缺失传更稳） */
+function appendOptional(fd, key, value) {
+  if (value === undefined || value === null) return
+  const text = String(value).trim()
+  if (!text) return
+  fd.append(key, text)
+}
+
+/** 通话时间兜底：日期选择器若给出 Date，转为后端约定的无时区 ISO 字符串 */
+function toIsoLocal(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value
+  const pad = (n) => String(n).padStart(2, '0')
+  return (
+    `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` +
+    `T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
+  )
+}
+
+/** 字符串查询参数：去空白，空串视为未传 */
+function param(value) {
+  if (value === undefined || value === null) return undefined
+  const text = String(value).trim()
+  return text || undefined
+}
+
+/**
+ * 下载 CSV：后端成功返回文件流，失败返回 JSON 错误体。
+ * 返回 { blob, filename }，由调用方通过 saveBlob 触发浏览器保存（便于页面提示）。
+ */
+async function requestCsv(url, params, fallbackName) {
+  const resp = await http.get(url, { params, responseType: 'blob', rawResponse: true })
+  const blob = resp.data
+  const message = await blobErrorMessage(blob)
+  if (message) {
+    // 200 + JSON 错误体：不能当 CSV 保存，提示后抛出
+    ElMessage.error(message)
+    throw new Error(message)
+  }
+  const disposition = resp.headers?.['content-disposition'] || resp.headers?.['Content-Disposition']
+  return { blob, filename: filenameFromDisposition(disposition, fallbackName) }
+}
 
 export const api = {
   // 认证（HttpOnly 会话 Cookie，前端不存 token）
@@ -97,18 +170,34 @@ export const api = {
   },
 
   // 录音
-  upload(file) {
+  /**
+   * 上传录音（multipart）。
+   * @param {File} file 音频文件
+   * @param {{agentName?:string, teamName?:string, callTime?:string, direction?:string, businessLine?:string}} metadata
+   *        callTime 为 ISO-8601（如 2026-10-20T09:30:00），空值不发送
+   */
+  upload(file, metadata = {}) {
     const fd = new FormData()
     fd.append('file', file)
+    appendOptional(fd, 'agentName', metadata.agentName)
+    appendOptional(fd, 'teamName', metadata.teamName)
+    appendOptional(fd, 'callTime', toIsoLocal(metadata.callTime))
+    appendOptional(fd, 'direction', metadata.direction)
+    appendOptional(fd, 'businessLine', metadata.businessLine)
     return http.post('/recordings/upload', fd)
   },
-  listRecordings({ statuses, keyword, assignedTo, priority, page, size }) {
+  listRecordings({ statuses, keyword, assignedTo, priority, agentName, teamName, direction, from, to, page, size } = {}) {
     return http.get('/recordings', {
       params: {
         statuses: statuses?.join(',') || undefined,
-        keyword,
-        assignedTo,
-        priority,
+        keyword: param(keyword),
+        assignedTo: param(assignedTo),
+        priority: param(priority),
+        agentName: param(agentName),
+        teamName: param(teamName),
+        direction: param(direction),
+        from: param(from),
+        to: param(to),
         page,
         size
       }
@@ -173,6 +262,20 @@ export const api = {
   testText(text) {
     return http.post('/dictionary/test', { text })
   },
+  /** 导出词库 CSV（ADMIN）；返回 { blob, filename } */
+  exportDictionaryCsv() {
+    return requestCsv('/dictionary/export', undefined, `dictionary-${dateStamp()}.csv`)
+  },
+  /** 导入词库 CSV（ADMIN）→ { created, skipped, invalid } */
+  importDictionary(file) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return http.post('/dictionary/import', fd)
+  },
+  /** 批量启用/停用（ADMIN）→ { updated } */
+  bulkEnabled(ids, enabled) {
+    return http.patch('/dictionary/bulk-enabled', { ids, enabled })
+  },
 
   // 语料库
   listCorpus({ label, keyword, page, size }) {
@@ -192,6 +295,21 @@ export const api = {
   overview() {
     return http.get('/stats/overview')
   },
+  /** 报表统计：from/to 可空（yyyy-MM-dd 或 ISO 日期时间） */
+  statsReport({ from, to } = {}) {
+    return http.get('/stats/report', { params: { from: param(from), to: param(to) } })
+  },
+
+  // 报表导出（登录即可）：返回 { blob, filename }，由调用方 saveBlob
+  exportRecordingsCsv(params = {}) {
+    return requestCsv('/reports/recordings.csv', csvParams(params), `recordings-${dateStamp()}.csv`)
+  },
+  exportViolationsCsv(params = {}) {
+    return requestCsv('/reports/violations.csv', csvParams(params), `violations-${dateStamp()}.csv`)
+  },
+  exportReviewsCsv(params = {}) {
+    return requestCsv('/reports/reviews.csv', csvParams(params), `reviews-${dateStamp()}.csv`)
+  },
 
   // 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）
   screenModel() {
@@ -204,6 +322,16 @@ export const api = {
   testScreenModel(payload = {}) {
     return http.post('/settings/screen-model/test', payload)
   }
+}
+
+/** 导出参数：与列表筛选同名，去掉空值 */
+function csvParams(params = {}) {
+  const out = {}
+  for (const [key, value] of Object.entries(params)) {
+    const normalized = param(value)
+    if (normalized !== undefined) out[key] = normalized
+  }
+  return out
 }
 
 export default api

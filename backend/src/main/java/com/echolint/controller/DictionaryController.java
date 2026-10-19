@@ -4,12 +4,16 @@ import com.echolint.dfa.DfaHit;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.WordSeverity;
 import com.echolint.domain.WordSource;
+import com.echolint.dto.BulkEnabledRequest;
+import com.echolint.dto.BulkUpdateResult;
 import com.echolint.dto.DictWordRequest;
+import com.echolint.dto.DictionaryImportResult;
 import com.echolint.dto.TestTextRequest;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.exception.BizException;
 import com.echolint.service.AuditService;
 import com.echolint.service.DfaService;
+import com.echolint.service.DictionaryOpsService;
 import com.echolint.dfa.WordNormalizer;
 import com.echolint.repository.DictionaryWordRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -19,25 +23,37 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * 敏感词词典管理（CRUD 后自动重建 DFA 匹配器）
+ * 敏感词词典管理（CRUD 后自动重建 DFA 匹配器）。
+ *
+ * <p>Batch 2a 起提供词库运营接口：CSV 导出、CSV 导入、批量启用/停用（均仅 ADMIN）。
+ * 写操作会重建 DFA 并写审计；导出为纯查询，不写审计。</p>
  */
 @RestController
 @RequestMapping("/api/dictionary")
 @RequiredArgsConstructor
 public class DictionaryController {
 
+    private static final MediaType CSV = new MediaType("text", "csv", StandardCharsets.UTF_8);
+
     private final DictionaryWordRepository repository;
     private final DfaService dfaService;
     private final AuditService auditService;
+    private final DictionaryOpsService dictionaryOpsService;
 
     @GetMapping
     public Page<DictionaryWord> list(@RequestParam(required = false) String keyword,
@@ -129,5 +145,28 @@ public class DictionaryController {
     public List<DfaHit> test(@Valid @RequestBody TestTextRequest request) {
         List<DfaHit> hits = dfaService.match(request.text());
         return hits;
+    }
+
+    /** 词库导出 CSV（UTF-8 BOM） */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export() {
+        String filename = DictionaryOpsService.exportFileName(LocalDateTime.now());
+        return ResponseEntity.ok()
+                .contentType(CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(dictionaryOpsService.exportCsv());
+    }
+
+    /** 词库导入 CSV（multipart，field=file），返回 {created, skipped, invalid} */
+    @PostMapping("/import")
+    public DictionaryImportResult importCsv(@RequestParam("file") MultipartFile file) {
+        return dictionaryOpsService.importCsv(file);
+    }
+
+    /** 批量启用/停用，body {ids, enabled}，返回 {updated} */
+    @PatchMapping("/bulk-enabled")
+    public BulkUpdateResult bulkEnabled(@Valid @RequestBody BulkEnabledRequest request) {
+        return new BulkUpdateResult(
+                dictionaryOpsService.bulkEnabled(request.ids(), request.enabled()));
     }
 }

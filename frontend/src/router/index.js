@@ -20,6 +20,11 @@ const routes = [
     meta: { title: '录音管理' }
   },
   {
+    path: '/reports',
+    component: () => import('../views/Reports.vue'),
+    meta: { title: '报表' }
+  },
+  {
     path: '/review',
     component: () => import('../views/Review.vue'),
     meta: { title: '人工复检' }

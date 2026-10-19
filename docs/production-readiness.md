@@ -10,7 +10,7 @@
 | 批次 | 内容 | 状态 |
 |---|---|---|
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
-| 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 待开始 |
+| 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅ 已完成；2b 待开始 |
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 待开始 |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 待开始 |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
@@ -124,13 +124,32 @@
 
 ## Batch 2 · 报表与运营效率
 
-- [ ] 录音元数据：坐席、团队、通话时间、方向、业务线（上传时可填/可导入），列表支持日期范围/坐席/团队筛选
-- [ ] 报表导出：录音清单、违规明细、复检记录（CSV/Excel），按坐席/团队/违规类型/日期统计
-- [ ] 敏感词批量导入/导出（CSV/Excel）、批量启停、变更审计
+### 2a 报表与运营（✅ 已完成）
+
+- [x] 录音元数据：坐席、团队、通话时间、方向、业务线；列表支持日期范围/坐席/团队/方向筛选（时间优先 callTime，缺失回退 uploadTime）
+- [x] 报表导出：录音清单/违规明细/复核记录 CSV（UTF-8 BOM、Excel 直接打开、≤10000 行、CSV 公式注入防护）；按坐席/团队/违规类型/日期统计
+- [x] 敏感词批量导入/导出（CSV、≤5000 行/5MB）、批量启停、变更审计
+- [x] 导出/词库写操作审计（REPORT_EXPORT / DICTIONARY_IMPORT / DICTIONARY_BULK_UPDATE）
+- [x] CI（GitHub Actions：后端测试 + 前端构建/测试）
+
+### 2b 运营与工程化（待开始）
+
 - [ ] 合规抽样：DFA 未命中的录音按比例进入 AI/人工抽检（可配置）
 - [ ] 通知告警：Webhook（企微/钉钉/自定义），高违规、待复核积压、处理失败
-- [ ] 可观测性：Micrometer + Prometheus、结构化日志、异常脱敏（不再回显 e.getMessage()）、Docker 日志轮转
-- [ ] 工程化：分页上限、OpenAPI（springdoc）、CI（GitHub Actions）、Flyway 基线迁移
+- [ ] 可观测性：Micrometer + Prometheus、结构化日志、Docker 日志轮转（异常脱敏已在 Batch 1 完成）
+- [ ] 工程化：OpenAPI（springdoc）、Flyway 基线迁移、优雅停机、上传去重/文件头预检
+- [ ] 数据完整性：删除录音级联清理 corpus、复合索引、事务内 AI 调用移出
+- [ ] AI 质量：复筛全文分块、缺字段/低置信度不得自动放行
+
+### 2a 完成记录
+
+- 后端 133 个单测全绿（新增 52 个）；前端 build + 32 个单测全绿。
+- 端到端冒烟（真实 MySQL + 打包 jar）：带元数据上传、5 种过滤、stats/report、
+  三类 CSV（BOM/文件名/列头/转义）、词库导出/导入/批量启停、VIEWER 导出 200 / 词库 PATCH 403、
+  审计落库，应用日志 0 ERROR。
+- 安全加固：CSV 公式注入前置单引号；词库导入 5MB 上限。
+- 已知限制：导出超 10000 行静默截断；reviews.csv 按复核时间过滤；CSV 中枚举输出英文名；
+  报表页的坐席/团队/方向筛选仅作用于导出（汇总卡按日期范围统计，界面已注明）。
 
 ## Batch 3 · AI 治理与异步可靠性
 
@@ -148,6 +167,50 @@
 - [ ] 知识库/SOP 关联
 - [ ] 前端拆包与 gzip/静态缓存
 - [ ] 批量上传、分片/断点续传、上传进度
+
+### Batch 2a 契约（本轮实施）
+
+#### 录音元数据（后端）
+- `Recording` 新增字段（均可空，历史数据兼容）：`agentName`、`teamName`、`callTime`（LocalDateTime）、
+  `direction`（枚举 `INBOUND`/`OUTBOUND`/`UNKNOWN`，默认 UNKNOWN）、`businessLine`。
+- `POST /api/recordings/upload` 增加可选 multipart 参数：`agentName`、`teamName`、`callTime`
+  （ISO-8601，如 `2026-10-20T09:30:00`）、`direction`、`businessLine`；长度与枚举校验。
+- `RecordingSummary`（列表）与详情返回这些字段。
+- `GET /api/recordings` 新增过滤：`agentName`、`teamName`、`direction`、`from`、`to`（日期/日期时间；
+  优先按 `callTime` 过滤，`callTime` 为空时回退 `uploadTime`；`to` 含当天）。`size` 仍上限 100。
+
+#### 报表与导出（后端）
+- `GET /api/reports/recordings.csv`：与录音列表相同的过滤参数，UTF-8 BOM，最多 10000 行，
+  列：id、文件名、坐席、团队、通话时间、方向、业务线、状态、命中数、违规类型、AI 判定、
+  复核人、复核时间、上传时间、时长、错误信息。文件名 `recordings-<date>.csv`。
+- `GET /api/reports/violations.csv`：仅 `VIOLATION_CONFIRMED`，含违规类型/复核人/备注。
+- `GET /api/reports/reviews.csv`：复核记录 + 录音元数据（轮次、复核人、结论、类型、备注、时间）。
+- `GET /api/stats/report?from=&to=`：返回 total、按状态、按违规类型、按坐席 Top、按团队 Top、按日统计。
+- 权限：登录用户（含 VIEWER）可导出；写审计动作 `REPORT_EXPORT`。
+
+#### 词库运营（后端）
+- `GET /api/dictionary/export`：CSV（word,category,severity,source,enabled,hitCount,createdAt）。
+- `POST /api/dictionary/import`：multipart CSV（允许表头，列 word,category,severity,enabled；≤5000 行），
+  返回 `{created, skipped, invalid}`；规范化后去重；重建 DFA。
+- `PATCH /api/dictionary/bulk-enabled` `{ids:[], enabled:bool}` → `{updated}`；重建 DFA。
+- 新增审计动作 `DICTIONARY_IMPORT`、`DICTIONARY_BULK_UPDATE`。
+
+#### 前端
+- 录音上传改为「元数据 + 文件」对话框：坐席、团队、通话时间（日期时间选择）、方向、业务线；
+  上传后清空表单。
+- 录音列表：新增坐席/团队/通话时间列；筛选增加日期范围、坐席、团队、方向。
+- 新增「报表」页 `/reports`：日期范围与维度筛选、汇总卡、按坐席/团队/违规类型表格、
+  导出录音/违规/复核 CSV 按钮（axios blob 下载）。
+- 敏感词库：导出 CSV、导入 CSV 对话框（展示 created/skipped/invalid）、表格多选 + 批量启用/停用。
+- 侧栏加入「报表」（所有登录角色可见）；API client 增加对应方法与 blob 下载辅助。
+- 不新增第三方依赖；保持现有视觉风格与全部现有功能。
+
+#### 验收
+- 后端 `mvn -q -B test` 全绿；前端 `npm run build` + `npm test` 全绿。
+- 带元数据上传后，列表/统计/导出能按坐席、团队、日期筛选。
+- CSV 含 UTF-8 BOM，Excel 直接打开中文不乱码。
+- 词库导入去重、批量启停后 DFA 生效。
+
 
 ## 审计补充项（并入 Batch 2/3）
 

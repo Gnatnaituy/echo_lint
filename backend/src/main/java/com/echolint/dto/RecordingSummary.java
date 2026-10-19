@@ -2,6 +2,7 @@ package com.echolint.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.echolint.domain.CallDirection;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.ReviewResult;
@@ -10,10 +11,22 @@ import java.time.LocalDateTime;
 
 /**
  * 录音列表摘要（不含全文，前端按需加载详情）
+ *
+ * <p>Batch 2a 起包含录音元数据：坐席、团队、通话时间、通话方向、业务线。</p>
  */
 public record RecordingSummary(
         Long id,
         String fileName,
+        /** 坐席名称（可空） */
+        String agentName,
+        /** 团队名称（可空） */
+        String teamName,
+        /** 通话时间（可空；列表筛选/统计时为空回退 uploadTime） */
+        LocalDateTime callTime,
+        /** 通话方向；历史数据 null 按 UNKNOWN 返回 */
+        CallDirection direction,
+        /** 业务线（可空） */
+        String businessLine,
         Integer durationSeconds,
         RecordingStatus status,
         int hitCount,
@@ -78,6 +91,11 @@ public record RecordingSummary(
         return new RecordingSummary(
                 r.getId(),
                 r.getFileName(),
+                r.getAgentName(),
+                r.getTeamName(),
+                r.getCallTime(),
+                r.getDirection() == null ? CallDirection.UNKNOWN : r.getDirection(),
+                r.getBusinessLine(),
                 r.getDurationSeconds(),
                 r.getStatus(),
                 r.getHitCount() == null ? 0 : r.getHitCount(),

@@ -2,11 +2,13 @@ package com.echolint.repository;
 
 import com.echolint.entity.ReviewRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface ReviewRecordRepository extends JpaRepository<ReviewRecord, Long> {
+public interface ReviewRecordRepository extends JpaRepository<ReviewRecord, Long>,
+        JpaSpecificationExecutor<ReviewRecord> {
 
     /** 复核历史，按轮次正序（同一轮多提交时按 id 正序） */
     List<ReviewRecord> findByRecordingIdOrderByRoundAscIdAsc(Long recordingId);

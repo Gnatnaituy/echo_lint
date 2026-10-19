@@ -36,6 +36,30 @@ export const SOURCE_META = {
 }
 
 /* ==========================================================================
+   录音元数据：通话方向
+   ========================================================================== */
+
+/** 通话方向：后端枚举 INBOUND/OUTBOUND/UNKNOWN（历史数据缺省 UNKNOWN） */
+export const DIRECTION_META = {
+  INBOUND: { label: '呼入', type: 'brand' },
+  OUTBOUND: { label: '呼出', type: 'warn' },
+  UNKNOWN: { label: '未知', type: 'info' }
+}
+
+export const DIRECTION_OPTIONS = Object.keys(DIRECTION_META).map((value) => ({
+  value,
+  label: DIRECTION_META[value].label
+}))
+
+export function directionMeta(direction) {
+  return DIRECTION_META[direction] || null
+}
+
+export function directionLabel(direction) {
+  return directionMeta(direction)?.label || (direction ? String(direction) : '—')
+}
+
+/* ==========================================================================
    身份 / 复核工作流 / 操作审计
    ========================================================================== */
 
@@ -110,8 +134,11 @@ export const AUDIT_ACTION_META = {
   DICTIONARY_CREATE: { label: '新增敏感词', type: 'success' },
   DICTIONARY_UPDATE: { label: '更新敏感词', type: 'warning' },
   DICTIONARY_DELETE: { label: '删除敏感词', type: 'danger' },
+  DICTIONARY_IMPORT: { label: '导入敏感词', type: 'success' },
+  DICTIONARY_BULK_UPDATE: { label: '批量启停敏感词', type: 'warning' },
   CORPUS_CREATE: { label: '新增语料', type: 'success' },
   CORPUS_DELETE: { label: '删除语料', type: 'danger' },
+  REPORT_EXPORT: { label: '报表导出', type: 'primary' },
   SETTINGS_UPDATE: { label: '修改设置', type: 'warning' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }

@@ -2,15 +2,14 @@ package com.echolint.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
-import com.echolint.domain.RecordingStatus;
-import com.echolint.domain.ReviewPriority;
 import com.echolint.dto.AssignRecordingRequest;
+import com.echolint.dto.RecordingFilter;
+import com.echolint.dto.RecordingMetadata;
 import com.echolint.dto.RecordingSummary;
 import com.echolint.entity.AiInvocation;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.entity.ReviewRecord;
-import com.echolint.exception.BizException;
 import com.echolint.service.RecordingService;
 import com.echolint.service.ReviewService;
 import jakarta.validation.Valid;
@@ -23,9 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 录音上传、查询、复核队列操作（认领/指派/重开）。
@@ -44,8 +41,15 @@ public class RecordingController {
     private final ObjectMapper objectMapper;
 
     @PostMapping("/upload")
-    public ResponseEntity<RecordingSummary> upload(@RequestParam("file") MultipartFile file) {
-        Recording saved = recordingService.upload(file);
+    public ResponseEntity<RecordingSummary> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String agentName,
+            @RequestParam(required = false) String teamName,
+            @RequestParam(required = false) String callTime,
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) String businessLine) {
+        RecordingMetadata metadata = RecordingMetadata.of(agentName, teamName, callTime, direction, businessLine);
+        Recording saved = recordingService.upload(file, metadata);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(summary(saved));
     }
 
@@ -54,21 +58,19 @@ public class RecordingController {
                                        @RequestParam(required = false) String keyword,
                                        @RequestParam(required = false) String assignedTo,
                                        @RequestParam(required = false) String priority,
+                                       @RequestParam(required = false) String agentName,
+                                       @RequestParam(required = false) String teamName,
+                                       @RequestParam(required = false) String direction,
+                                       @RequestParam(required = false) String from,
+                                       @RequestParam(required = false) String to,
                                        @RequestParam(defaultValue = "0") int page,
                                        @RequestParam(defaultValue = "10") int size) {
-        List<RecordingStatus> statusList = null;
-        if (statuses != null && !statuses.isBlank()) {
-            statusList = Arrays.stream(statuses.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(RecordingStatus::valueOf)
-                    .toList();
-        }
-        ReviewPriority priorityFilter = parsePriority(priority);
+        RecordingFilter filter = RecordingFilter.of(statuses, keyword, assignedTo, priority,
+                agentName, teamName, direction, from, to);
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
-        return recordingService.query(statusList, keyword, assignedTo, priorityFilter, pageable)
+        return recordingService.query(filter, pageable)
                 .map(this::summary);
     }
 
@@ -132,16 +134,5 @@ public class RecordingController {
 
     private RecordingSummary summary(Recording recording) {
         return RecordingSummary.from(recording, objectMapper, appProperties.reviewRequiredApprovals());
-    }
-
-    private ReviewPriority parsePriority(String priority) {
-        if (priority == null || priority.isBlank()) {
-            return null;
-        }
-        try {
-            return ReviewPriority.valueOf(priority.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new BizException("未知优先级: " + priority + "（仅支持 LOW / NORMAL / HIGH）");
-        }
     }
 }

@@ -54,21 +54,66 @@
             </template>
           </el-input>
           <el-button :icon="Refresh" circle @click="reload" />
-          <el-upload
+          <el-button
             v-if="canWrite"
-            :show-file-list="false"
-            :http-request="doUpload"
-            :before-upload="beforeUpload"
-            multiple
-            accept="audio/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.amr,.caf,.opus,.mov"
-          >
-            <el-button type="primary" :icon="UploadFilled">上传录音</el-button>
-          </el-upload>
+            type="primary"
+            :icon="UploadFilled"
+            @click="openUpload"
+          >上传录音</el-button>
         </div>
+      </div>
+
+      <!-- 元数据筛选：通话日期范围 / 坐席 / 团队 / 方向（与后端 query 参数一致） -->
+      <div class="meta-filters">
+        <el-date-picker
+          v-model="callDateRange"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          unlink-panels
+          range-separator="至"
+          start-placeholder="通话开始日期"
+          end-placeholder="通话结束日期"
+          :shortcuts="dateShortcuts"
+          class="date-range"
+          @change="reload"
+        />
+        <el-input
+          v-model="agentFilter"
+          placeholder="坐席"
+          clearable
+          class="meta-input"
+          @keyup.enter="reload"
+          @clear="reload"
+        />
+        <el-input
+          v-model="teamFilter"
+          placeholder="团队"
+          clearable
+          class="meta-input"
+          @keyup.enter="reload"
+          @clear="reload"
+        />
+        <el-select
+          v-model="directionFilter"
+          placeholder="全部方向"
+          clearable
+          class="direction-select"
+          @change="reload"
+        >
+          <el-option
+            v-for="opt in DIRECTION_OPTIONS"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <el-button v-if="hasMetaFilters" link type="primary" @click="resetMetaFilters">
+          清除条件
+        </el-button>
       </div>
       <div class="hint">
         <template v-if="canWrite">
-          上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛；初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
+          上传时可填写坐席、团队、通话时间、方向与业务线，列表与报表可按这些维度筛选；上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛，初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
           <br />
           若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
         </template>
@@ -86,7 +131,7 @@
         :row-class-name="() => 'row-clickable'"
         @row-click="openDetail"
       >
-        <el-table-column label="录音" min-width="260">
+        <el-table-column label="录音" min-width="240">
           <template #default="{ row }">
             <div class="file-cell">
               <div class="file-icon"><el-icon><Microphone /></el-icon></div>
@@ -101,6 +146,40 @@
                   <span v-if="row.channelCount === 2" class="chip brand ch-tag">双声道</span>
                 </div>
               </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="坐席" width="100">
+          <template #default="{ row }">
+            <div v-if="row.agentName" class="cell-ellipsis" :title="row.agentName">
+              {{ row.agentName }}
+            </div>
+            <span v-else class="dim">—</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="团队" width="108">
+          <template #default="{ row }">
+            <div v-if="row.teamName" class="cell-ellipsis" :title="row.teamName">
+              {{ row.teamName }}
+            </div>
+            <span v-else class="dim">—</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="通话时间" width="172">
+          <template #default="{ row }">
+            <div class="call-cell">
+              <span v-if="row.callTime" class="num" :title="formatTime(row.callTime)">
+                {{ formatTimeShort(row.callTime) }}
+              </span>
+              <span v-else class="dim">—</span>
+              <span
+                v-if="row.direction && DIRECTION_META[row.direction] && row.direction !== 'UNKNOWN'"
+                class="chip"
+                :class="DIRECTION_META[row.direction].type"
+              >{{ DIRECTION_META[row.direction].label }}</span>
             </div>
           </template>
         </el-table-column>
@@ -169,7 +248,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="300" align="right">
+        <el-table-column label="操作" width="300" align="right" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
             <el-button
@@ -271,6 +350,15 @@
                   <span class="chip">
                     {{ detail.assignedTo ? `指派：${detail.assignedTo}` : '未指派' }}
                   </span>
+                  <span v-if="detail.agentName" class="chip">坐席：{{ detail.agentName }}</span>
+                  <span v-if="detail.teamName" class="chip">团队：{{ detail.teamName }}</span>
+                  <span v-if="detail.businessLine" class="chip">业务线：{{ detail.businessLine }}</span>
+                  <span
+                    v-if="detail.direction && DIRECTION_META[detail.direction]"
+                    class="chip"
+                    :class="directionClass(detail.direction)"
+                  >{{ directionLabel(detail.direction) }}</span>
+                  <span v-if="detail.callTime" class="chip num">通话：{{ formatTime(detail.callTime) }}</span>
                   <span v-if="detailProgress.required > 1" class="chip info">
                     复核 {{ detailProgress.text }}
                   </span>
@@ -549,6 +637,92 @@
       </div>
     </el-drawer>
 
+    <!-- 上传录音：文件 + 元数据（坐席 / 团队 / 通话时间 / 方向 / 业务线） -->
+    <el-dialog
+      v-model="uploadVisible"
+      title="上传录音"
+      width="540px"
+      :close-on-click-modal="!uploading"
+      :close-on-press-escape="!uploading"
+      @closed="resetUploadForm"
+    >
+      <el-form :model="uploadForm" label-width="76px" class="upload-form">
+        <el-form-item label="音频文件" required>
+          <el-upload
+            ref="uploadRef"
+            class="uploader"
+            drag
+            :auto-upload="false"
+            :limit="1"
+            :show-file-list="true"
+            accept="audio/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.amr,.caf,.opus,.mov"
+            :on-change="onUploadFileChange"
+            :on-remove="onUploadFileRemove"
+            :on-exceed="onUploadExceed"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">拖拽音频到此处，或 <em>点击选择</em></div>
+            <template #tip>
+              <div class="el-upload__tip">支持 mp3 / wav / m4a 等，单文件 ≤ 25MB，一次一个文件</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="坐席">
+          <el-input
+            v-model="uploadForm.agentName"
+            placeholder="如 张三 / 工号 A1024"
+            clearable
+            maxlength="64"
+          />
+        </el-form-item>
+        <el-form-item label="团队">
+          <el-input
+            v-model="uploadForm.teamName"
+            placeholder="如 客服一组"
+            clearable
+            maxlength="128"
+          />
+        </el-form-item>
+        <el-form-item label="通话时间">
+          <el-date-picker
+            v-model="uploadForm.callTime"
+            type="datetime"
+            placeholder="选择通话时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="方向">
+          <el-select v-model="uploadForm.direction" placeholder="未选择按未知处理" clearable style="width: 100%">
+            <el-option
+              v-for="opt in DIRECTION_OPTIONS"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="业务线">
+          <el-input
+            v-model="uploadForm.businessLine"
+            placeholder="如 电商 / 金融分期"
+            clearable
+            maxlength="64"
+          />
+        </el-form-item>
+      </el-form>
+      <div class="upload-tip tiny dim">
+        元数据均为选填，后续可在列表与报表中按坐席 / 团队 / 通话时间 / 方向筛选；上传成功后表单自动清空。
+      </div>
+      <template #footer>
+        <el-button :disabled="uploading" @click="uploadVisible = false">取消</el-button>
+        <el-button type="primary" :loading="uploading" @click="submitUpload">
+          {{ uploading ? '上传中…' : '开始上传' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 指派复核人（ADMIN） -->
     <AssignDialog v-model="assignVisible" :recording="assignTarget" @assigned="onAssigned" />
   </div>
@@ -568,6 +742,9 @@ import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
 import { formatClock } from '../utils/segments'
 import {
+  DIRECTION_META,
+  DIRECTION_OPTIONS,
+  directionLabel,
   formatDuration,
   formatSize,
   formatTime,
@@ -593,6 +770,23 @@ const keyword = ref('')
 const priorityFilter = ref('')
 const assignedFilter = ref('')
 const overview = ref(null)
+
+// 元数据筛选（与后端 GET /recordings 的 agentName/teamName/direction/from/to 参数一一对应）
+const callDateRange = ref([])
+const agentFilter = ref('')
+const teamFilter = ref('')
+const directionFilter = ref('')
+
+// 上传对话框：文件 + 元数据
+const uploadVisible = ref(false)
+const uploading = ref(false)
+const uploadRef = ref(null)
+const uploadFile = ref(null)
+const uploadForm = ref(emptyUploadForm())
+
+function emptyUploadForm() {
+  return { agentName: '', teamName: '', callTime: '', direction: '', businessLine: '' }
+}
 
 const detailVisible = ref(false)
 const detailLoading = ref(false)
@@ -635,6 +829,61 @@ const filters = computed(() =>
     return { ...f, count }
   })
 )
+
+/* ---------- 元数据筛选 ---------- */
+
+/** 日期参数统一转为 yyyy-MM-dd（快捷选项与手选可能给 Date 或字符串） */
+function toDateParam(value) {
+  if (!value) return undefined
+  const d = value instanceof Date ? value : new Date(String(value).replace(/\//g, '-'))
+  if (Number.isNaN(d.getTime())) return typeof value === 'string' ? value : undefined
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function dayOffset(days) {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+const dateShortcuts = [
+  { text: '最近 7 天', value: () => [dayOffset(-6), dayOffset(0)] },
+  { text: '最近 30 天', value: () => [dayOffset(-29), dayOffset(0)] },
+  { text: '最近 90 天', value: () => [dayOffset(-89), dayOffset(0)] }
+]
+
+const metaParams = computed(() => ({
+  agentName: agentFilter.value.trim() || undefined,
+  teamName: teamFilter.value.trim() || undefined,
+  direction: directionFilter.value || undefined,
+  from: toDateParam(callDateRange.value?.[0]),
+  to: toDateParam(callDateRange.value?.[1])
+}))
+
+const hasMetaFilters = computed(
+  () =>
+    !!(
+      agentFilter.value.trim() ||
+      teamFilter.value.trim() ||
+      directionFilter.value ||
+      callDateRange.value?.length
+    )
+)
+
+function resetMetaFilters() {
+  agentFilter.value = ''
+  teamFilter.value = ''
+  directionFilter.value = ''
+  callDateRange.value = []
+  reload()
+}
+
+/** 方向胶囊的配色 */
+function directionClass(direction) {
+  return DIRECTION_META[direction]?.type || 'info'
+}
 
 const dfaHits = computed(() => {
   try {
@@ -771,6 +1020,7 @@ async function load() {
       keyword: keyword.value || undefined,
       assignedTo: assignedFilter.value === 'mine' ? auth.username : undefined,
       priority: priorityFilter.value || undefined,
+      ...metaParams.value,
       page: page.value,
       size: pageSize
     })
@@ -799,24 +1049,67 @@ function reload() {
   load()
 }
 
-function beforeUpload(file) {
-  const limit = 25 * 1024 * 1024
-  if (file.size > limit) {
-    ElMessage.error(`${file.name} 超过 25MB，Whisper 单文件上限`)
-    return false
-  }
-  return true
+/* ---------- 上传录音（文件 + 元数据） ---------- */
+
+function openUpload() {
+  uploadVisible.value = true
 }
 
-async function doUpload({ file, onSuccess, onError }) {
+function resetUploadForm() {
+  uploadForm.value = emptyUploadForm()
+  uploadFile.value = null
+  uploading.value = false
+  uploadRef.value?.clearFiles?.()
+}
+
+/** el-upload 选中文件：只保留一个，并在选中时做大小/类型预检 */
+function onUploadFileChange(uploadFileItem) {
+  const raw = uploadFileItem?.raw
+  if (!raw) return
+  const limit = 25 * 1024 * 1024
+  if (raw.size > limit) {
+    ElMessage.error(`${raw.name} 超过 25MB，Whisper 单文件上限`)
+    uploadFile.value = null
+    uploadRef.value?.clearFiles?.()
+    return
+  }
+  uploadFile.value = raw
+}
+
+function onUploadFileRemove() {
+  uploadFile.value = null
+}
+
+/** 已选一个再选：替换而不是报错 */
+function onUploadExceed(files) {
+  uploadRef.value?.clearFiles?.()
+  const file = files?.[0]
+  if (!file) return
+  if (file.size > 25 * 1024 * 1024) {
+    ElMessage.error(`${file.name} 超过 25MB，Whisper 单文件上限`)
+    return
+  }
+  uploadFile.value = file
+  uploadRef.value?.handleStart?.(file)
+}
+
+async function submitUpload() {
+  if (!uploadFile.value) {
+    ElMessage.warning('请选择要上传的音频文件')
+    return
+  }
+  uploading.value = true
   try {
-    const r = await api.upload(file)
-    onSuccess(r)
-    ElMessage.success(`上传成功 #${r.id}，已进入稽核流水线`)
-    load()
+    const r = await api.upload(uploadFile.value, uploadForm.value)
+    ElMessage.success(`上传成功${r?.id ? ` #${r.id}` : ''}，已进入稽核流水线`)
+    uploadVisible.value = false
+    resetUploadForm()
+    reload()
     loadOverview()
-  } catch (e) {
-    onError(e)
+  } catch {
+    // 错误提示由请求层统一处理，保留表单便于重试
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -999,6 +1292,23 @@ onUnmounted(() => clearInterval(timer))
 .read-only-chip {
   flex: none;
 }
+/* 元数据筛选行 */
+.meta-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 18px 12px;
+}
+.date-range {
+  width: 300px;
+}
+.meta-input {
+  width: 132px;
+}
+.direction-select {
+  width: 124px;
+}
 .hint {
   padding: 0 18px 14px;
   color: var(--el-text-color-secondary);
@@ -1012,6 +1322,21 @@ onUnmounted(() => clearInterval(timer))
 /* 表格 */
 :deep(.row-clickable) {
   cursor: pointer;
+}
+.cell-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.call-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.call-cell .chip {
+  flex: none;
 }
 .status-cell {
   display: inline-flex;
@@ -1448,5 +1773,25 @@ onUnmounted(() => clearInterval(timer))
   font-size: 12.5px;
   color: var(--el-text-color-regular);
   line-height: 1.65;
+}
+
+/* 上传对话框 */
+.upload-form {
+  padding-right: 6px;
+}
+.uploader {
+  width: 100%;
+}
+.uploader :deep(.el-upload),
+.uploader :deep(.el-upload-dragger) {
+  width: 100%;
+}
+.uploader :deep(.el-upload-dragger) {
+  padding: 18px 12px;
+}
+.upload-tip {
+  margin-top: -2px;
+  padding-left: 82px;
+  line-height: 1.6;
 }
 </style>

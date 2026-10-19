@@ -1,5 +1,6 @@
 package com.echolint.entity;
 
+import com.echolint.domain.CallDirection;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.ReviewResult;
@@ -15,7 +16,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "recordings", indexes = {
         @Index(name = "idx_recording_status", columnList = "status"),
-        @Index(name = "idx_recording_upload_time", columnList = "uploadTime")
+        @Index(name = "idx_recording_upload_time", columnList = "uploadTime"),
+        @Index(name = "idx_recording_call_time", columnList = "callTime"),
+        @Index(name = "idx_recording_agent", columnList = "agentName"),
+        @Index(name = "idx_recording_team", columnList = "teamName")
 })
 @Getter
 @Setter
@@ -43,6 +47,26 @@ public class Recording {
 
     @Column(length = 16)
     private String language;
+
+    /** 坐席名称（可选，人工填写/导入） */
+    @Column(length = 64)
+    private String agentName;
+
+    /** 团队名称（可选，人工填写/导入） */
+    @Column(length = 128)
+    private String teamName;
+
+    /** 通话时间（可选；为空时统计/筛选回退 uploadTime） */
+    private LocalDateTime callTime;
+
+    /** 通话方向，历史数据为 null 时按 UNKNOWN 处理 */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private CallDirection direction = CallDirection.UNKNOWN;
+
+    /** 业务线（可选，人工填写/导入） */
+    @Column(length = 64)
+    private String businessLine;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

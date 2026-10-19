@@ -4,8 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.RecordingStatus;
-import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.UserRole;
+import com.echolint.dto.RecordingFilter;
+import com.echolint.dto.RecordingMetadata;
 import com.echolint.entity.AiInvocation;
 import com.echolint.entity.AppUser;
 import com.echolint.entity.PipelineLog;
@@ -16,12 +17,10 @@ import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.security.SecurityUtils;
-import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -56,10 +54,11 @@ public class RecordingService {
     private final ReviewRecordRepository reviewRecordRepository;
 
     /**
-     * 上传录音：落盘 -> 建记录(PENDING) -> 异步启动稽核流水线
+     * 上传录音：落盘 -> 建记录(PENDING，附可选元数据) -> 异步启动稽核流水线
      */
-    public Recording upload(MultipartFile file) {
+    public Recording upload(MultipartFile file, RecordingMetadata metadata) {
         validateFile(file);
+        RecordingMetadata meta = metadata == null ? RecordingMetadata.EMPTY : metadata;
 
         String original = StringUtils.cleanPath(Objects.requireNonNullElse(file.getOriginalFilename(), "recording"));
         String ext = extensionOf(original);
@@ -79,13 +78,44 @@ public class RecordingService {
         recording.setFileSize(file.getSize());
         recording.setMimeType(file.getContentType());
         recording.setStatus(RecordingStatus.PENDING);
+        applyMetadata(recording, meta);
         Recording saved = recordingRepository.saveAndFlush(recording);
 
         auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
-                "上传录音 " + original + "（" + file.getSize() + " 字节）");
+                "上传录音 " + original + "（" + file.getSize() + " 字节）"
+                        + metadataSummary(meta));
         log.info("录音 {} 上传成功（{}，{} 字节），启动稽核流水线", saved.getId(), original, file.getSize());
         pipelineService.run(saved.getId());
         return saved;
+    }
+
+    private void applyMetadata(Recording recording, RecordingMetadata metadata) {
+        recording.setAgentName(metadata.agentName());
+        recording.setTeamName(metadata.teamName());
+        recording.setCallTime(metadata.callTime());
+        recording.setDirection(metadata.direction());
+        recording.setBusinessLine(metadata.businessLine());
+    }
+
+    /** 审计详情里的元数据摘要（未填写的不出现） */
+    private String metadataSummary(RecordingMetadata metadata) {
+        StringBuilder sb = new StringBuilder();
+        if (metadata.agentName() != null) {
+            sb.append("，坐席 ").append(metadata.agentName());
+        }
+        if (metadata.teamName() != null) {
+            sb.append("，团队 ").append(metadata.teamName());
+        }
+        if (metadata.callTime() != null) {
+            sb.append("，通话时间 ").append(metadata.callTime());
+        }
+        if (metadata.direction() != null && metadata.direction() != com.echolint.domain.CallDirection.UNKNOWN) {
+            sb.append("，方向 ").append(metadata.direction().getLabel());
+        }
+        if (metadata.businessLine() != null) {
+            sb.append("，业务线 ").append(metadata.businessLine());
+        }
+        return sb.toString();
     }
 
     private void validateFile(MultipartFile file) {
@@ -110,34 +140,10 @@ public class RecordingService {
     }
 
     /**
-     * 录音列表：状态 / 关键字 / 指派对象 / 优先级 过滤。
+     * 录音列表：状态 / 关键字 / 指派对象 / 优先级 / 坐席 / 团队 / 方向 / 时间范围 过滤。
      */
-    public Page<Recording> query(List<RecordingStatus> statuses, String keyword,
-                                 String assignedTo, ReviewPriority priority, Pageable pageable) {
-        Specification<Recording> spec = (root, query, cb) -> {
-            List<Predicate> ps = new ArrayList<>();
-            if (statuses != null && !statuses.isEmpty()) {
-                ps.add(root.get("status").in(statuses));
-            }
-            if (StringUtils.hasText(keyword)) {
-                String kw = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
-                ps.add(cb.or(
-                        cb.like(cb.lower(root.get("transcript")), kw),
-                        cb.like(cb.lower(root.get("fileName")), kw)));
-            }
-            if (StringUtils.hasText(assignedTo)) {
-                ps.add(cb.equal(cb.lower(root.get("assignedTo")),
-                        assignedTo.trim().toLowerCase(Locale.ROOT)));
-            }
-            if (priority != null) {
-                // 历史数据 priority 为 null 时按默认值 NORMAL 处理
-                ps.add(priority == ReviewPriority.NORMAL
-                        ? cb.or(cb.equal(root.get("priority"), priority), cb.isNull(root.get("priority")))
-                        : cb.equal(root.get("priority"), priority));
-            }
-            return cb.and(ps.toArray(Predicate[]::new));
-        };
-        return recordingRepository.findAll(spec, pageable);
+    public Page<Recording> query(RecordingFilter filter, Pageable pageable) {
+        return recordingRepository.findAll(RecordingSpecifications.of(filter), pageable);
     }
 
     public Recording get(Long id) {

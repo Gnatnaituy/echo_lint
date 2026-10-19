@@ -90,6 +90,7 @@ echolint/
 - **逐句对照 + 音画联动**：每句话带起始时间、DFA 命中词高亮与标记胶囊（`命中 · xxx` / `AI 判违规原句`）；**点击句子跳转到对应音频时间点**，播放时**自动高亮并滚动到当前句**（可用「跟随播放」开关关闭），也可切回「全文」视图。
 - **双栏对话 + 分声道试听**：双轨录音默认以左右双栏对话展示（左=坐席、右=客户），播放器可切「混合 / 坐席 / 客户」单独试听某一路。
 - **敏感词库**：KPI 概览、DFA 检测工具（命中实时高亮预览）、词条表含命中次数条形图，AI 挖掘词带「待审核」标记。
+- **报表**：日期范围 + 坐席/团队/方向筛选，汇总卡与按坐席/团队/违规类型统计，导出录音/违规/复核 CSV；敏感词库支持 CSV 导入导出与批量启停。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -304,8 +305,8 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/recordings/upload` | 上传录音（multipart `file`），异步启动稽核流水线 |
-| GET | `/api/recordings?statuses=&keyword=&page=&size=` | 录音分页查询（statuses 逗号分隔） |
+| POST | `/api/recordings/upload` | 上传录音（multipart `file`；可选元数据 `agentName`/`teamName`/`callTime`/`direction`/`businessLine`），异步启动稽核流水线 |
+| GET | `/api/recordings?statuses=&keyword=&assignedTo=&priority=&agentName=&teamName=&direction=&from=&to=&page=&size=` | 录音分页查询（时间优先 callTime，缺失回退 uploadTime；`size` ≤100） |
 | GET | `/api/recordings/{id}` | 详情（转写/命中/复筛结果/复检信息） |
 | GET | `/api/recordings/{id}/logs` | 处理轨迹日志 |
 | GET | `/api/recordings/{id}/ai-invocations` | AI 调用留痕（完整请求体 + 模型原始回复） |
@@ -320,6 +321,18 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET | `/api/settings/screen-model` | 当前复筛模型 + 全部候选供应商 |
 | PUT | `/api/settings/screen-model` | 切换复筛模型 `{providerId, model?}`（落库持久化） |
 | POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
+
+报表与运营：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/reports/recordings.csv` | 录音清单 CSV（与列表同过滤参数，UTF-8 BOM，≤10000 行） |
+| GET | `/api/reports/violations.csv` | 违规明细 CSV（仅 VIOLATION_CONFIRMED） |
+| GET | `/api/reports/reviews.csv` | 复核记录 CSV（按复核时间 `from`/`to`） |
+| GET | `/api/stats/report?from=&to=` | 按状态/违规类型/坐席 Top/团队 Top/日期统计 |
+| GET | `/api/dictionary/export` | 敏感词导出 CSV（ADMIN） |
+| POST | `/api/dictionary/import` | 敏感词导入 CSV（multipart `file`，≤5000 行 / 5MB，ADMIN） |
+| PATCH | `/api/dictionary/bulk-enabled` | 批量启用/停用 `{ids, enabled}`（ADMIN） |
 
 认证与权限：
 

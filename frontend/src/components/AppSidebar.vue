@@ -81,6 +81,7 @@ const groups = computed(() => {
       items: [
         { path: '/', label: '工作台', icon: 'Odometer' },
         { path: '/recordings', label: '录音管理', icon: 'Files' },
+        { path: '/reports', label: '报表', icon: 'DataAnalysis' },
         { path: '/review', label: '人工复检', icon: 'DocumentChecked', badge: true }
       ]
     },

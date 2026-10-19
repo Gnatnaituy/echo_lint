@@ -126,11 +126,47 @@
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
           <el-button :icon="Refresh" circle @click="reload" />
-          <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
+          <template v-if="canWrite">
+            <el-button :icon="Download" :loading="exporting" @click="exportCsv">导出 CSV</el-button>
+            <el-button :icon="Upload" @click="openImport">导入 CSV</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
+          </template>
         </div>
       </div>
 
-      <el-table v-loading="loading" :data="rows">
+      <!-- 批量启停（仅 ADMIN）：选中词条后出现 -->
+      <div v-if="canWrite && selectedRows.length" class="bulk-bar">
+        <span class="chip brand">已选 {{ selectedRows.length }} 条</span>
+        <el-button
+          size="small"
+          type="success"
+          plain
+          :loading="bulkLoading === 'on'"
+          @click="bulkUpdate(true)"
+        >批量启用</el-button>
+        <el-popconfirm
+          title="确认停用选中词条？停用后不再参与 DFA 初筛。"
+          width="260"
+          @confirm="bulkUpdate(false)"
+        >
+          <template #reference>
+            <el-button size="small" type="warning" plain :loading="bulkLoading === 'off'">
+              批量停用
+            </el-button>
+          </template>
+        </el-popconfirm>
+        <el-button size="small" link @click="clearSelection">取消选择</el-button>
+        <span class="tiny dim">启停后立即重建 DFA 匹配器</span>
+      </div>
+
+      <el-table
+        ref="tableRef"
+        v-loading="loading"
+        :data="rows"
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column v-if="canWrite" type="selection" width="44" align="center" />
         <el-table-column label="敏感词" min-width="180">
           <template #default="{ row }">
             <div class="word-cell">
@@ -218,6 +254,72 @@
       </div>
     </section>
 
+    <!-- 导入 CSV（仅 ADMIN） -->
+    <el-dialog v-model="importVisible" title="导入敏感词 CSV" width="560px" @closed="resetImport">
+      <div class="import-hint">
+        <div class="tip-line">
+          <el-icon><InfoFilled /></el-icon>
+          <span>
+            CSV 列：<code class="mono">word,category,severity,enabled</code>，允许表头，最多 5000 行；规范化后自动去重。
+          </span>
+        </div>
+        <div class="tip-line">
+          <el-icon><InfoFilled /></el-icon>
+          <span>
+            category：INSULT / DISCRIMINATION / THREAT / HARASSMENT / SEXUAL / FRAUD / PRIVACY / OTHER；
+            severity：HIGH / MEDIUM / LOW；enabled：true / false。
+          </span>
+        </div>
+      </div>
+
+      <el-upload
+        ref="importUploadRef"
+        class="import-uploader"
+        drag
+        :auto-upload="false"
+        :limit="1"
+        accept=".csv,text/csv"
+        :on-change="onImportFileChange"
+        :on-remove="onImportFileRemove"
+        :on-exceed="onImportExceed"
+      >
+        <el-icon class="el-icon--upload"><Upload /></el-icon>
+        <div class="el-upload__text">拖拽 CSV 到此处，或 <em>点击选择</em></div>
+        <template #tip>
+          <div class="el-upload__tip">单文件 ≤ 5MB；导入成功后自动重建 DFA 匹配器</div>
+        </template>
+      </el-upload>
+
+      <div v-if="importResult" class="import-result">
+        <div class="result-item ok">
+          <span class="result-value num">{{ importResult.created }}</span>
+          <span class="result-label">新增</span>
+        </div>
+        <div class="result-item info">
+          <span class="result-value num">{{ importResult.skipped }}</span>
+          <span class="result-label">跳过（重复/已存在）</span>
+        </div>
+        <div class="result-item danger">
+          <span class="result-value num">{{ importResult.invalid }}</span>
+          <span class="result-label">格式错误</span>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="importVisible = false">{{ importResult ? '完成' : '取消' }}</el-button>
+        <el-button
+          v-if="!importResult"
+          type="primary"
+          :loading="importing"
+          :disabled="!importFile"
+          @click="submitImport"
+        >开始导入</el-button>
+        <el-button v-else type="primary" :disabled="importing" @click="resetImportForm">
+          继续导入
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增/编辑 -->
     <el-dialog v-model="dialogVisible" :title="editing ? '编辑敏感词' : '新增敏感词'" width="470px">
       <el-form :model="form" label-width="82px">
@@ -261,12 +363,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Plus, MagicStick } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, MagicStick, Download, Upload } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTimeShort } from '../constants'
+import { saveBlob } from '../utils/download'
 
 const route = useRoute()
 
@@ -292,6 +395,19 @@ const dialogVisible = ref(false)
 const editing = ref(null)
 const saving = ref(false)
 const form = ref({ word: '', category: 'INSULT', severity: 'MEDIUM', enabled: true })
+
+// 表格多选 + 批量启停（仅 ADMIN）
+const tableRef = ref(null)
+const selectedRows = ref([])
+const bulkLoading = ref('')
+
+// 导出 / 导入（仅 ADMIN）
+const exporting = ref(false)
+const importVisible = ref(false)
+const importing = ref(false)
+const importUploadRef = ref(null)
+const importFile = ref(null)
+const importResult = ref(null)
 
 const SEVERITY_DOT = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#94a3b8' }
 const SEVERITY_CLASS = { HIGH: 'danger', MEDIUM: 'warn', LOW: 'info' }
@@ -428,6 +544,123 @@ async function remove(row) {
     loadOverview()
   } catch {
     // 403 等由请求层统一提示
+  }
+}
+
+/* ---------- 导出 / 导入 / 批量启停（仅 ADMIN） ---------- */
+
+function onSelectionChange(selection) {
+  selectedRows.value = Array.isArray(selection) ? selection.slice() : []
+}
+
+function clearSelection() {
+  selectedRows.value = []
+  tableRef.value?.clearSelection?.()
+}
+
+/** 批量启用/停用：后端重建 DFA，返回 { updated } */
+async function bulkUpdate(enabled) {
+  if (!canWrite.value) return
+  const ids = selectedRows.value.map((r) => r.id).filter((id) => id != null)
+  if (!ids.length) return
+  bulkLoading.value = enabled ? 'on' : 'off'
+  try {
+    const r = await api.bulkEnabled(ids, enabled)
+    const count = Number(r?.updated) || ids.length
+    ElMessage.success(`已${enabled ? '启用' : '停用'} ${count} 条，DFA 匹配器已重建`)
+    clearSelection()
+    load()
+    loadOverview()
+  } catch {
+    // 403 等由请求层统一提示
+  } finally {
+    bulkLoading.value = ''
+  }
+}
+
+async function exportCsv() {
+  if (!canWrite.value) return
+  exporting.value = true
+  try {
+    const { blob, filename } = await api.exportDictionaryCsv()
+    saveBlob(blob, filename)
+    ElMessage.success(`词库已导出：${filename}`)
+  } catch {
+    // 请求层 / 接口层已统一提示
+  } finally {
+    exporting.value = false
+  }
+}
+
+function openImport() {
+  if (!canWrite.value) return
+  resetImportForm()
+  importVisible.value = true
+}
+
+function resetImportForm() {
+  importFile.value = null
+  importResult.value = null
+  importUploadRef.value?.clearFiles?.()
+}
+
+function resetImport() {
+  resetImportForm()
+  importing.value = false
+}
+
+function onImportFileChange(file) {
+  const raw = file?.raw
+  if (!raw) return
+  if (!/\.csv$/i.test(raw.name || '')) {
+    ElMessage.error('请选择 .csv 文件')
+    importUploadRef.value?.clearFiles?.()
+    return
+  }
+  if (raw.size > 5 * 1024 * 1024) {
+    ElMessage.error('CSV 文件超过 5MB')
+    importUploadRef.value?.clearFiles?.()
+    return
+  }
+  importFile.value = raw
+  importResult.value = null
+}
+
+function onImportFileRemove() {
+  importFile.value = null
+}
+
+/** 已选一个再选：替换而不是报错 */
+function onImportExceed(files) {
+  const file = files?.[0]
+  if (!file) return
+  importUploadRef.value?.clearFiles?.()
+  onImportFileChange({ raw: file })
+  importUploadRef.value?.handleStart?.(file)
+}
+
+async function submitImport() {
+  if (!importFile.value) {
+    ElMessage.warning('请选择要导入的 CSV 文件')
+    return
+  }
+  importing.value = true
+  try {
+    const r = await api.importDictionary(importFile.value)
+    importResult.value = {
+      created: Number(r?.created) || 0,
+      skipped: Number(r?.skipped) || 0,
+      invalid: Number(r?.invalid) || 0
+    }
+    ElMessage.success(
+      `导入完成：新增 ${importResult.value.created}，跳过 ${importResult.value.skipped}，无效 ${importResult.value.invalid}`
+    )
+    reload()
+    loadOverview()
+  } catch {
+    // 403 / 校验失败由请求层统一提示，保留文件便于重试
+  } finally {
+    importing.value = false
   }
 }
 
@@ -650,5 +883,98 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
   font-size: 12.5px;
   line-height: 1.7;
+}
+
+/* 批量启停条 */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  background: var(--brand-50);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 导入 CSV */
+.import-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--ink-50);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.tip-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.tip-line .el-icon {
+  margin-top: 2px;
+  flex: none;
+  color: var(--brand-500);
+}
+.tip-line code {
+  color: var(--brand-700);
+  background: var(--brand-50);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.import-uploader {
+  width: 100%;
+}
+.import-uploader :deep(.el-upload),
+.import-uploader :deep(.el-upload-dragger) {
+  width: 100%;
+}
+.import-uploader :deep(.el-upload-dragger) {
+  padding: 20px 12px;
+}
+.import-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: #fbfcfe;
+}
+.result-item.ok {
+  border-color: #cdebd8;
+  background: var(--ok-soft);
+}
+.result-item.info {
+  background: var(--ink-50);
+}
+.result-item.danger {
+  border-color: #f8d4d4;
+  background: var(--danger-soft);
+}
+.result-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink-800);
+}
+.result-item.ok .result-value {
+  color: #12703a;
+}
+.result-item.danger .result-value {
+  color: #c92c2c;
+}
+.result-label {
+  font-size: 11.5px;
+  color: var(--el-text-color-secondary);
 }
 </style>
