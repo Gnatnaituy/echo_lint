@@ -38,7 +38,7 @@ class RecordingDeleteCascadeTest {
     @Mock
     private AiInvocationService aiInvocationService;
     @Mock
-    private PipelineService pipelineService;
+    private PipelineTaskService pipelineTaskService;
     @Mock
     private AuditService auditService;
     @Mock
@@ -58,7 +58,7 @@ class RecordingDeleteCascadeTest {
         AppProperties appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, new ObjectMapper(), auditService, userRepository,
+                pipelineTaskService, appProperties, new ObjectMapper(), auditService, userRepository,
                 reviewRecordRepository, corpusEntryRepository, new AudioFileValidator());
     }
 

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.dfa.DfaHit;
-import com.echolint.domain.NotifyEvent;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ViolationType;
 import com.echolint.entity.PipelineLog;
@@ -32,9 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -56,7 +53,6 @@ class PipelineServiceTest {
     @Mock private SemanticScreeningService semanticScreeningService;
     @Mock private ScreenModelService screenModelService;
     @Mock private CorpusService corpusService;
-    @Mock private NotificationService notificationService;
 
     @TempDir
     Path tempDir;
@@ -76,7 +72,7 @@ class PipelineServiceTest {
         pipeline = new PipelineService(
                 recordingRepository, pipelineLogRepository, dictionaryWordRepository,
                 audioTranscriptionService, dfaService, semanticScreeningService, screenModelService,
-                corpusService, appProperties, screenProperties, objectMapper, notificationService);
+                corpusService, appProperties, screenProperties, objectMapper);
     }
 
     private Recording stubRecording() {
@@ -134,7 +130,7 @@ class PipelineServiceTest {
         when(semanticScreeningService.screen(any(), anyString(), any(), any(), any()))
                 .thenThrow(new BizException("当前复筛模型「DeepSeek · deepseek-flash」未配置 API Key"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "复筛不可用不能自动放行，也不能直接失败");
         assertNotNull(r.getProcessedTime());
@@ -151,7 +147,7 @@ class PipelineServiceTest {
                 new AiScreenResult(true, ViolationType.INSULT, "辱骂", "直接辱骂客户",
                         0.92, "you stupid bitch", "deepseek", "DeepSeek", "deepseek-flash"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus());
         var ai = objectMapper.readTree(r.getAiResultJson());
@@ -167,7 +163,7 @@ class PipelineServiceTest {
         Recording r = stubRecording();
         stubTranscriptionWithoutHit();
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.COMPLIANT, r.getStatus());
         assertFalse(r.isSampled(), "默认抽样率为 0，不应标记为抽样");
@@ -184,7 +180,7 @@ class PipelineServiceTest {
                 new AiScreenResult(false, ViolationType.NONE, "无", "no violation", 0.88, "",
                         "deepseek", "DeepSeek", "deepseek-flash"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.COMPLIANT, r.getStatus(), "抽样录音 AI 判合规应自动归档");
         assertTrue(r.isSampled(), "抽样命中的录音应标记 sampled=true");
@@ -205,7 +201,7 @@ class PipelineServiceTest {
                 new AiScreenResult(true, ViolationType.FRAUD, "诈骗诱导", "elevated risk language",
                         0.9, "wire me the money", "deepseek", "DeepSeek", "deepseek-flash"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "抽样录音 AI 判违规应转人工复检");
         assertTrue(r.isSampled());
@@ -223,7 +219,7 @@ class PipelineServiceTest {
         when(semanticScreeningService.screen(any(), anyString(), any(), any(), any()))
                 .thenThrow(new BizException("当前复筛模型「DeepSeek · deepseek-flash」未配置 API Key"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "抽样录音 AI 不可用时不能自动放行");
         assertTrue(r.isSampled());
@@ -240,7 +236,7 @@ class PipelineServiceTest {
                 new AiScreenResult(true, ViolationType.THREAT, "威胁", "maybe a threat", 0.42, "",
                         "deepseek", "DeepSeek", "deepseek-flash").withDegraded("置信度低于阈值"));
 
-        pipeline.run(1L);
+        pipeline.processNow(1L);
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "低置信度违规不得自动放行");
         var ai = objectMapper.readTree(r.getAiResultJson());
@@ -248,26 +244,47 @@ class PipelineServiceTest {
     }
 
     @Test
-    void pipelineFailureSendsRecordingFailedNotification() {
+    void pipelineFailureMarksRecordingFailedAndThrowsForTaskLayer() {
         Recording r = stubRecording();
         when(audioTranscriptionService.transcribe(any(Path.class)))
                 .thenThrow(new RuntimeException("ffmpeg crashed"));
 
-        pipeline.run(1L);
+        BizException e = assertThrows(BizException.class, () -> pipeline.processNow(1L));
 
-        assertEquals(RecordingStatus.FAILED, r.getStatus());
-        verify(notificationService).notify(eq(NotifyEvent.RECORDING_FAILED), eq(1L),
-                anyString(), contains("ffmpeg crashed"), isNull());
+        assertEquals(RecordingStatus.FAILED, r.getStatus(), "失败照旧落 FAILED");
+        assertEquals("ffmpeg crashed", r.getErrorMessage());
+        assertTrue(e.getMessage().contains("ffmpeg crashed"), "异常向上抛出，供任务层累计重试/死信");
     }
 
     @Test
-    void successfulPipelineDoesNotSendFailureNotification() {
-        stubRecording();
+    void missingRecordingIsReportedAsNotFoundWithoutRetryChurn() {
+        when(recordingRepository.findById(9L)).thenReturn(Optional.empty());
+
+        BizException e = assertThrows(BizException.class, () -> pipeline.processNow(9L));
+
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, e.getStatus());
+    }
+
+    @Test
+    void successfulPipelineDoesNotThrow() {
+        Recording r = stubRecording();
         stubTranscriptionWithoutHit();
 
-        pipeline.run(1L);
+        assertDoesNotThrow(() -> pipeline.processNow(1L));
 
-        verify(notificationService, never()).notify(eq(NotifyEvent.RECORDING_FAILED), any(), anyString(),
-                anyString(), any());
+        assertEquals(RecordingStatus.COMPLIANT, r.getStatus());
+    }
+
+    @Test
+    void processNowClearsPreviousErrorAndSampleFlag() {
+        Recording r = stubRecording();
+        r.setErrorMessage("上次失败");
+        r.setSampled(true);
+        stubTranscriptionWithoutHit();
+
+        pipeline.processNow(1L);
+
+        assertNull(r.getErrorMessage(), "新一次处理应清空上一轮错误，避免重试成功后残留");
+        assertFalse(r.isSampled(), "非抽样路径不应残留上一轮的 sampled 标记");
     }
 }

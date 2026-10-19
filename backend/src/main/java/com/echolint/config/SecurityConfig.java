@@ -86,6 +86,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 仅 ADMIN
                         .requestMatchers("/api/users/**", "/api/audit-logs/**").hasRole("ADMIN")
+                        // 异步任务队列（Batch 3b-1）：任务视图与重试均仅 ADMIN
+                        .requestMatchers("/api/tasks/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/dictionary/**").hasRole("ADMIN")

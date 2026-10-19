@@ -10,6 +10,7 @@ import {
   normalizeProviders
 } from '../utils/providers'
 import { normalizeAiUsage } from '../utils/aiUsage'
+import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
 
 const http = axios.create({
   baseURL: '/api',
@@ -236,6 +237,31 @@ export const api = {
   },
   deleteRecording(id) {
     return http.delete(`/recordings/${id}`)
+  },
+
+  // 异步任务队列（ADMIN）；silent 由任务页展示 403/404 降级提示
+  /**
+   * GET /api/tasks?status=&recordingId=&page=&size=
+   * -> 归一化 {items,total,page,size,totalPages}（page 为 0 基，与后端一致）
+   */
+  listTasks({ status, recordingId, page, size } = {}) {
+    return http
+      .get('/tasks', {
+        params: {
+          status: param(status),
+          recordingId: param(recordingId),
+          page,
+          size
+        },
+        silent: true
+      })
+      .then((data) => normalizeTaskPage(data))
+  },
+  /** POST /api/tasks/{id}/retry（仅 FAILED/DEAD）-> 归一化任务或 null（204） */
+  retryTask(id) {
+    return http
+      .post(`/tasks/${encodeURIComponent(id)}/retry`, undefined, { silent: true })
+      .then((data) => normalizeRetryResult(data))
   },
 
   // 复核工作流

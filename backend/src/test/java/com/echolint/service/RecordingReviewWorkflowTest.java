@@ -49,7 +49,7 @@ class RecordingReviewWorkflowTest {
     @Mock
     private AiInvocationService aiInvocationService;
     @Mock
-    private PipelineService pipelineService;
+    private PipelineTaskService pipelineTaskService;
     @Mock
     private AuditService auditService;
     @Mock
@@ -70,7 +70,7 @@ class RecordingReviewWorkflowTest {
         appProperties.setUploadDir(tempDir.toString());
         ObjectMapper objectMapper = new ObjectMapper();
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
+                pipelineTaskService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
                 corpusEntryRepository, new AudioFileValidator());
     }
 

@@ -66,12 +66,13 @@ defineEmits(['toggle'])
 
 const route = useRoute()
 
-// 系统设置所有角色可见；成本看板 / 用户管理 / 操作审计仅 ADMIN 可见（后端仍会独立鉴权）
+// 系统设置所有角色可见；成本看板 / 任务队列 / 用户管理 / 操作审计仅 ADMIN 可见（后端仍会独立鉴权）
 const groups = computed(() => {
   const systemItems = [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
   if (auth.hasRole('ADMIN')) {
     systemItems.push(
       { path: '/costs', label: '成本看板', icon: 'Money' },
+      { path: '/tasks', label: '任务队列', icon: 'Operation' },
       { path: '/users', label: '用户管理', icon: 'User' },
       { path: '/audit', label: '操作审计', icon: 'List' }
     )

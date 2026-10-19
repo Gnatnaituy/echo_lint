@@ -38,7 +38,7 @@ class RecordingServiceTest {
     @Mock
     private PipelineLogRepository pipelineLogRepository;
     @Mock
-    private PipelineService pipelineService;
+    private PipelineTaskService pipelineTaskService;
     @Mock
     private AiInvocationService aiInvocationService;
     @Mock
@@ -63,7 +63,7 @@ class RecordingServiceTest {
         appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
+                pipelineTaskService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
                 corpusEntryRepository, new AudioFileValidator());
     }
 
@@ -97,7 +97,7 @@ class RecordingServiceTest {
         assertNull(result.getDfaHitsJson());
         assertNull(result.getAiResultJson());
         verify(recordingRepository).saveAndFlush(r);
-        verify(pipelineService).run(1L);
+        verify(pipelineTaskService).enqueue(1L);
     }
 
     @Test
@@ -105,14 +105,14 @@ class RecordingServiceTest {
         for (RecordingStatus status : new RecordingStatus[]{
                 RecordingStatus.FAILED, RecordingStatus.TRANSCRIBING,
                 RecordingStatus.DFA_CHECKING, RecordingStatus.AI_CHECKING}) {
-            reset(recordingRepository, pipelineService);
+            reset(recordingRepository, pipelineTaskService);
             Recording r = recording(status);
             stubExisting(1L, r);
 
             Recording result = service.retry(1L);
 
             assertEquals(RecordingStatus.PENDING, result.getStatus(), status + " 应可重新处理");
-            verify(pipelineService).run(1L);
+            verify(pipelineTaskService).enqueue(1L);
         }
     }
 
@@ -121,13 +121,13 @@ class RecordingServiceTest {
         for (RecordingStatus status : new RecordingStatus[]{
                 RecordingStatus.COMPLIANT, RecordingStatus.NEEDS_REVIEW,
                 RecordingStatus.VIOLATION_CONFIRMED, RecordingStatus.FALSE_POSITIVE}) {
-            reset(recordingRepository, pipelineService);
+            reset(recordingRepository, pipelineTaskService);
             Recording r = recording(status);
             stubExisting(1L, r);
 
             BizException e = assertThrows(BizException.class, () -> service.retry(1L));
             assertTrue(e.getMessage().contains("不支持重新处理"), "状态 " + status);
-            verify(pipelineService, never()).run(anyLong());
+            verify(pipelineTaskService, never()).enqueue(anyLong());
         }
     }
 
@@ -135,12 +135,12 @@ class RecordingServiceTest {
     void inFlightRecordingIsRejected() throws IOException {
         Recording r = recording(RecordingStatus.PENDING);
         stubExisting(1L, r);
-        when(pipelineService.isInFlight(1L)).thenReturn(true);
+        when(pipelineTaskService.isRunning(1L)).thenReturn(true);
 
         BizException e = assertThrows(BizException.class, () -> service.retry(1L));
 
         assertTrue(e.getMessage().contains("正在处理中"));
-        verify(pipelineService, never()).run(anyLong());
+        verify(pipelineTaskService, never()).enqueue(anyLong());
         verify(recordingRepository, never()).saveAndFlush(any());
     }
 
@@ -152,6 +152,6 @@ class RecordingServiceTest {
         BizException e = assertThrows(BizException.class, () -> service.retry(1L));
 
         assertTrue(e.getMessage().contains("文件不存在"));
-        verify(pipelineService, never()).run(anyLong());
+        verify(pipelineTaskService, never()).enqueue(anyLong());
     }
 }

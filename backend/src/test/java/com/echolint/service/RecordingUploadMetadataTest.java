@@ -44,7 +44,7 @@ class RecordingUploadMetadataTest {
     @Mock
     private AiInvocationService aiInvocationService;
     @Mock
-    private PipelineService pipelineService;
+    private PipelineTaskService pipelineTaskService;
     @Mock
     private AuditService auditService;
     @Mock
@@ -65,7 +65,7 @@ class RecordingUploadMetadataTest {
         AppProperties appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
+                pipelineTaskService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
                 corpusEntryRepository, new AudioFileValidator());
         lenient().when(recordingRepository.saveAndFlush(any()))
                 .thenAnswer(invocation -> {
@@ -102,7 +102,7 @@ class RecordingUploadMetadataTest {
         assertNotNull(saved.getAudioSha256());
         assertTrue(saved.getAudioSha256().matches("[0-9a-f]{64}"), "应记录 64 位小写 hex SHA-256");
 
-        verify(pipelineService).run(7L);
+        verify(pipelineTaskService).enqueue(7L);
         verify(auditService).record(eq(AuditAction.RECORDING_UPLOAD), eq("RECORDING"), eq(7L),
                 contains("坐席 张三"));
 
@@ -135,6 +135,6 @@ class RecordingUploadMetadataTest {
                 () -> service.upload(audio(), RecordingMetadata.of(null, null, null, "SIDEWAYS", null)));
 
         assertFalse(Files.exists(tempDir.resolve("any.mp3")));
-        verifyNoInteractions(recordingRepository, pipelineService);
+        verifyNoInteractions(recordingRepository, pipelineTaskService);
     }
 }

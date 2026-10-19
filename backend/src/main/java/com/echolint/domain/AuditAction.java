@@ -31,5 +31,7 @@ public enum AuditAction {
     PROVIDER_CREATE,
     PROVIDER_UPDATE,
     PROVIDER_DELETE,
-    PROVIDER_TEST
+    PROVIDER_TEST,
+    /** 异步任务队列（Batch 3b-1）：管理员手动重试死信/失败任务 */
+    TASK_RETRY
 }

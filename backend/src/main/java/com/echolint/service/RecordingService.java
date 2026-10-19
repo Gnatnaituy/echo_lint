@@ -57,7 +57,7 @@ public class RecordingService {
     private final RecordingRepository recordingRepository;
     private final PipelineLogRepository pipelineLogRepository;
     private final AiInvocationService aiInvocationService;
-    private final PipelineService pipelineService;
+    private final PipelineTaskService pipelineTaskService;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
@@ -71,7 +71,7 @@ public class RecordingService {
 
     /**
      * 上传录音：流式落临时文件并计算 SHA-256 -> 查重 -> 原子移动到正式目录
-     * -> 建记录(PENDING，附可选元数据) -> 异步启动稽核流水线。
+     * -> 建记录(PENDING，附可选元数据) -> 持久化任务入队（由调度器异步执行）。
      *
      * <p>失败或命中重复时始终清理临时文件，避免留下孤儿半截文件。</p>
      */
@@ -122,8 +122,8 @@ public class RecordingService {
             auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
                     "上传录音 " + original + "（" + file.getSize() + " 字节）"
                             + metadataSummary(meta));
-            log.info("录音 {} 上传成功（{}，{} 字节），启动稽核流水线", saved.getId(), original, file.getSize());
-            pipelineService.run(saved.getId());
+            log.info("录音 {} 上传成功（{}，{} 字节），已入队稽核任务", saved.getId(), original, file.getSize());
+            pipelineTaskService.enqueue(saved.getId());
             return saved;
         } catch (IOException e) {
             throw new BizException("录音保存失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
@@ -300,7 +300,7 @@ public class RecordingService {
     }
 
     /**
-     * 手动推进/重新处理：清空上一轮处理产物后重新进入流水线。
+     * 手动推进/重新处理：清空上一轮处理产物后重新入队（任务持久化，重启不丢）。
      *
      * 允许的状态：
      * - PENDING：排队但未开始（例如上传后服务重启，流水线丢失）
@@ -313,7 +313,7 @@ public class RecordingService {
         Recording recording = get(id);
         RecordingStatus status = recording.getStatus();
 
-        if (pipelineService.isInFlight(id)) {
+        if (pipelineTaskService.isRunning(id)) {
             throw new BizException("该录音正在处理中，请稍候再试");
         }
         if (status != RecordingStatus.PENDING
@@ -350,8 +350,8 @@ public class RecordingService {
 
         auditService.record(AuditAction.RECORDING_RETRY, "RECORDING", id,
                 "重新处理录音（原状态 " + status + "）");
-        pipelineService.run(recording.getId());
-        log.info("录音 {} 手动触发重新处理（原状态 {}）", id, status);
+        pipelineTaskService.enqueue(recording.getId());
+        log.info("录音 {} 手动触发重新处理（原状态 {}），任务已入队", id, status);
         return recording;
     }
 

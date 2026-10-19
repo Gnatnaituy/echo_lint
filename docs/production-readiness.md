@@ -11,7 +11,7 @@
 |---|---|---|
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
 | 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 ✅ |
-| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b 待开始 |
+| 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 待开始 |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 待开始 |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
 
@@ -308,7 +308,44 @@
   - 审计 PROVIDER_CREATE/UPDATE/DELETE/TEST 落库且不包含密钥。
 - 已知限制：内置供应商单价默认 0（需在设置页录入后成本才有金额）；`APP_SECRET_KEY` 变更后旧密文不可解密；配额/每分钟计数为全局/单实例语义；PUT 供应商为全量更新（apiKey 可选）。
 
-## Batch 3b · 异步可靠性（待开始）
+## 3b-1 · 异步任务持久化（✅ 已完成）
+
+### 数据模型
+- 新表 `pipeline_tasks`：id、recording_id、status（PENDING/RUNNING/SUCCEEDED/FAILED/DEAD）、
+  attempts、max_attempts（默认 3）、next_attempt_at、last_error、created_at、updated_at、finished_at；
+  索引 `(status,next_attempt_at)`、`(recording_id)`。
+
+### 队列行为
+- `PipelineTaskService.enqueue(recordingId)`：同一录音已有 PENDING/RUNNING 任务时幂等返回，否则建 PENDING（attempts=0，nextAttemptAt=now）。
+- 调度器 `@Scheduled(fixedDelay=5000)` 每次最多取 5 条到期的 PENDING，事务内标记 RUNNING 后提交到 pipeline executor 执行；
+  成功 → SUCCEEDED；失败 → attempts+1；未达 max_attempts → PENDING + 退避（30s/120s/300s 封顶），达到 → DEAD。
+- 最终失败（DEAD）才发 `RECORDING_FAILED` Webhook；中间重试不重复告警。
+- `PipelineService` 增加 `processNow(recordingId)`：执行流水线，失败时照旧落 FAILED + 错误信息并抛出，供任务层判断重试。
+- `RecordingService.upload/retry` 改为 enqueue（不再直接 `pipelineService.run`）。
+- 启动恢复：RUNNING 任务 → PENDING（nextAttemptAt=now，不丢任务）；中间态录音若仍有活动任务不强制 FAILED。
+
+### API / 前端
+- `GET /api/tasks?status=&recordingId=&page=&size=`（ADMIN，size≤100）：任务分页视图（含录音文件名、状态、attempts/max、nextAttemptAt、lastError、时间）。
+- `POST /api/tasks/{id}/retry`（ADMIN）：DEAD/FAILED → PENDING、attempts=0；审计 `TASK_RETRY`。
+- 前端新增 `/tasks`「任务队列」（ADMIN）：状态筛选、表格、失败原因、重试按钮、5s 自动刷新；侧栏 ADMIN 入口；审计文案。
+- 不新增依赖；保持现有功能。
+
+### 验收
+- 后端 `mvn clean test`、前端 build/test 全绿。
+- 本机 MySQL 冒烟：上传后任务入队→执行→成功；构造失败任务验证指数退避与 DEAD；重启后 RUNNING 任务恢复；任务 API 分页/重试/权限。
+
+### 3b-1 完成记录
+
+- 后端 319 个单测全绿（新增 44 个）；前端 build + 63 个单测全绿。
+- 冒烟（打包 jar + 临时 MySQL + 本地 webhook）：
+  - 上传后任务入队 → 5s 内执行；失败按 30s/120s/300s 退避，第 3 次失败进入 DEAD；仅 DEAD 收到 1 条 `RECORDING_FAILED` 告警（重试期间不重复告警）。
+  - 管理员重试 DEAD → PENDING attempts=0；重复点击 409；审计 `TASK_RETRY` 落库。
+  - 权限：任务 API 匿名 401 / REVIEWER 403 / ADMIN 200；分页 size 上限 100、按状态/录音过滤、含录音文件名。
+  - 重启恢复：RUNNING → PENDING 重新执行；有活动任务的中断录音不强制 FAILED；无任务的中断录音仍置 FAILED。
+  - 录音手动重试只保留一条活动任务（幂等）；日志 0 ERROR。
+- 已知限制：pipeline_tasks 未加 Flyway V2；删除录音不清理任务历史行；停机瞬间线程池拒单可能短暂 RUNNING，由启动恢复兜底。
+
+## Batch 3b-2 · 模型 A/B 与评测（待开始）
 
 - [ ] 异步任务持久化（DB 任务表/Outbox）、自动重试、死信、任务视图
 - [ ] 模型 A/B 分流 + 评测样本集

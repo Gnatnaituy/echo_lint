@@ -45,7 +45,7 @@ class RecordingUploadSecurityTest {
     @Mock
     private AiInvocationService aiInvocationService;
     @Mock
-    private PipelineService pipelineService;
+    private PipelineTaskService pipelineTaskService;
     @Mock
     private AuditService auditService;
     @Mock
@@ -70,7 +70,7 @@ class RecordingUploadSecurityTest {
         appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, new ObjectMapper(), auditService, userRepository,
+                pipelineTaskService, appProperties, new ObjectMapper(), auditService, userRepository,
                 reviewRecordRepository, corpusEntryRepository, new AudioFileValidator());
         lenient().when(recordingRepository.saveAndFlush(any(Recording.class)))
                 .thenAnswer(invocation -> {
@@ -98,7 +98,7 @@ class RecordingUploadSecurityTest {
         assertTrue(saved.getAudioSha256().matches("[0-9a-f]{64}"));
         assertTrue(Files.exists(tempDir.resolve(saved.getFilePath())));
         assertEquals(1, storedFileCount(), "临时文件应被原子移动，不留 .part");
-        verify(pipelineService).run(7L);
+        verify(pipelineTaskService).enqueue(7L);
     }
 
     @Test
@@ -116,7 +116,7 @@ class RecordingUploadSecurityTest {
         assertTrue(e.getMessage().contains("#42"), "错误信息应带已存在的录音 id");
         assertEquals(1, storedFileCount(), "重复上传应清理临时文件，不落正式文件");
         verify(recordingRepository, times(1)).saveAndFlush(any());
-        verify(pipelineService, times(1)).run(anyLong());
+        verify(pipelineTaskService, times(1)).enqueue(anyLong());
     }
 
     @Test
@@ -131,7 +131,7 @@ class RecordingUploadSecurityTest {
         assertEquals("文件内容与扩展名不符", e.getMessage());
         assertEquals(0, storedFileCount(), "预检失败必须清理临时文件");
         verify(recordingRepository, never()).saveAndFlush(any());
-        verify(pipelineService, never()).run(anyLong());
+        verify(pipelineTaskService, never()).enqueue(anyLong());
     }
 
     @Test

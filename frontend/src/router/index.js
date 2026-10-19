@@ -56,6 +56,12 @@ const routes = [
     meta: { title: '成本看板', roles: ['ADMIN'] }
   },
   {
+    // 异步任务队列（流水线任务持久化 / 退避重试 / 死信）：仅管理员
+    path: '/tasks',
+    component: () => import('../views/Tasks.vue'),
+    meta: { title: '任务队列', roles: ['ADMIN'] }
+  },
+  {
     path: '/settings',
     component: () => import('../views/Settings.vue'),
     meta: { title: '系统设置' }

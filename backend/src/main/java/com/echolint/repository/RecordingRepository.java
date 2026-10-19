@@ -2,9 +2,11 @@ package com.echolint.repository;
 
 import com.echolint.domain.RecordingStatus;
 import com.echolint.entity.Recording;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -32,6 +34,14 @@ public interface RecordingRepository extends JpaRepository<Recording, Long>, Jpa
 
     /** 上传去重：按音频内容 SHA-256 查找已存在的录音 */
     Optional<Recording> findByAudioSha256(String audioSha256);
+
+    /**
+     * 行锁读取录音：任务入队时用 {@code select ... for update} 串行化同一录音的并发入队，
+     * 避免并发上传/重试产生重复活动任务。
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Recording r where r.id = :id")
+    Optional<Recording> findWithLockById(@Param("id") Long id);
 
     /*
      * 报表统计（Batch 2a）：时间口径统一为 coalesce(callTime, uploadTime)，

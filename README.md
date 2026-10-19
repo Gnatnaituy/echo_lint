@@ -93,6 +93,7 @@ echolint/
 - **报表**：日期范围 + 坐席/团队/方向筛选，汇总卡与按坐席/团队/违规类型统计，导出录音/违规/复核 CSV；敏感词库支持 CSV 导入导出与批量启停。
 - **合规抽样与告警**：可按比例抽检 DFA 未命中的录音（界面显示「抽样」标记）；复核确认违规、流水线失败、待复核积压可推送 Webhook（支持 HMAC 签名），系统设置页可发送测试通知。
 - **AI 治理与成本**：系统设置页可维护 AI 供应商（新增/编辑/停用/删除、密钥轮换与掩码展示、单价录入、连通性测试）；「成本看板」按日期/供应商/模型查看调用量、token 与预估成本。密钥以 AES-GCM 加密落库。
+- **异步任务**：上传/重处理写入 `pipeline_tasks` 持久队列，失败自动退避重试（30/120/300s，最多 3 次），耗尽进死信并只在死信时告警；服务重启恢复 RUNNING 任务；「任务队列」页（ADMIN）可查看/重试。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -359,6 +360,8 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | PUT/DELETE | `/api/settings/providers/{key}` | 修改（全量，apiKey 可选）/ 删除自定义供应商（ADMIN） |
 | POST | `/api/settings/providers/{key}/test` | 供应商连通性测试（ADMIN） |
 | GET | `/api/stats/ai-usage?from=&to=` | AI 调用量/成本统计（ADMIN，按日/供应商/模型） |
+| GET | `/api/tasks?status=&recordingId=&page=&size=` | 异步稽核任务分页（ADMIN，size≤100） |
+| POST | `/api/tasks/{id}/retry` | 重试死信/失败任务（ADMIN，审计 `TASK_RETRY`） |
 
 报表与运营：
 

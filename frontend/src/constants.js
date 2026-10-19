@@ -110,6 +110,33 @@ export function isSampled(record) {
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'TRUE'
 }
 
+/* ==========================================================================
+   异步任务队列（pipeline_tasks）
+   ========================================================================== */
+
+/** 任务状态：PENDING 排队待执行（含退避等待）/ RUNNING 执行中 / SUCCEEDED 成功 / FAILED 失败等待下次重试 / DEAD 达到最大次数（死信，仅手动重试） */
+export const TASK_STATUS_META = {
+  PENDING: { label: '排队中', type: 'info' },
+  RUNNING: { label: '执行中', type: 'warn' },
+  SUCCEEDED: { label: '已成功', type: 'ok' },
+  FAILED: { label: '等待重试', type: 'warn' },
+  DEAD: { label: '最终失败', type: 'danger' }
+}
+
+export const TASK_STATUS_OPTIONS = Object.keys(TASK_STATUS_META).map((value) => ({
+  value,
+  label: TASK_STATUS_META[value].label
+}))
+
+export function taskStatusMeta(status) {
+  return TASK_STATUS_META[status] || { label: status ? String(status) : '—', type: 'info' }
+}
+
+/** 后端仅允许 FAILED / DEAD 手动重试（重排为 PENDING 且 attempts 归零） */
+export function isTaskRetryable(status) {
+  return status === 'FAILED' || status === 'DEAD'
+}
+
 /**
  * 复核进度：reviewCount / requiredApprovals。
  * 后端缺省时为单人复核（required=1），前端只做展示与提交提示。
@@ -136,6 +163,7 @@ export const AUDIT_ACTION_META = {
   RECORDING_UPLOAD: { label: '上传录音', type: 'primary' },
   RECORDING_DELETE: { label: '删除录音', type: 'danger' },
   RECORDING_RETRY: { label: '重试处理', type: 'warning' },
+  TASK_RETRY: { label: '重试任务', type: 'warning' },
   RECORDING_CLAIM: { label: '认领录音', type: 'primary' },
   RECORDING_ASSIGN: { label: '指派录音', type: 'primary' },
   REVIEW_SUBMIT: { label: '提交复核', type: 'success' },
