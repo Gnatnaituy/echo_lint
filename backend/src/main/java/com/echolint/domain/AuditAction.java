@@ -35,5 +35,14 @@ public enum AuditAction {
     /** 异步任务队列（Batch 3b-1）：管理员手动重试死信/失败任务 */
     TASK_RETRY,
     /** 模型评测（Batch 3b-2）：管理员手动触发一次离线模型效果评测 */
-    MODEL_EVALUATE
+    MODEL_EVALUATE,
+    /** 开放 API 密钥（Batch 4a）：创建 / 停用 */
+    API_KEY_CREATE,
+    API_KEY_REVOKE,
+    /** 开放 API 外部系统上传录音（actor 记为 api-key:<名称>） */
+    OPEN_API_UPLOAD,
+    /** 知识库 / SOP（Batch 4a）：新增 / 修改 / 删除 */
+    KNOWLEDGE_CREATE,
+    KNOWLEDGE_UPDATE,
+    KNOWLEDGE_DELETE
 }

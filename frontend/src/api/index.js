@@ -12,6 +12,8 @@ import {
 import { normalizeAiUsage } from '../utils/aiUsage'
 import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
 import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
+import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys'
+import { normalizeKnowledgeEntry, normalizeKnowledgePage } from '../utils/knowledge'
 
 const http = axios.create({
   baseURL: '/api',
@@ -433,6 +435,51 @@ export const api = {
         { silent: true }
       )
       .then((data) => normalizeProviderTest(data))
+  },
+
+  // 开放 API 密钥（ADMIN）；列表 silent，由页面展示 403/404 降级提示
+  /**
+   * GET /api/api-keys -> 归一化 {items,total,page,size,totalPages}
+   * 列表只含掩码（prefix/last4），不含明文。
+   */
+  listApiKeys() {
+    return http.get('/api-keys', { silent: true }).then((data) => normalizeApiKeyList(data))
+  },
+  /** POST /api/api-keys {name} -> 创建响应含一次性明文 key（之后不可再查看） */
+  createApiKey(payload) {
+    return http.post('/api-keys', payload).then((data) => normalizeApiKey(data))
+  },
+  /** DELETE /api/api-keys/{id}：停用（不物理删除，保留审计线索） */
+  revokeApiKey(id) {
+    return http.delete(`/api-keys/${encodeURIComponent(id)}`)
+  },
+
+  // 知识库（登录可读；写操作 ADMIN / REVIEWER，后端独立鉴权）
+  /** GET /api/knowledge?keyword=&category=&enabled=&page=&size= -> 归一化 Spring Page */
+  listKnowledge({ keyword, category, enabled, page, size } = {}) {
+    return http
+      .get('/knowledge', {
+        params: {
+          keyword: param(keyword),
+          category: param(category),
+          enabled: param(enabled),
+          page,
+          size
+        },
+        silent: true
+      })
+      .then((data) => normalizeKnowledgePage(data))
+  },
+  createKnowledge(payload) {
+    return http.post('/knowledge', payload).then((data) => normalizeKnowledgeEntry(data))
+  },
+  updateKnowledge(id, payload) {
+    return http
+      .put(`/knowledge/${encodeURIComponent(id)}`, payload)
+      .then((data) => normalizeKnowledgeEntry(data))
+  },
+  deleteKnowledge(id) {
+    return http.delete(`/knowledge/${encodeURIComponent(id)}`)
   }
 }
 

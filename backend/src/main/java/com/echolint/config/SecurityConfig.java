@@ -1,8 +1,11 @@
 package com.echolint.config;
 
+import com.echolint.security.ApiKeyAuthFilter;
 import com.echolint.security.AppUserDetailsService;
 import com.echolint.security.JsonAccessDeniedHandler;
 import com.echolint.security.JsonAuthenticationEntryPoint;
+import com.echolint.service.ApiKeyService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +21,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -60,7 +64,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    SecurityContextRepository securityContextRepository,
                                                    JsonAuthenticationEntryPoint authenticationEntryPoint,
-                                                   JsonAccessDeniedHandler accessDeniedHandler) throws Exception {
+                                                   JsonAccessDeniedHandler accessDeniedHandler,
+                                                   ApiKeyService apiKeyService,
+                                                   ObjectMapper objectMapper) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -68,6 +74,9 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 // 登出由 AuthController 手动处理（审计 + invalidate），不启用默认 /logout 过滤器
                 .logout(AbstractHttpConfigurer::disable)
+                // 开放 API 鉴权：/api/open/** 在下方 permitAll，由该过滤器校验 X-API-Key
+                .addFilterBefore(new ApiKeyAuthFilter(apiKeyService, objectMapper),
+                        UsernamePasswordAuthenticationFilter.class)
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository)
                         .requireExplicitSave(true))
@@ -82,12 +91,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login",
                                 "/actuator/health", "/actuator/info", "/actuator/prometheus",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // 开放 API（Batch 4a）：不依赖会话，由 ApiKeyAuthFilter 校验 X-API-Key
+                        .requestMatchers("/api/open/**").permitAll()
                         // CORS 预检
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 仅 ADMIN
                         .requestMatchers("/api/users/**", "/api/audit-logs/**").hasRole("ADMIN")
                         // 异步任务队列（Batch 3b-1）：任务视图与重试均仅 ADMIN
                         .requestMatchers("/api/tasks/**").hasRole("ADMIN")
+                        // 开放 API 密钥管理（Batch 4a）仅 ADMIN
+                        .requestMatchers("/api/api-keys/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/dictionary/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/dictionary/**").hasRole("ADMIN")
@@ -117,6 +130,10 @@ public class SecurityConfig {
                                 "/api/recordings/*/delete",
                                 "/api/recordings/*/claim").hasAnyRole("ADMIN", "REVIEWER")
                         .requestMatchers(HttpMethod.POST, "/api/corpus/**").hasAnyRole("ADMIN", "REVIEWER")
+                        // 知识库/SOP（Batch 4a）：读对所有登录用户开放，写限 ADMIN + REVIEWER
+                        .requestMatchers(HttpMethod.POST, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
+                        .requestMatchers(HttpMethod.PUT, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
                         .requestMatchers(HttpMethod.DELETE, "/api/recordings/**").hasAnyRole("ADMIN", "REVIEWER")
                         // 其余 /api/** 与 /uploads/**（音频流）登录即可
                         .requestMatchers("/api/**", "/uploads/**").authenticated()

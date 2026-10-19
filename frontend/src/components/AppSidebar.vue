@@ -66,13 +66,14 @@ defineEmits(['toggle'])
 
 const route = useRoute()
 
-// 系统设置所有角色可见；成本看板 / 任务队列 / 用户管理 / 操作审计仅 ADMIN 可见（后端仍会独立鉴权）
+// 系统设置 / 知识库对所有角色可见；成本看板 / 任务队列 / API 密钥 / 用户管理 / 操作审计仅 ADMIN
 const groups = computed(() => {
   const systemItems = [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
   if (auth.hasRole('ADMIN')) {
     systemItems.push(
       { path: '/costs', label: '成本看板', icon: 'Money' },
       { path: '/tasks', label: '任务队列', icon: 'Operation' },
+      { path: '/api-keys', label: 'API 密钥', icon: 'Key' },
       { path: '/users', label: '用户管理', icon: 'User' },
       { path: '/audit', label: '操作审计', icon: 'List' }
     )
@@ -91,7 +92,8 @@ const groups = computed(() => {
       title: '知识配置',
       items: [
         { path: '/dictionary', label: '敏感词库', icon: 'Collection' },
-        { path: '/corpus', label: '语料库', icon: 'Notebook' }
+        { path: '/corpus', label: '语料库', icon: 'Notebook' },
+        { path: '/knowledge', label: '知识库', icon: 'Reading' }
       ]
     },
     { title: '系统', items: systemItems }

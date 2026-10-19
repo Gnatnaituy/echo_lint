@@ -1266,6 +1266,133 @@ async function runProviderTest() {
   }
 }
 
+/* ---------- A/B 与模型评测（ADMIN） ---------- */
+
+const abConfig = computed(() => view.value?.ab || null)
+
+/** A/B 状态：接口未返回 ab 时显示占位，不臆造启用状态 */
+const abState = computed(() => {
+  if (!view.value) return { label: '加载中…', type: 'info', note: '' }
+  const ab = abConfig.value
+  if (!ab) {
+    return { label: '未配置', type: 'info', note: '接口未返回 A/B 配置，后端可能为旧版本' }
+  }
+  if (ab.enabled === false) {
+    return { label: '未启用', type: 'info', note: 'A/B 分流已关闭，全部流量走当前生效模型' }
+  }
+  if (ab.enabled === true) {
+    return {
+      label: '已启用',
+      type: 'ok',
+      note: ab.percent == null
+        ? '已开启，但接口未返回流量占比'
+        : `约 ${formatAbPercent(ab.percent)} 的语义复筛流量进入 B 组`
+    }
+  }
+  return { label: '状态未知', type: 'warn', note: '接口未返回启用状态' }
+})
+
+/** B 组供应商：优先用注册表里的展示名，缺失时回退原始 key */
+const abProviderLabel = computed(() => {
+  const id = abConfig.value?.providerId
+  if (!id) return '—'
+  const found = providers.value.find(
+    (p) => String(p.key || '').toLowerCase() === id.toLowerCase()
+  )
+  return found?.label || id
+})
+
+/** 评测供应商候选：启用中的注册表供应商；注册表不可用时回退当前生效供应商 */
+const evalProviderOptions = computed(() => {
+  const list = providers.value
+    .filter((p) => p.key && isProviderEnabled(p))
+    .map((p) => ({ value: p.key, label: p.label || p.key }))
+  if (list.length) return list
+  const current = view.value
+  if (current?.providerId) {
+    return [{ value: current.providerId, label: current.providerLabel || current.providerId }]
+  }
+  return []
+})
+
+/** 当前选中供应商的候选模型：注册表优先，其次 screen-model 视图 */
+const evalModelOptions = computed(() => {
+  const selected = String(evalForm.providerId || '').toLowerCase()
+  if (!selected) return []
+  const registered = providers.value.find(
+    (p) => String(p.key || '').toLowerCase() === selected
+  )
+  if (registered?.models?.length) return registered.models
+  const current = view.value?.providers?.find(
+    (p) => String(p.id || '').toLowerCase() === selected
+  )
+  return current?.models || []
+})
+
+const evaluatedText = computed(() => {
+  const data = evaluation.value
+  if (!data) return '—'
+  const evaluated = data.evaluated == null ? '—' : data.evaluated
+  return data.total == null ? `${evaluated}` : `${evaluated} / ${data.total}`
+})
+
+function onEvalProviderChange() {
+  if (!evalModelOptions.value.includes(evalForm.model)) evalForm.model = ''
+}
+
+/** byLabel 行准确率：无样本时返回 null（显示占位） */
+function labelAccuracy(row) {
+  const total = Number(row?.total) || 0
+  if (total <= 0) return null
+  return (Number(row?.correct) || 0) / total
+}
+
+/** 评测接口错误：403/404 给出可读降级，其余保留后端 message（如配额不足） */
+function evalErrorMessage(error) {
+  const status = error?.status
+  if (status === 403) return '当前账号无权限运行模型评测（需要 ADMIN）'
+  if (status === 404) return '后端尚未提供模型评测接口（HTTP 404），请确认后端版本'
+  return error?.message || '评测失败，请检查模型配置、AI 配额与后端日志'
+}
+
+async function runEvaluation() {
+  if (evaluating.value) return
+  const providerId = evalForm.providerId
+  if (!providerId) {
+    ElMessage.warning('请先选择评测供应商')
+    return
+  }
+  const sampleSize = Math.min(20, Math.max(1, Math.round(Number(evalForm.sampleSize) || 10)))
+  evalForm.sampleSize = sampleSize
+  const payload = { providerId, sampleSize }
+  const model = evalForm.model.trim()
+  if (model) payload.model = model
+
+  evaluating.value = true
+  evaluationError.value = ''
+  try {
+    evaluation.value = await api.evaluateScreenModel(payload)
+  } catch (e) {
+    // 请求层 silent：保留上一次结果，仅在卡内提示失败原因
+    evaluationError.value = evalErrorMessage(e)
+  } finally {
+    evaluating.value = false
+  }
+}
+
+// 供应商数据晚于页面加载：自动选中当前生效供应商并清理失效模型
+watch(evalProviderOptions, () => {
+  const options = evalProviderOptions.value
+  if (!options.length) return
+  if (!options.some((opt) => opt.value === evalForm.providerId)) {
+    const current = options.find((opt) => opt.value === view.value?.providerId)
+    evalForm.providerId = (current || options[0]).value
+  }
+  if (evalForm.model && !evalModelOptions.value.includes(evalForm.model)) {
+    evalForm.model = ''
+  }
+})
+
 onMounted(() => {
   load()
   // 管理员专属接口：非管理员不请求、不渲染对应卡片
@@ -1685,6 +1812,198 @@ onMounted(() => {
 @media (max-width: 760px) {
   .price-fields {
     flex-direction: column;
+  }
+}
+
+/* A/B 与模型评测 */
+.ab-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ab-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
+}
+.ab-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 22px;
+}
+.ab-value {
+  margin-top: 5px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink-900);
+  letter-spacing: -0.01em;
+}
+.ab-value.ab-b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.ab-sub {
+  margin-top: 6px;
+  line-height: 1.65;
+}
+.eval-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.eval-field {
+  min-width: 200px;
+  flex: 1;
+}
+.eval-field.eval-size {
+  flex: 0 0 130px;
+  min-width: 130px;
+}
+.eval-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.eval-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 1px;
+}
+.eval-running {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+.eval-empty {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: var(--r-md);
+  line-height: 1.7;
+  background: var(--ink-50);
+}
+.eval-error {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: #a32424;
+}
+.eval-error-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.6;
+}
+.eval-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.eval-kpi {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: #fbfcfe;
+}
+.confusion-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.confusion-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(74px, 1fr));
+  gap: 8px;
+  flex: 1;
+  min-width: 320px;
+}
+.conf-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  background: var(--ink-50);
+  border: 1px solid var(--border);
+}
+.conf-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+.conf-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+}
+.conf-cell.tp,
+.conf-cell.tn {
+  background: var(--ok-soft);
+  border-color: transparent;
+}
+.conf-cell.fp,
+.conf-cell.fn {
+  background: var(--danger-soft);
+  border-color: transparent;
+}
+.conf-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.eval-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+.eval-reason {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+.eval-reason.err {
+  color: var(--danger);
+}
+@media (max-width: 1100px) {
+  .ab-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .eval-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .eval-field {
+    min-width: 160px;
   }
 }
 </style>

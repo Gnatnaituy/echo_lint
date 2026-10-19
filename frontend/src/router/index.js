@@ -62,6 +62,18 @@ const routes = [
     meta: { title: '任务队列', roles: ['ADMIN'] }
   },
   {
+    // 开放 API 密钥管理：仅管理员
+    path: '/api-keys',
+    component: () => import('../views/ApiKeys.vue'),
+    meta: { title: 'API 密钥', roles: ['ADMIN'] }
+  },
+  {
+    // 知识库 / SOP：所有登录用户可读，写操作由页面按角色隐藏（后端独立鉴权）
+    path: '/knowledge',
+    component: () => import('../views/Knowledge.vue'),
+    meta: { title: '知识库' }
+  },
+  {
     path: '/settings',
     component: () => import('../views/Settings.vue'),
     meta: { title: '系统设置' }

@@ -95,6 +95,7 @@ echolint/
 - **AI 治理与成本**：系统设置页可维护 AI 供应商（新增/编辑/停用/删除、密钥轮换与掩码展示、单价录入、连通性测试）；「成本看板」按日期/供应商/模型查看调用量、token 与预估成本。密钥以 AES-GCM 加密落库。
 - **异步任务**：上传/重处理写入 `pipeline_tasks` 持久队列，失败自动退避重试（30/120/300s，最多 3 次），耗尽进死信并只在死信时告警；服务重启恢复 RUNNING 任务；「任务队列」页（ADMIN）可查看/重试。
 - **A/B 与评测**：可按比例把语义复筛流量分流到备用模型（只读配置，结论记录 `screenVariant`）；系统设置页可对标注语料抽样评测模型，返回 accuracy/precision/recall、混淆矩阵与逐条结果。
+- **开放 API 与知识库**：可在「API 密钥」页创建外部接入密钥（明文仅显示一次），外部系统用 `X-API-Key` 上传录音并查询状态；「知识库」沉淀话术/SOP/处置规范，支持按分类、关键词检索。
 - **语料库**：闭环流程说明条、违规/合规样本分类查看、导出 JSON。
 - **系统设置**：查看当前生效的复筛模型与密钥状态，切换供应商 / 模型（立即生效、重启保持），并可对「当前模型」或「待保存的选择」做**连通性测试**（返回真实耗时与供应商报错原文）；页面同时说明哪些环节跟随切换、哪些不跟随。
 
@@ -281,6 +282,23 @@ curl http://localhost:8082/actuator/prometheus
   文件先写临时文件再原子移动，失败/重复自动清理。
 - 容器日志已配置轮转（`max-size=10m, max-file=3`），支持优雅停机（`server.shutdown=graceful`）。
 
+## 开放 API（外部系统接入）
+
+1. ADMIN 在「API 密钥」页创建密钥（明文只显示一次，请妥善保存）。
+2. 外部系统带 `X-API-Key` 调用：
+
+```bash
+curl -X POST http://<host>/api/open/recordings/upload \
+  -H "X-API-Key: elk_xxx" \
+  -F "file=@call.mp3" \
+  -F "agentName=张三" -F "teamName=A组" -F "direction=INBOUND"
+
+curl http://<host>/api/open/recordings/1 -H "X-API-Key: elk_xxx"
+```
+
+- 上传复用内部校验/去重/持久任务队列；查询只返回状态、命中数、违规类型、复核结论、错误信息等限定字段。
+- 密钥停用后立即失效；当前开放 API 未提供限流与租户隔离，请只在可信网络内使用。
+
 ## 本地开发
 
 ```bash
@@ -368,6 +386,11 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET | `/api/stats/ai-usage?from=&to=` | AI 调用量/成本统计（ADMIN，按日/供应商/模型） |
 | GET | `/api/tasks?status=&recordingId=&page=&size=` | 异步稽核任务分页（ADMIN，size≤100） |
 | POST | `/api/tasks/{id}/retry` | 重试死信/失败任务（ADMIN，审计 `TASK_RETRY`） |
+| GET/POST | `/api/api-keys` | 开放 API 密钥列表 / 创建（ADMIN；明文仅创建响应返回一次） |
+| DELETE | `/api/api-keys/{id}` | 停用密钥（ADMIN，审计 `API_KEY_REVOKE`） |
+| POST | `/api/open/recordings/upload` | 外部系统上传（`X-API-Key`；multipart file + 可选元数据） |
+| GET | `/api/open/recordings/{id}` | 外部系统查询处理状态（`X-API-Key`） |
+| GET/POST/PUT/DELETE | `/api/knowledge...` | 知识库/SOP 查询与维护（读登录可读，写 ADMIN/REVIEWER） |
 
 报表与运营：
 

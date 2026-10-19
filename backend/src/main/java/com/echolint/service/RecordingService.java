@@ -76,6 +76,18 @@ public class RecordingService {
      * <p>失败或命中重复时始终清理临时文件，避免留下孤儿半截文件。</p>
      */
     public Recording upload(MultipartFile file, RecordingMetadata metadata) {
+        return uploadInternal(file, metadata, null);
+    }
+
+    /**
+     * 开放 API 上传（Batch 4a）：复用内部上传逻辑，审计动作记为 {@code OPEN_API_UPLOAD}，
+     * 操作人记为 {@code api-key:<名称>}（而非无会话的 system）。
+     */
+    public Recording uploadFromOpenApi(MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
+        return uploadInternal(file, metadata, apiKeyName);
+    }
+
+    private Recording uploadInternal(MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
         validateFile(file);
         RecordingMetadata meta = metadata == null ? RecordingMetadata.EMPTY : metadata;
 
@@ -119,9 +131,15 @@ public class RecordingService {
             }
             committed = true;
 
-            auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
-                    "上传录音 " + original + "（" + file.getSize() + " 字节）"
-                            + metadataSummary(meta));
+            if (apiKeyName == null) {
+                auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
+                        "上传录音 " + original + "（" + file.getSize() + " 字节）"
+                                + metadataSummary(meta));
+            } else {
+                auditService.recordAs("api-key:" + apiKeyName, AuditAction.OPEN_API_UPLOAD, "RECORDING",
+                        saved.getId(), "开放 API 上传录音 " + original + "（" + file.getSize() + " 字节）"
+                                + metadataSummary(meta));
+            }
             log.info("录音 {} 上传成功（{}，{} 字节），已入队稽核任务", saved.getId(), original, file.getSize());
             pipelineTaskService.enqueue(saved.getId());
             return saved;

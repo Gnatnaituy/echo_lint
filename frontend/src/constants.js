@@ -183,6 +183,12 @@ export const AUDIT_ACTION_META = {
   PROVIDER_DELETE: { label: '删除 AI 供应商', type: 'danger' },
   PROVIDER_TEST: { label: '测试 AI 供应商', type: 'info' },
   MODEL_EVALUATE: { label: '模型评测', type: 'info' },
+  API_KEY_CREATE: { label: '创建 API 密钥', type: 'success' },
+  API_KEY_REVOKE: { label: '停用 API 密钥', type: 'danger' },
+  OPEN_API_UPLOAD: { label: '开放 API 上传录音', type: 'primary' },
+  KNOWLEDGE_CREATE: { label: '新增知识库条目', type: 'success' },
+  KNOWLEDGE_UPDATE: { label: '更新知识库条目', type: 'warning' },
+  KNOWLEDGE_DELETE: { label: '删除知识库条目', type: 'danger' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }
 

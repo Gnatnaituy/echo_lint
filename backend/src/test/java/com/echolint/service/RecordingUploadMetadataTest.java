@@ -115,6 +115,19 @@ class RecordingUploadMetadataTest {
     }
 
     @Test
+    void openApiUploadUsesApiKeyActorAndOpenAuditAction() {
+        Recording saved = service.uploadFromOpenApi(audio(),
+                RecordingMetadata.of("张三", null, null, "inbound", null), "ci-runner");
+
+        assertEquals(7L, saved.getId());
+        verify(pipelineTaskService).enqueue(7L);
+        // 外部上传只记 OPEN_API_UPLOAD，actor 为 api-key:名称（不再重复记 RECORDING_UPLOAD）
+        verify(auditService).recordAs(eq("api-key:ci-runner"), eq(AuditAction.OPEN_API_UPLOAD),
+                eq("RECORDING"), eq(7L), contains("开放 API 上传"));
+        verify(auditService, never()).record(eq(AuditAction.RECORDING_UPLOAD), any(), any(), any());
+    }
+
+    @Test
     void uploadWithoutMetadataKeepsLegacyDefaults() throws Exception {
         Recording saved = service.upload(audio(), RecordingMetadata.EMPTY);
 
