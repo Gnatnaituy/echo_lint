@@ -194,8 +194,9 @@ export const api = {
    * @param {File} file 音频文件
    * @param {{agentName?:string, teamName?:string, callTime?:string, direction?:string, businessLine?:string}} metadata
    *        callTime 为 ISO-8601（如 2026-10-20T09:30:00），空值不发送
+   * @param {{onUploadProgress?:Function}} [options] 批量上传时用于逐文件进度回调
    */
-  upload(file, metadata = {}) {
+  upload(file, metadata = {}, { onUploadProgress } = {}) {
     const fd = new FormData()
     fd.append('file', file)
     appendOptional(fd, 'agentName', metadata.agentName)
@@ -203,7 +204,11 @@ export const api = {
     appendOptional(fd, 'callTime', toIsoLocal(metadata.callTime))
     appendOptional(fd, 'direction', metadata.direction)
     appendOptional(fd, 'businessLine', metadata.businessLine)
-    return http.post('/recordings/upload', fd)
+    return http.post(
+      '/recordings/upload',
+      fd,
+      typeof onUploadProgress === 'function' ? { onUploadProgress } : undefined
+    )
   },
   listRecordings({ statuses, keyword, assignedTo, priority, agentName, teamName, direction, from, to, page, size } = {}) {
     // 列表项透传后端 Summary 字段（含 sampled：DFA 未命中抽样标记），前端不做裁剪

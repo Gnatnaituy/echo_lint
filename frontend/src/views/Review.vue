@@ -550,7 +550,7 @@
               <span class="chip">{{ historyDetail.reviewer || '—' }} · {{ formatTime(historyDetail.reviewTime) }}</span>
             </div>
           </div>
-          <el-button :icon="Close" circle size="small" @click="historyVisible = false" />
+          <el-button :icon="Close" circle size="small" @click="historyVisible = false" aria-label="关闭" title="关闭" />
         </div>
         <div v-if="historyDetail.reviewComment" class="comment-block">
           {{ historyDetail.reviewComment }}

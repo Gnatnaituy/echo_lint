@@ -1,34 +1,71 @@
 <template>
   <header class="topbar">
     <div class="left">
+      <button
+        ref="menuBtn"
+        type="button"
+        class="menu-btn"
+        :aria-label="t('a11y.openMenu')"
+        :title="t('a11y.openMenu')"
+        @click="$emit('toggleMenu')"
+      >
+        <el-icon :size="18"><Expand /></el-icon>
+      </button>
       <div class="crumb">
-        <span class="crumb-root">稽核平台</span>
+        <span class="crumb-root">{{ t('header.platform') }}</span>
         <el-icon class="crumb-sep" :size="12"><ArrowRight /></el-icon>
-        <span class="crumb-current">{{ title || '工作台' }}</span>
+        <span class="crumb-current">{{ title || t('nav.dashboard') }}</span>
       </div>
     </div>
 
     <div class="right">
-      <button class="ghost" :class="healthy ? 'is-ok' : 'is-bad'" @click="$emit('refresh')">
+      <button
+        class="ghost status-btn"
+        :class="healthy ? 'is-ok' : 'is-bad'"
+        :aria-label="t('a11y.refreshStatus')"
+        :title="t('a11y.refreshStatus')"
+        @click="$emit('refresh')"
+      >
         <span class="dot" :style="{ background: healthy ? '#16a34a' : '#ef4444' }"></span>
-        {{ healthy ? '服务正常' : '服务异常' }}
+        <span class="ghost-text">{{ healthy ? t('header.serviceOk') : t('header.serviceBad') }}</span>
         <el-icon :size="12" class="ghost-refresh"><Refresh /></el-icon>
       </button>
 
-      <button class="ghost" @click="router.push('/review')">
+      <button
+        class="ghost review-btn"
+        :aria-label="t('a11y.pendingReview')"
+        :title="t('a11y.pendingReview')"
+        @click="router.push('/review')"
+      >
         <el-icon :size="14"><Bell /></el-icon>
-        待复检
+        <span class="ghost-text">{{ t('header.pendingReview') }}</span>
         <span class="count" :class="{ zero: !pending }">{{ pending > 99 ? '99+' : pending }}</span>
+      </button>
+
+      <!-- 语言切换：中文 / EN，持久化到 localStorage -->
+      <button
+        type="button"
+        class="ghost lang-btn"
+        :aria-label="t('a11y.language')"
+        :title="t('a11y.language')"
+        @click="onToggleLocale"
+      >
+        {{ locale === 'zh' ? 'EN' : '中文' }}
       </button>
 
       <div class="divider"></div>
 
       <!-- 当前登录用户：显示名 + 角色；菜单含修改密码 / 退出登录 -->
       <el-dropdown trigger="click" popper-class="user-dropdown" @command="onCommand">
-        <button type="button" class="user" title="账号菜单">
+        <button
+          type="button"
+          class="user"
+          :title="t('a11y.accountMenu')"
+          :aria-label="t('a11y.accountMenu')"
+        >
           <span class="avatar">{{ avatarText }}</span>
           <span class="user-meta">
-            <span class="user-name">{{ auth.displayName || '未登录' }}</span>
+            <span class="user-name">{{ auth.displayName || t('common.unknown') }}</span>
             <span class="user-role">{{ auth.roleLabel }}</span>
           </span>
           <el-icon class="user-caret" :size="12"><ArrowDown /></el-icon>
@@ -37,17 +74,17 @@
           <el-dropdown-menu>
             <el-dropdown-item disabled>
               <div class="menu-user">
-                <div class="menu-name">{{ auth.displayName || auth.username || '未登录' }}</div>
+                <div class="menu-name">{{ auth.displayName || auth.username || t('common.unknown') }}</div>
                 <div class="menu-sub">{{ auth.username || '—' }} · {{ auth.roleLabel }}</div>
               </div>
             </el-dropdown-item>
             <el-dropdown-item command="password" divided>
               <el-icon><Lock /></el-icon>
-              修改密码
+              {{ t('header.changePassword') }}
             </el-dropdown-item>
             <el-dropdown-item command="logout">
               <el-icon><SwitchButton /></el-icon>
-              退出登录
+              {{ t('header.logout') }}
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -55,7 +92,7 @@
     </div>
 
     <!-- 修改密码 -->
-    <el-dialog v-model="pwdVisible" title="修改密码" width="430px" append-to-body @closed="resetPwd">
+    <el-dialog v-model="pwdVisible" :title="t('password.title')" width="430px" append-to-body @closed="resetPwd">
       <el-form
         ref="pwdFormRef"
         :model="pwdForm"
@@ -63,37 +100,37 @@
         label-width="88px"
         @submit.prevent="submitPassword"
       >
-        <el-form-item label="原密码" prop="oldPassword">
+        <el-form-item :label="t('password.old')" prop="oldPassword">
           <el-input
             v-model="pwdForm.oldPassword"
             type="password"
             show-password
             autocomplete="current-password"
-            placeholder="请输入当前密码"
+            :placeholder="t('password.oldPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
+        <el-form-item :label="t('password.new')" prop="newPassword">
           <el-input
             v-model="pwdForm.newPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="至少 8 位"
+            :placeholder="t('password.newPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="确认新密码" prop="confirmPassword">
+        <el-form-item :label="t('password.confirm')" prop="confirmPassword">
           <el-input
             v-model="pwdForm.confirmPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="再次输入新密码"
+            :placeholder="t('password.confirmPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="pwdVisible = false">取消</el-button>
-        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">保存</el-button>
+        <el-button @click="pwdVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </header>
@@ -105,15 +142,28 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import auth from '../auth'
 import api from '../api'
+import { useI18n } from '../i18n'
 
 defineProps({
   title: { type: String, default: '' },
   pending: { type: Number, default: 0 },
   healthy: { type: Boolean, default: true }
 })
-defineEmits(['refresh'])
+defineEmits(['refresh', 'toggleMenu'])
 
 const router = useRouter()
+const { t, locale, toggleLocale } = useI18n()
+
+/** 窄屏汉堡按钮：供 App.vue 在关闭抽屉后把焦点还回来 */
+const menuBtn = ref(null)
+function focusMenuButton() {
+  menuBtn.value?.focus?.()
+}
+defineExpose({ focusMenuButton })
+
+function onToggleLocale() {
+  toggleLocale()
+}
 
 const avatarText = computed(() => {
   const name = auth.displayName || auth.username || ''
@@ -132,7 +182,7 @@ function onCommand(command) {
 
 async function logout() {
   await auth.logout()
-  ElMessage.success('已退出登录')
+  ElMessage.success(t('header.logoutSuccess'))
   router.replace('/login')
 }
 
@@ -143,19 +193,19 @@ const pwdFormRef = ref(null)
 const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 function validateConfirm(rule, value, callback) {
-  if (!value) return callback(new Error('请再次输入新密码'))
-  if (value !== pwdForm.newPassword) return callback(new Error('两次输入的新密码不一致'))
+  if (!value) return callback(new Error(t('password.confirmRequired')))
+  if (value !== pwdForm.newPassword) return callback(new Error(t('password.mismatch')))
   callback()
 }
 
-const pwdRules = {
-  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+const pwdRules = computed(() => ({
+  oldPassword: [{ required: true, message: t('password.oldRequired'), trigger: 'blur' }],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, message: '密码至少 8 位', trigger: 'blur' }
+    { required: true, message: t('password.newRequired'), trigger: 'blur' },
+    { min: 8, message: t('password.min'), trigger: 'blur' }
   ],
   confirmPassword: [{ validator: validateConfirm, trigger: 'blur' }]
-}
+}))
 
 function resetPwd() {
   pwdForm.oldPassword = ''
@@ -177,7 +227,7 @@ async function submitPassword() {
       oldPassword: pwdForm.oldPassword,
       newPassword: pwdForm.newPassword
     })
-    ElMessage.success('密码修改成功')
+    ElMessage.success(t('password.success'))
     pwdVisible.value = false
   } catch {
     // 请求层已统一提示（原密码错误 / 403 等）
@@ -201,6 +251,74 @@ async function submitPassword() {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 窄屏汉堡按钮：桌面隐藏 */
+.menu-btn {
+  display: none;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink-600);
+  cursor: pointer;
+}
+.menu-btn:hover {
+  border-color: var(--brand-300);
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+.lang-btn {
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .topbar {
+    height: 52px;
+    padding: 0 12px;
+  }
+  .menu-btn {
+    display: inline-grid;
+  }
+  .crumb-root,
+  .crumb-sep {
+    display: none;
+  }
+  .crumb-current {
+    font-size: 13.5px;
+  }
+  .right {
+    gap: 6px;
+  }
+  .ghost {
+    height: 30px;
+    padding: 0 8px;
+  }
+  .ghost-text {
+    display: none;
+  }
+  .divider {
+    display: none;
+  }
+  .user {
+    height: 34px;
+    padding: 0 4px;
+  }
+  .user-meta {
+    display: none;
+  }
+  .lang-btn {
+    padding: 0 8px;
+  }
 }
 
 .crumb {

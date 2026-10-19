@@ -53,7 +53,7 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" />
+          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
           <el-button
             v-if="canWrite"
             type="primary"
@@ -415,7 +415,7 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-button :icon="Close" circle size="small" @click="detailVisible = false" />
+              <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
             </div>
           </div>
 
@@ -654,6 +654,7 @@
       width="540px"
       :close-on-click-modal="!uploading"
       :close-on-press-escape="!uploading"
+      :show-close="!uploading"
       @closed="resetUploadForm"
     >
       <el-form :model="uploadForm" label-width="76px" class="upload-form">
@@ -662,8 +663,9 @@
             ref="uploadRef"
             class="uploader"
             drag
+            multiple
             :auto-upload="false"
-            :limit="1"
+            :limit="20"
             :show-file-list="true"
             accept="audio/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.amr,.caf,.opus,.mov"
             :on-change="onUploadFileChange"
@@ -673,7 +675,9 @@
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽音频到此处，或 <em>点击选择</em></div>
             <template #tip>
-              <div class="el-upload__tip">支持 mp3 / wav / m4a 等，单文件 ≤ 25MB，一次一个文件</div>
+              <div class="el-upload__tip">
+                支持多选（最多 20 个），单文件 ≤ 25MB；按选择顺序逐个上传，元数据应用到本批全部文件
+              </div>
             </template>
           </el-upload>
         </el-form-item>
@@ -722,13 +726,45 @@
           />
         </el-form-item>
       </el-form>
+
+      <!-- 批量上传队列：逐文件进度 / 状态 / 汇总 -->
+      <div v-if="uploadQueue.length" class="upload-queue">
+        <div class="uq-head">
+          <span class="tiny dim">
+            共 {{ uploadQueue.length }} 个文件 · 已完成 {{ uploadDoneCount }} / {{ uploadQueue.length }}
+          </span>
+          <span v-if="uploading" class="tiny dim">总进度 {{ uploadOverallPercent }}%</span>
+        </div>
+        <div v-for="item in uploadQueue" :key="item.uid" class="uq-row">
+          <div class="uq-line">
+            <span class="uq-name ellipsis" :title="item.name">{{ item.name }}</span>
+            <span class="chip" :class="uploadStatusChip(item)">{{ uploadStatusLabel(item) }}</span>
+            <span class="uq-size tiny dim">{{ formatSize(item.size) }}</span>
+            <span class="uq-pct num">{{ item.progress }}%</span>
+          </div>
+          <el-progress
+            :percentage="item.progress"
+            :status="uploadProgressStatus(item)"
+            :stroke-width="6"
+            :show-text="false"
+          />
+          <div v-if="item.error" class="uq-error tiny">{{ item.error }}</div>
+        </div>
+      </div>
+
+      <div v-if="uploadSummary && !uploading" class="upload-summary tiny">
+        本批完成：成功 {{ uploadSummary.success }} · 失败 {{ uploadSummary.error }} ·
+        取消 {{ uploadSummary.canceled }}
+      </div>
+
       <div class="upload-tip tiny dim">
         元数据均为选填，后续可在列表与报表中按坐席 / 团队 / 通话时间 / 方向筛选；上传成功后表单自动清空。
       </div>
       <template #footer>
         <el-button :disabled="uploading" @click="uploadVisible = false">取消</el-button>
+        <el-button v-if="uploading" @click="cancelRemaining">取消剩余</el-button>
         <el-button type="primary" :loading="uploading" @click="submitUpload">
-          {{ uploading ? '上传中…' : '开始上传' }}
+          {{ uploading ? `上传中 ${uploadDoneCount} / ${uploadQueue.length}` : '开始上传' }}
         </el-button>
       </template>
     </el-dialog>
@@ -751,6 +787,15 @@ import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
 import { formatClock } from '../utils/segments'
+import {
+  UPLOAD_STATUS,
+  UPLOAD_STATUS_LABEL,
+  markRemainingCanceled,
+  overallProgress,
+  progressFromEvent,
+  summarizeQueue,
+  updateQueueItem
+} from '../utils/uploadQueue.js'
 import {
   DIRECTION_META,
   DIRECTION_OPTIONS,
@@ -788,12 +833,15 @@ const agentFilter = ref('')
 const teamFilter = ref('')
 const directionFilter = ref('')
 
-// 上传对话框：文件 + 元数据
+// 上传对话框：文件队列 + 元数据（Batch 4b 起支持多选、顺序上传、逐文件进度）
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 const uploadVisible = ref(false)
 const uploading = ref(false)
 const uploadRef = ref(null)
-const uploadFile = ref(null)
+const uploadQueue = ref([])
+const uploadSummary = ref(null)
 const uploadForm = ref(emptyUploadForm())
+let cancelRequested = false
 
 function emptyUploadForm() {
   return { agentName: '', teamName: '', callTime: '', direction: '', businessLine: '' }
@@ -1068,59 +1116,170 @@ function openUpload() {
 
 function resetUploadForm() {
   uploadForm.value = emptyUploadForm()
-  uploadFile.value = null
+  uploadQueue.value = []
+  uploadSummary.value = null
+  cancelRequested = false
   uploading.value = false
   uploadRef.value?.clearFiles?.()
 }
 
-/** el-upload 选中文件：只保留一个，并在选中时做大小/类型预检 */
-function onUploadFileChange(uploadFileItem) {
-  const raw = uploadFileItem?.raw
-  if (!raw) return
-  const limit = 25 * 1024 * 1024
-  if (raw.size > limit) {
-    ElMessage.error(`${raw.name} 超过 25MB，Whisper 单文件上限`)
-    uploadFile.value = null
-    uploadRef.value?.clearFiles?.()
-    return
-  }
-  uploadFile.value = raw
+/** 队列已完成数量（成功 / 失败 / 取消） */
+const uploadDoneCount = computed(
+  () =>
+    uploadQueue.value.filter((item) =>
+      [UPLOAD_STATUS.SUCCESS, UPLOAD_STATUS.ERROR, UPLOAD_STATUS.CANCELED].includes(item.status)
+    ).length
+)
+const uploadOverallPercent = computed(() => overallProgress(uploadQueue.value))
+
+function uploadStatusLabel(item) {
+  return UPLOAD_STATUS_LABEL[item.status] || item.status
+}
+function uploadStatusChip(item) {
+  if (item.status === UPLOAD_STATUS.SUCCESS) return 'ok'
+  if (item.status === UPLOAD_STATUS.ERROR) return 'danger'
+  if (item.status === UPLOAD_STATUS.UPLOADING) return 'warn'
+  return 'info'
+}
+function uploadProgressStatus(item) {
+  if (item.status === UPLOAD_STATUS.SUCCESS) return 'success'
+  if (item.status === UPLOAD_STATUS.ERROR) return 'exception'
+  if (item.status === UPLOAD_STATUS.CANCELED) return 'warning'
+  return undefined
 }
 
-function onUploadFileRemove() {
-  uploadFile.value = null
+/**
+ * el-upload 文件列表变化：以 el-upload 的 uid 为稳定 key 同步队列，
+ * 保留已有文件的上传状态与进度；超过 25MB 的文件直接标记失败并跳过上传。
+ */
+function syncUploadQueue(fileList) {
+  const previous = new Map(uploadQueue.value.map((item) => [item.uid, item]))
+  uploadQueue.value = (fileList || []).map((entry) => {
+    const raw = entry.raw || entry
+    const uid = String(entry.uid ?? `${raw?.name}-${raw?.size}`)
+    const tooLarge = Number(raw?.size) > MAX_UPLOAD_BYTES
+    const prev = previous.get(uid)
+    if (prev) {
+      if (tooLarge && prev.status === UPLOAD_STATUS.PENDING) {
+        return { ...prev, status: UPLOAD_STATUS.ERROR, error: '超过 25MB（Whisper 单文件上限）' }
+      }
+      // 移除后重新选择同一文件：保留新 raw 引用
+      return { ...prev, file: raw }
+    }
+    return {
+      uid,
+      file: raw,
+      name: raw?.name || '未知文件',
+      size: Number(raw?.size) || 0,
+      progress: 0,
+      status: tooLarge ? UPLOAD_STATUS.ERROR : UPLOAD_STATUS.PENDING,
+      error: tooLarge ? '超过 25MB（Whisper 单文件上限）' : ''
+    }
+  })
 }
 
-/** 已选一个再选：替换而不是报错 */
-function onUploadExceed(files) {
-  uploadRef.value?.clearFiles?.()
-  const file = files?.[0]
-  if (!file) return
-  if (file.size > 25 * 1024 * 1024) {
-    ElMessage.error(`${file.name} 超过 25MB，Whisper 单文件上限`)
-    return
-  }
-  uploadFile.value = file
-  uploadRef.value?.handleStart?.(file)
+function onUploadFileChange(_file, fileList) {
+  syncUploadQueue(fileList)
+}
+
+function onUploadFileRemove(_file, fileList) {
+  syncUploadQueue(fileList)
+}
+
+/** 超过 20 个文件：提示而不是清空已选队列 */
+function onUploadExceed() {
+  ElMessage.warning('一次最多上传 20 个文件，请分批上传')
+}
+
+/** 取消剩余：正在上传的当前文件会继续完成，未开始的标记为已取消 */
+function cancelRemaining() {
+  if (!uploading.value) return
+  cancelRequested = true
+  uploadQueue.value = markRemainingCanceled(uploadQueue.value)
+  ElMessage.info('已取消剩余文件（当前文件仍会上传完成）')
 }
 
 async function submitUpload() {
-  if (!uploadFile.value) {
+  if (!uploadQueue.value.length) {
     ElMessage.warning('请选择要上传的音频文件')
     return
   }
+  // 失败项（非超限）允许点击「开始上传」重试
+  uploadQueue.value = uploadQueue.value.map((item) =>
+    item.status === UPLOAD_STATUS.ERROR && item.size <= MAX_UPLOAD_BYTES
+      ? { ...item, status: UPLOAD_STATUS.PENDING, progress: 0, error: '' }
+      : item
+  )
+  const ready = uploadQueue.value.filter((item) => item.status === UPLOAD_STATUS.PENDING)
+  if (!ready.length) {
+    const hasOversized = uploadQueue.value.some(
+      (item) => item.status === UPLOAD_STATUS.ERROR && item.size > MAX_UPLOAD_BYTES
+    )
+    ElMessage.warning(
+      hasOversized
+        ? '没有可上传的文件：请移除超过 25MB 的文件后重试'
+        : '本批已全部处理完成，可关闭窗口或重新选择文件'
+    )
+    return
+  }
+
   uploading.value = true
+  uploadSummary.value = null
+  cancelRequested = false
+  const totalFiles = uploadQueue.value.length
+  let success = 0
+  let failed = 0
+
   try {
-    const r = await api.upload(uploadFile.value, uploadForm.value)
-    ElMessage.success(`上传成功${r?.id ? ` #${r.id}` : ''}，已进入稽核流水线`)
-    uploadVisible.value = false
-    resetUploadForm()
-    reload()
-    loadOverview()
-  } catch {
-    // 错误提示由请求层统一处理，保留表单便于重试
+    for (const queued of ready) {
+      if (cancelRequested) break
+      const current = uploadQueue.value.find((item) => item.uid === queued.uid)
+      if (!current || current.status !== UPLOAD_STATUS.PENDING) continue
+
+      uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
+        status: UPLOAD_STATUS.UPLOADING,
+        progress: 0,
+        error: ''
+      })
+      try {
+        const result = await api.upload(current.file, uploadForm.value, {
+          onUploadProgress: (event) => {
+            uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
+              progress: progressFromEvent(event)
+            })
+          }
+        })
+        uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
+          status: UPLOAD_STATUS.SUCCESS,
+          progress: 100,
+          resultId: result?.id
+        })
+        success += 1
+      } catch (e) {
+        uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
+          status: UPLOAD_STATUS.ERROR,
+          error: e?.message || '上传失败'
+        })
+        failed += 1
+      }
+    }
   } finally {
     uploading.value = false
+  }
+
+  const summary = summarizeQueue(uploadQueue.value)
+  uploadSummary.value = summary
+  if (success > 0) {
+    ElMessage.success(`本批成功上传 ${success} 个文件，已进入稽核流水线`)
+    reload()
+    loadOverview()
+  }
+  if (failed > 0) ElMessage.error(`${failed} 个文件上传失败，可在列表中重试或重新选择`)
+
+  // 保持单文件旧体验：单个文件全部成功时自动关闭并清空
+  if (totalFiles === 1 && summary.success === 1) {
+    uploadVisible.value = false
+    resetUploadForm()
   }
 }
 
@@ -1804,5 +1963,64 @@ onUnmounted(() => clearInterval(timer))
   margin-top: -2px;
   padding-left: 82px;
   line-height: 1.6;
+}
+
+/* 批量上传队列 */
+.upload-queue {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--ink-50);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.uq-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  line-height: 1.4;
+}
+.uq-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.uq-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.uq-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-700);
+}
+.uq-size {
+  flex: none;
+}
+.uq-pct {
+  flex: none;
+  width: 40px;
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--el-text-color-secondary);
+}
+.uq-error {
+  color: var(--danger);
+  line-height: 1.5;
+}
+.upload-summary {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  background: var(--brand-50);
+  color: var(--brand-700);
 }
 </style>

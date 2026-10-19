@@ -65,7 +65,7 @@
           <el-input v-model="keyword" placeholder="搜索语料文本 / 理由" clearable class="search" @keyup.enter="reload" @clear="reload">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" />
+          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
           <el-button type="primary" :icon="Plus" @click="openCreate">新增语料</el-button>
         </div>
       </div>

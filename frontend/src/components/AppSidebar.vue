@@ -1,31 +1,37 @@
 <template>
-  <aside class="sidebar" :class="{ collapsed }">
+  <aside
+    class="sidebar"
+    :class="{ collapsed, overlay, open: overlay && open }"
+    :aria-hidden="overlay && !open ? 'true' : undefined"
+  >
     <!-- 品牌 -->
     <div class="brand">
       <div class="brand-mark">
         <el-icon :size="18"><Headset /></el-icon>
       </div>
-      <div v-show="!collapsed" class="brand-text">
+      <div v-show="showLabels" class="brand-text">
         <div class="brand-name">EchoLint</div>
-        <div class="brand-sub">Audio Compliance Audit</div>
+        <div class="brand-sub">{{ t('app.subtitle') }}</div>
       </div>
     </div>
 
     <!-- 导航 -->
-    <nav class="nav">
-      <template v-for="group in groups" :key="group.title">
-        <div v-show="!collapsed" class="nav-group">{{ group.title }}</div>
+    <nav class="nav" :aria-label="t('a11y.toggleSidebar')">
+      <template v-for="group in groups" :key="group.titleKey">
+        <div v-show="showLabels" class="nav-group">{{ t(group.titleKey) }}</div>
         <router-link
           v-for="item in group.items"
           :key="item.path"
           :to="item.path"
           class="nav-item"
           :class="{ active: isActive(item.path) }"
-          :title="collapsed ? item.label : ''"
+          :title="showLabels ? '' : t(item.labelKey)"
+          :aria-label="t(item.labelKey)"
+          @click="$emit('navigate')"
         >
           <el-icon class="nav-icon" :size="16"><component :is="item.icon" /></el-icon>
-          <span v-show="!collapsed" class="nav-label">{{ item.label }}</span>
-          <span v-if="item.badge && badgeCount > 0" class="nav-badge" :class="{ dotOnly: collapsed }">
+          <span v-show="showLabels" class="nav-label">{{ t(item.labelKey) }}</span>
+          <span v-if="item.badge && badgeCount > 0" class="nav-badge" :class="{ dotOnly: !showLabels }">
             {{ badgeCount > 99 ? '99+' : badgeCount }}
           </span>
         </router-link>
@@ -34,18 +40,24 @@
 
     <!-- 底部流程提示 -->
     <div class="sidebar-foot">
-      <div v-show="!collapsed" class="flow">
-        <div class="flow-title">稽核流水线</div>
+      <div v-show="showLabels" class="flow">
+        <div class="flow-title">{{ t('side.flowTitle') }}</div>
         <ol class="flow-steps">
-          <li>Whisper 转写</li>
-          <li>DFA 初筛</li>
-          <li>AI 语义复筛</li>
-          <li>人工复检</li>
-          <li>语料回馈</li>
+          <li>{{ t('side.flowTranscribe') }}</li>
+          <li>{{ t('side.flowDfa') }}</li>
+          <li>{{ t('side.flowAi') }}</li>
+          <li>{{ t('side.flowReview') }}</li>
+          <li>{{ t('side.flowFeedback') }}</li>
         </ol>
       </div>
-      <el-tooltip :content="collapsed ? '展开侧栏' : '收起侧栏'" placement="right">
-        <button class="collapse-btn" @click="$emit('toggle')">
+      <el-tooltip :content="t('a11y.toggleSidebar')" placement="right">
+        <button
+          class="collapse-btn"
+          type="button"
+          :aria-label="t('a11y.toggleSidebar')"
+          :title="t('a11y.toggleSidebar')"
+          @click="$emit('toggle')"
+        >
           <el-icon :size="15"><component :is="collapsed ? 'Expand' : 'Fold'" /></el-icon>
         </button>
       </el-tooltip>
@@ -57,46 +69,55 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import auth from '../auth'
+import { useI18n } from '../i18n'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
-  badgeCount: { type: Number, default: 0 }
+  badgeCount: { type: Number, default: 0 },
+  /** 窄屏抽屉模式：固定定位 + 遮罩，由 App.vue 控制开合 */
+  overlay: { type: Boolean, default: false },
+  open: { type: Boolean, default: false }
 })
-defineEmits(['toggle'])
+defineEmits(['toggle', 'navigate'])
 
 const route = useRoute()
+const { t } = useI18n()
 
-// 系统设置 / 知识库对所有角色可见；成本看板 / 任务队列 / API 密钥 / 用户管理 / 操作审计仅 ADMIN
+/** 抽屉模式下始终展示完整标签（不受桌面折叠态影响） */
+const showLabels = computed(() => (props.overlay ? props.open : !props.collapsed))
+
+// 系统设置 / 知识库 / 数据大屏对所有角色可见；成本看板 / 任务队列 / API 密钥 / 用户管理 / 操作审计仅 ADMIN
 const groups = computed(() => {
-  const systemItems = [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
+  const systemItems = [{ path: '/settings', labelKey: 'nav.settings', icon: 'Setting' }]
   if (auth.hasRole('ADMIN')) {
     systemItems.push(
-      { path: '/costs', label: '成本看板', icon: 'Money' },
-      { path: '/tasks', label: '任务队列', icon: 'Operation' },
-      { path: '/api-keys', label: 'API 密钥', icon: 'Key' },
-      { path: '/users', label: '用户管理', icon: 'User' },
-      { path: '/audit', label: '操作审计', icon: 'List' }
+      { path: '/costs', labelKey: 'nav.costs', icon: 'Money' },
+      { path: '/tasks', labelKey: 'nav.tasks', icon: 'Operation' },
+      { path: '/api-keys', labelKey: 'nav.apiKeys', icon: 'Key' },
+      { path: '/users', labelKey: 'nav.users', icon: 'User' },
+      { path: '/audit', labelKey: 'nav.audit', icon: 'List' }
     )
   }
   return [
     {
-      title: '稽核作业',
+      titleKey: 'nav.group.auditOps',
       items: [
-        { path: '/', label: '工作台', icon: 'Odometer' },
-        { path: '/recordings', label: '录音管理', icon: 'Files' },
-        { path: '/reports', label: '报表', icon: 'DataAnalysis' },
-        { path: '/review', label: '人工复检', icon: 'DocumentChecked', badge: true }
+        { path: '/', labelKey: 'nav.dashboard', icon: 'Odometer' },
+        { path: '/recordings', labelKey: 'nav.recordings', icon: 'Files' },
+        { path: '/reports', labelKey: 'nav.reports', icon: 'DataAnalysis' },
+        { path: '/review', labelKey: 'nav.review', icon: 'DocumentChecked', badge: true },
+        { path: '/screen', labelKey: 'nav.screen', icon: 'Monitor' }
       ]
     },
     {
-      title: '知识配置',
+      titleKey: 'nav.group.knowledge',
       items: [
-        { path: '/dictionary', label: '敏感词库', icon: 'Collection' },
-        { path: '/corpus', label: '语料库', icon: 'Notebook' },
-        { path: '/knowledge', label: '知识库', icon: 'Reading' }
+        { path: '/dictionary', labelKey: 'nav.dictionary', icon: 'Collection' },
+        { path: '/corpus', labelKey: 'nav.corpus', icon: 'Notebook' },
+        { path: '/knowledge', labelKey: 'nav.knowledge', icon: 'Reading' }
       ]
     },
-    { title: '系统', items: systemItems }
+    { titleKey: 'nav.group.system', items: systemItems }
   ]
 })
 
@@ -118,6 +139,27 @@ const badgeCount = computed(() => props.badgeCount)
 }
 .sidebar.collapsed {
   width: 68px;
+}
+
+/* 窄屏抽屉模式：固定定位 + 滑入/滑出；关闭时 visibility hidden 防止 Tab 聚焦到屏幕外元素 */
+.sidebar.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 248px;
+  z-index: 70;
+  transform: translateX(-100%);
+  visibility: hidden;
+  box-shadow: 0 18px 46px rgba(2, 6, 23, 0.38);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s;
+}
+.sidebar.overlay.open {
+  transform: translateX(0);
+  visibility: visible;
+}
+.sidebar.overlay.collapsed {
+  width: 248px;
 }
 
 /* 折叠态：图标在胶囊/品牌格里居中（否则 padding 会把图标顶偏） */

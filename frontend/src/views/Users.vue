@@ -19,7 +19,7 @@
           >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="load" />
+          <el-button :icon="Refresh" circle @click="load" aria-label="刷新" title="刷新" />
           <el-button type="primary" :icon="Plus" @click="openCreate">新建用户</el-button>
         </div>
       </div>

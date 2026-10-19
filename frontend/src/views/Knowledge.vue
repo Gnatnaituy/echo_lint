@@ -171,7 +171,7 @@
           </div>
           <div class="detail-actions">
             <el-button v-if="canWrite" size="small" @click="openEdit(detail)">编辑</el-button>
-            <el-button :icon="Close" circle size="small" @click="detailVisible = false" />
+            <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
           </div>
         </div>
 

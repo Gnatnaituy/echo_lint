@@ -16,8 +16,8 @@
       </div>
 
       <div class="welcome">
-        <h1>登录稽核平台</h1>
-        <p>使用内部账号进入录音合规工作台</p>
+        <h1>{{ t('login.title') }}</h1>
+        <p>{{ t('login.subtitle') }}</p>
       </div>
 
       <el-alert
@@ -37,20 +37,20 @@
         size="large"
         @submit.prevent="submit"
       >
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="t('login.username')" prop="username">
           <el-input
             ref="usernameRef"
             v-model="form.username"
-            placeholder="请输入用户名"
+            :placeholder="t('login.usernamePlaceholder')"
             autocomplete="username"
             :prefix-icon="User"
           />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
+        <el-form-item :label="t('login.password')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('login.passwordPlaceholder')"
             show-password
             autocomplete="current-password"
             :prefix-icon="Lock"
@@ -62,30 +62,32 @@
           class="submit"
           :loading="submitting"
         >
-          登 录
+          {{ t('login.submit') }}
         </el-button>
       </el-form>
 
       <div class="foot">
         <el-icon :size="12"><Lock /></el-icon>
-        <span>登录状态由会话 Cookie 维持，前端不保存密码或令牌</span>
+        <span>{{ t('login.foot') }}</span>
       </div>
     </section>
 
-    <footer class="copyright">EchoLint · 录音稽核平台</footer>
+    <footer class="copyright">{{ t('login.copyright') }}</footer>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import auth from '../auth'
 import { safeRedirect } from '../constants'
+import { useI18n } from '../i18n'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const formRef = ref(null)
 const usernameRef = ref(null)
@@ -93,10 +95,10 @@ const submitting = ref(false)
 const error = ref('')
 const form = reactive({ username: '', password: '' })
 
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-}
+const rules = computed(() => ({
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }]
+}))
 
 async function submit() {
   if (!formRef.value) return
@@ -110,11 +112,13 @@ async function submit() {
   submitting.value = true
   try {
     const user = await auth.login(form.username, form.password)
-    ElMessage.success(`欢迎回来，${user?.displayName || user?.username || ''}`)
+    ElMessage.success(
+      t('login.welcome', { name: user?.displayName || user?.username || '' })
+    )
     // 登录后回到被拦截的原地址（仅接受站内路径，避免开放重定向）
     router.replace(safeRedirect(route.query.redirect))
   } catch (e) {
-    error.value = e?.message || '登录失败，请检查用户名与密码'
+    error.value = e?.message || t('login.error')
   } finally {
     submitting.value = false
   }

@@ -15,6 +15,25 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    chunkSizeWarningLimit: 1200
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        /**
+         * 手动分包（Batch 4b）：把不常变化的第三方依赖拆成独立 chunk，利于浏览器长期缓存；
+         * 业务路由仍保持动态 import（懒加载），首屏只需 vue + element-plus 基础运行时。
+         */
+        manualChunks(id) {
+          if (!id.includes('node_modules') && !id.includes('/src/components/TrendChart.vue')) {
+            return undefined
+          }
+          if (id.includes('@element-plus/icons-vue')) return 'icons'
+          if (id.includes('element-plus')) return 'element-plus'
+          if (id.includes('vue-router') || id.includes('/vue/') || id.includes('@vue/')) return 'vue'
+          if (id.includes('TrendChart.vue')) return 'charts'
+          if (id.includes('axios')) return 'vendor'
+          return 'vendor'
+        }
+      }
+    }
   }
 })

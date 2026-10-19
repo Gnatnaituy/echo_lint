@@ -12,7 +12,7 @@
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
 | 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 ✅ |
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 ✅（P1 完成） |
-| 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 4a ✅；4b 待开始 |
+| 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 4a ✅；4b ✅（P2 可独立项完成） |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
 
 ---
@@ -501,6 +501,53 @@
   - 开放上传：带元数据 202、入队；查询仅返回 10 个限定字段；审计 `OPEN_API_UPLOAD`（actor=api-key:name）。
   - 知识库：ADMIN/REVIEWER 可写、VIEWER 写 403 读 200、匿名 401；keyword/category/enabled/分页（size≤100）；审计 KNOWLEDGE_*。
 - 已知限制：API Key 列表不分页（前端全量拉取后分页）；知识库 PUT 为全量替换；开放 API 无限流/租户隔离，任一键可查任意录音的限定状态；`last_used_at` 每请求同步写库。
+
+## 4b · UI/UX 与前端性能（✅ 已完成）
+
+### i18n（中/英）
+- 新增 `src/i18n/`（zh.js / en.js / index.js）：reactive locale、`t(key)`、`setLocale`、localStorage 持久化、`useI18n`。
+- 覆盖范围：页头/侧栏导航/登录页/路由标题/通用按钮（保存/取消/删除/搜索/重置/确定）与大屏标签；
+  其它业务页面文案**增量迁移**（在 README 注明当前覆盖范围，未翻译 key 回退中文）。
+- 页头增加语言切换（中文/EN），持久化；`document.documentElement.lang` 同步。
+- 单测：zh/en key 对齐、缺失 key 回退、locale 切换/持久化。
+
+### 响应式与无障碍
+- ≤900px：侧栏改为抽屉（遮罩/ESC 关闭/焦点管理），页头紧凑，表格横向滚动，弹窗宽度自适应。
+- 图标按钮补 `aria-label`/`title`；增加 `:focus-visible` 样式；增加 skip-to-content 链接；抽屉键盘可关闭。
+- 单测覆盖可测的纯逻辑（如断点判断/抽屉状态）。
+
+### 数据大屏
+- 新增 `/screen` 全屏视图（无侧栏/页头壳层，登录后可用）：KPI（总量/今日/待复检/违规率）、近 7 日趋势、
+  违规类型分布、Top 坐席/团队（取 `/api/stats/report` 与 `/api/stats/overview`）、自动刷新 15s、时钟、退出按钮。
+- 路由 meta.fullscreen；App.vue 全屏路由不渲染壳层；样式适配 1080p/4K。
+- 单测：数据归一化/格式化 helper。
+
+### 前端性能与缓存
+- vite.config：manualChunks 拆分 vue / element-plus / icons / charts，控制首屏体积；保留懒加载。
+- nginx.conf：gzip（js/css/json/svg）、`/assets/` 长缓存（immutable）、index.html no-cache；
+  确保 SPA fallback 与 API 代理不变。
+- 记录构建前后 chunk 体积变化。
+
+### 批量上传
+- 录音上传对话框支持多文件选择；元数据应用到本批全部文件；**顺序上传**、逐文件进度（axios onUploadProgress）、
+  成功/失败/取消剩余、汇总结果；保留单文件路径与现有功能。
+- 单测：上传队列纯逻辑（进度/汇总/取消）。
+
+### 验收
+- `cd frontend && npm run build && npm test` 全绿；构建 chunk 体积有改善。
+- 手工：语言切换生效并持久化；窄屏抽屉可用；/screen 可打开并自动刷新；多文件上传进度与结果正确。
+
+### 4b 完成记录
+
+- 前端 build 通过、106 个单测全绿（新增 25 个）；后端无改动（386 测试保持）。
+- 构建：入口 chunk 1,297.44 kB → 55.04 kB（gzip 419.32 → 19.10）；拆出 vue/element-plus/icons/vendor/charts，
+  第三方依赖可长期缓存；新增 /screen 懒加载路由。nginx 增加 gzip、/assets/ immutable、index.html no-cache。
+- i18n：中/英基础设施 + 页头/侧栏/登录/路由标题/通用按钮/大屏文案迁移，语言切换持久化，未翻译 key 回退中文；
+  覆盖范围与新增 key 流程记录在 `frontend/src/i18n/README.md`。
+- 响应式/无障碍：≤900px 侧栏抽屉（遮罩/ESC/焦点归还）、紧凑页头、表格横向滚动、focus-visible、skip-to-content、aria-label。
+- 数据大屏 `/screen`：KPI、7 日趋势、违规类型分布、Top 坐席/团队、15s 刷新、时钟、退出；登录可用、全屏无壳层。
+- 批量上传：多文件选择、元数据应用全批、顺序上传 + 逐文件进度 + 取消剩余 + 汇总，保留单文件流程。
+- 已知限制：i18n 为增量迁移（业务页仍中文）；抽屉未实现完整 Tab 焦点陷阱；取消剩余不中断当前文件；Element Plus/图标仍全量注册，首屏 gzip 总量基本持平。
 
 ## Batch 5 · P2 外部依赖项（适配器先行）
 

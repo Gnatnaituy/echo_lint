@@ -9,7 +9,7 @@
           <span v-if="enabledCount" class="chip ok">{{ enabledCount }} 个启用中</span>
         </div>
         <div class="actions">
-          <el-button :icon="Refresh" circle :loading="loading" @click="load" />
+          <el-button :icon="Refresh" circle :loading="loading" @click="load" aria-label="刷新" title="刷新" />
           <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">创建密钥</el-button>
         </div>
       </div>

@@ -125,7 +125,7 @@
           <el-input v-model="keyword" placeholder="搜索词条" clearable class="search" @keyup.enter="reload" @clear="reload">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" />
+          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
           <template v-if="canWrite">
             <el-button :icon="Download" :loading="exporting" @click="exportCsv">导出 CSV</el-button>
             <el-button :icon="Upload" @click="openImport">导入 CSV</el-button>

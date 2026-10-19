@@ -32,7 +32,7 @@
               :value="opt.value"
             />
           </el-select>
-          <el-button :icon="Refresh" circle @click="reload" />
+          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
           <el-button :icon="Search" @click="reload">查询</el-button>
         </div>
       </div>
@@ -119,7 +119,7 @@
       <template v-if="detail">
         <div class="drawer-head">
           <div class="section-title">审计详情</div>
-          <el-button :icon="Close" circle size="small" @click="detailVisible = false" />
+          <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
         </div>
 
         <el-descriptions :column="1" border class="detail-desc">

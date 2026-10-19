@@ -547,3 +547,60 @@ a {
   color: var(--el-text-color-placeholder);
 }
 
+
+/* ==========================================================================
+   Batch 4b：响应式与无障碍（全局）
+   ========================================================================== */
+
+/* 键盘可见焦点：鼠标点击不显示，Tab 导航清晰可辨 */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible,
+.el-button:focus-visible,
+.el-upload:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+/* 主内容区通过 skip-link 聚焦时不显示外框 */
+#main-content:focus {
+  outline: none;
+}
+
+/* 表格横向滚动：窄屏保持列宽可读，超出部分横向滚动而不是挤压换行 */
+@media (max-width: 900px) {
+  .el-table {
+    font-size: 12.5px;
+  }
+  .el-table__body-wrapper {
+    overflow-x: auto;
+  }
+  .panel {
+    border-radius: var(--r-md);
+  }
+  /* 弹窗 / 抽屉宽度自适应小屏 */
+  .el-dialog {
+    width: min(92vw, 640px) !important;
+    max-width: 92vw;
+    margin-top: 5vh !important;
+  }
+  .el-drawer {
+    width: min(92vw, 720px) !important;
+  }
+  .el-message-box {
+    width: min(90vw, 420px);
+  }
+  .el-pagination {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+}
+
+/* 尊重"减少动态效果"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
