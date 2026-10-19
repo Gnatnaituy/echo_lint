@@ -609,3 +609,27 @@
 - [ ] SSO/LDAP：OIDC/SAML 适配器（IdP 由部署方提供）
 - [ ] 实时转写：流式 ASR 适配器（供应商由部署方提供）
 - [ ] 单声道说话人分离：外部 diarization 适配器（模型/服务由部署方提供）
+
+
+---
+
+## 部署记录（2026-10-20）
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `3d6dda9`（P1/P2 全部批次已合并并推送） |
+| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
+| 访问地址 | http://8.137.123.233/ （HTTP/80；前端 nginx，后端仅 127.0.0.1:8082） |
+| 管理员 | `admin`（密码在服务器 `/opt/echolint/.env` 的 `APP_ADMIN_PASSWORD`） |
+| 数据库 | `gx-mysql` 内 `echolint` 库；Flyway baseline v1；预置 191 词 |
+| AI | DeepSeek 已加密落库（ProviderRegistry）；OpenAI 未配置 |
+| DB 备份 | `/opt/echolint/backups/echolint-20261020-071045.sql.gz` |
+| 镜像回滚 | `echolint-backend:rollback-20261020-071045`、`echolint-frontend:rollback-20261020-071045` |
+| 验证 | 登录 200、匿名 API/上传 401、管理接口 200、容器 healthy、日志 0 ERROR、内存稳定（backend ~319MiB/512MiB） |
+
+### 上线前仍需处理（P0/运维项，非 P1/P2 代码范围）
+
+- **转写服务**：服务器无 `OPENAI_API_KEY` 也未接 whisper 服务，上传录音会转写失败（FAILED）；需配置 `OPENAI_API_KEY` 或 `WHISPER_BASE_URL`/`WHISPER_API_KEY`。
+- **HTTPS/域名**：当前 HTTP 明文、公网 80；建议域名 + 证书 + 反代，并把 `server.servlet.session.cookie.secure` 打开。
+- **备份/监控**：本次为手工备份；建议 cron 每日 mysqldump + uploads 卷备份，接入 Prometheus 告警与日志轮转。
+- **安全**：`APP_SECRET_KEY` 已配置，变更会导致已存供应商密文不可解密；管理员默认密码请首次登录后立即修改。
