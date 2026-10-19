@@ -10,6 +10,7 @@ import com.echolint.entity.AppUser;
 import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AppUserRepository;
+import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
@@ -55,6 +56,8 @@ class RecordingReviewWorkflowTest {
     private AppUserRepository userRepository;
     @Mock
     private ReviewRecordRepository reviewRecordRepository;
+    @Mock
+    private CorpusEntryRepository corpusEntryRepository;
 
     @TempDir
     Path tempDir;
@@ -67,7 +70,8 @@ class RecordingReviewWorkflowTest {
         appProperties.setUploadDir(tempDir.toString());
         ObjectMapper objectMapper = new ObjectMapper();
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository);
+                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
+                corpusEntryRepository, new AudioFileValidator());
     }
 
     @AfterEach

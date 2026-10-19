@@ -78,8 +78,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 容器内部 ERROR 转发不拦截，避免异常处理被 401/403 覆盖
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        // 匿名可访问
-                        .requestMatchers("/api/auth/login", "/actuator/health", "/actuator/info").permitAll()
+                        // 匿名可访问：登录入口、健康检查与指标（部署层限制为内网/回环）、OpenAPI 文档
+                        .requestMatchers("/api/auth/login",
+                                "/actuator/health", "/actuator/info", "/actuator/prometheus",
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // CORS 预检
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 仅 ADMIN

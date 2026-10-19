@@ -23,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -32,7 +34,7 @@ import java.util.List;
  * 人工复检：确认违规 / 判定误报。
  *
  * <p>支持多人复核（{@code app.review.required-approvals}）：每次提交写一条 {@code review_records}，
- * 达到所需人数才落最终结论、回馈语料库并触发词典挖掘；未达标时保持 NEEDS_REVIEW。
+ * 达到所需人数才落最终结论、回馈语料库，并在事务提交后异步触发词典挖掘；未达标时保持 NEEDS_REVIEW。
  * 同一用户不能连续复核同一条录音（409）。</p>
  */
 @Slf4j
@@ -43,7 +45,7 @@ public class ReviewService {
     private final RecordingRepository recordingRepository;
     private final PipelineLogRepository pipelineLogRepository;
     private final CorpusService corpusService;
-    private final WordMiningService wordMiningService;
+    private final AsyncWordMiningTrigger miningTrigger;
     private final ObjectMapper objectMapper;
     private final ReviewRecordRepository reviewRecordRepository;
     private final AuditService auditService;
@@ -123,7 +125,7 @@ public class ReviewService {
         return reviewRecordRepository.findByRecordingIdOrderByRoundAscIdAsc(recordingId);
     }
 
-    /** 达到所需复核人数后落最终结论：状态、违规类型、语料回馈、词挖掘 */
+    /** 达到所需复核人数后落最终结论：状态、违规类型、语料回馈；词挖掘在事务提交后异步触发 */
     private void finalizeRecording(Recording recording, ReviewResult result, ViolationType type,
                                    String comment, String reviewer) {
         if (result == ReviewResult.CONFIRMED_VIOLATION) {
@@ -135,8 +137,9 @@ public class ReviewService {
                     StringUtils.hasText(comment) ? comment : extractAiReason(recording));
             logStage(recording.getId(), "REVIEW", "WARN",
                     "人工复检确认违规（" + type.getLabel() + "）：" + (StringUtils.hasText(comment) ? comment : "无备注"));
-            // 从确认违规录音挖掘新词典词（停用待审核），异常不阻塞复检
-            wordMiningService.mineAndSuggest(recording, type);
+            // 从确认违规录音挖掘新词典词（停用待审核）：AI 调用可能耗时数百秒，
+            // 移到事务提交后异步执行，异常只记日志，不阻塞/回滚复检
+            triggerMiningAfterCommit(recording, type);
         } else {
             recording.setStatus(RecordingStatus.FALSE_POSITIVE);
             // 结论回馈语料库（合规样本）
@@ -150,6 +153,25 @@ public class ReviewService {
         recording.setReviewComment(comment);
         recording.setReviewer(reviewer);
         recording.setReviewTime(LocalDateTime.now());
+    }
+
+    /**
+     * 事务提交后异步触发词挖掘。
+     *
+     * <p>有事务上下文时注册 {@code afterCommit} 回调，保证落库成功后才调用 AI；
+     * 无事务上下文（单测或未来非事务调用路径）直接触发，真实 Bean 仍经 {@code @Async} 代理异步执行。</p>
+     */
+    private void triggerMiningAfterCommit(Recording recording, ViolationType type) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    miningTrigger.mine(recording, type);
+                }
+            });
+        } else {
+            miningTrigger.mine(recording, type);
+        }
     }
 
     private AppUserDetails currentUserOrThrow() {

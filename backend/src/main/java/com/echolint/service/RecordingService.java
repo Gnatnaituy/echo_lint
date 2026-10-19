@@ -13,12 +13,14 @@ import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AppUserRepository;
+import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -28,11 +30,20 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -52,9 +63,17 @@ public class RecordingService {
     private final AuditService auditService;
     private final AppUserRepository userRepository;
     private final ReviewRecordRepository reviewRecordRepository;
+    private final CorpusEntryRepository corpusEntryRepository;
+    private final AudioFileValidator audioFileValidator;
+
+    /** 流式读取缓冲区：64KB，兼顾吞吐与内存占用 */
+    private static final int BUFFER_SIZE = 64 * 1024;
 
     /**
-     * 上传录音：落盘 -> 建记录(PENDING，附可选元数据) -> 异步启动稽核流水线
+     * 上传录音：流式落临时文件并计算 SHA-256 -> 查重 -> 原子移动到正式目录
+     * -> 建记录(PENDING，附可选元数据) -> 异步启动稽核流水线。
+     *
+     * <p>失败或命中重复时始终清理临时文件，避免留下孤儿半截文件。</p>
      */
     public Recording upload(MultipartFile file, RecordingMetadata metadata) {
         validateFile(file);
@@ -64,29 +83,113 @@ public class RecordingService {
         String ext = extensionOf(original);
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + ext;
 
+        Path dir = appProperties.absoluteUploadDir();
+        Path target = dir.resolve(storedName);
+        Path temp = null;
+        boolean committed = false;
         try {
-            Path dir = appProperties.absoluteUploadDir();
             Files.createDirectories(dir);
-            file.transferTo(dir.resolve(storedName).toFile());
+            // 临时文件与正式目录同盘，才能用原子 move，避免流水线读到写了一半的文件
+            temp = Files.createTempFile(dir, ".upload-", ".part");
+            String sha256 = streamToTempAndHash(file, ext, temp);
+
+            Optional<Recording> duplicate = recordingRepository.findByAudioSha256(sha256);
+            if (duplicate.isPresent()) {
+                throw duplicateOf(duplicate.get());
+            }
+            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
+            temp = null;
+
+            Recording recording = new Recording();
+            recording.setFileName(original);
+            recording.setFilePath(storedName);
+            recording.setFileSize(file.getSize());
+            recording.setMimeType(file.getContentType());
+            recording.setAudioSha256(sha256);
+            recording.setStatus(RecordingStatus.PENDING);
+            applyMetadata(recording, meta);
+            Recording saved;
+            try {
+                saved = recordingRepository.saveAndFlush(recording);
+            } catch (DataIntegrityViolationException e) {
+                // 并发上传同一文件时由 audio_sha256 唯一索引兜底，回查给出已存在的 id
+                throw recordingRepository.findByAudioSha256(sha256)
+                        .map(RecordingService::duplicateOf)
+                        .orElseGet(() -> new BizException("录音保存失败，请重试", HttpStatus.INTERNAL_SERVER_ERROR));
+            }
+            committed = true;
+
+            auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
+                    "上传录音 " + original + "（" + file.getSize() + " 字节）"
+                            + metadataSummary(meta));
+            log.info("录音 {} 上传成功（{}，{} 字节），启动稽核流水线", saved.getId(), original, file.getSize());
+            pipelineService.run(saved.getId());
+            return saved;
         } catch (IOException e) {
             throw new BizException("录音保存失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        } finally {
+            deleteQuietly(temp);
+            if (!committed) {
+                deleteQuietly(target);
+            }
         }
+    }
 
-        Recording recording = new Recording();
-        recording.setFileName(original);
-        recording.setFilePath(storedName);
-        recording.setFileSize(file.getSize());
-        recording.setMimeType(file.getContentType());
-        recording.setStatus(RecordingStatus.PENDING);
-        applyMetadata(recording, meta);
-        Recording saved = recordingRepository.saveAndFlush(recording);
+    /** 重复录音异常（带已存在录音 id，前端可直接跳转） */
+    private static BizException duplicateOf(Recording existing) {
+        return new BizException("重复录音（已存在 #" + existing.getId() + "）", HttpStatus.CONFLICT);
+    }
 
-        auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
-                "上传录音 " + original + "（" + file.getSize() + " 字节）"
-                        + metadataSummary(meta));
-        log.info("录音 {} 上传成功（{}，{} 字节），启动稽核流水线", saved.getId(), original, file.getSize());
-        pipelineService.run(saved.getId());
-        return saved;
+    /**
+     * 单次流式写入临时文件，同时计算 SHA-256；首块数据先做文件头预检。
+     * 不把整段音频读进内存（上限 200MB）。
+     */
+    private String streamToTempAndHash(MultipartFile file, String ext, Path temp) throws IOException {
+        MessageDigest digest = sha256();
+        byte[] buffer = new byte[BUFFER_SIZE];
+        try (InputStream in = file.getInputStream();
+             OutputStream out = Files.newOutputStream(temp,
+                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            // 先读满文件头（可能分多次 read），保证 WAV/MP4 等需要 offset 8~12 的格式校验稳定
+            byte[] header = new byte[AudioFileValidator.HEADER_SIZE];
+            int headerLength = 0;
+            int read;
+            while (headerLength < header.length
+                    && (read = in.read(header, headerLength, header.length - headerLength)) != -1) {
+                headerLength += read;
+            }
+            if (headerLength == 0) {
+                throw new BizException("上传文件为空");
+            }
+            audioFileValidator.validate(ext, Arrays.copyOf(header, headerLength));
+            digest.update(header, 0, headerLength);
+            out.write(header, 0, headerLength);
+
+            while ((read = in.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+                out.write(buffer, 0, read);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("JVM 不支持 SHA-256", e);
+        }
+    }
+
+    private void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("清理上传临时/失败文件失败 {}: {}", path.getFileName(), e.getMessage());
+        }
     }
 
     private void applyMetadata(Recording recording, RecordingMetadata metadata) {
@@ -167,6 +270,8 @@ public class RecordingService {
         pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
         aiInvocationService.deleteByRecording(id);
         reviewRecordRepository.deleteByRecordingId(id);
+        // 语料是复核结论的派生物，录音删除后一并清理（保留人工录入的语料）
+        corpusEntryRepository.deleteByRecordingId(id);
         recordingRepository.delete(recording);
         deleteFile(recording.getFilePath());
         // 双声道分轨文件一并清理

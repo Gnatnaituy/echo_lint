@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface RecordingRepository extends JpaRepository<Recording, Long>, JpaSpecificationExecutor<Recording> {
 
@@ -25,6 +26,9 @@ public interface RecordingRepository extends JpaRepository<Recording, Long>, Jpa
 
     /** 用于启动时恢复：找出中断在中间状态的录音 */
     List<Recording> findByStatusIn(List<RecordingStatus> statuses);
+
+    /** 上传去重：按音频内容 SHA-256 查找已存在的录音 */
+    Optional<Recording> findByAudioSha256(String audioSha256);
 
     /*
      * 报表统计（Batch 2a）：时间口径统一为 coalesce(callTime, uploadTime)，

@@ -17,4 +17,7 @@ public interface CorpusEntryRepository extends JpaRepository<CorpusEntry, Long>,
     long countByLabel(CorpusLabel label);
 
     long countByRecordingId(Long recordingId);
+
+    /** 删除录音时级联清理该录音回馈的语料（Batch 2b-1） */
+    void deleteByRecordingId(Long recordingId);
 }

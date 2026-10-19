@@ -9,6 +9,7 @@ import com.echolint.dto.RecordingMetadata;
 import com.echolint.dto.RecordingSummary;
 import com.echolint.entity.Recording;
 import com.echolint.repository.AppUserRepository;
+import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
@@ -50,6 +51,8 @@ class RecordingUploadMetadataTest {
     private AppUserRepository userRepository;
     @Mock
     private ReviewRecordRepository reviewRecordRepository;
+    @Mock
+    private CorpusEntryRepository corpusEntryRepository;
 
     @TempDir
     Path tempDir;
@@ -62,7 +65,8 @@ class RecordingUploadMetadataTest {
         AppProperties appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository);
+                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
+                corpusEntryRepository, new AudioFileValidator());
         lenient().when(recordingRepository.saveAndFlush(any()))
                 .thenAnswer(invocation -> {
                     Recording recording = invocation.getArgument(0);
@@ -71,8 +75,13 @@ class RecordingUploadMetadataTest {
                 });
     }
 
+    /** 合法的 mp3 文件头（ID3v2 标签 + 少量负载），用于通过文件头预检 */
+    private static byte[] validMp3Bytes() {
+        return new byte[]{'I', 'D', '3', 3, 0, 0, 0, 0, 0, 0, 1, 2, 3};
+    }
+
     private MockMultipartFile audio() {
-        return new MockMultipartFile("file", "call.mp3", "audio/mpeg", new byte[]{1, 2, 3});
+        return new MockMultipartFile("file", "call.mp3", "audio/mpeg", validMp3Bytes());
     }
 
     @Test
@@ -90,6 +99,8 @@ class RecordingUploadMetadataTest {
         assertEquals(RecordingStatus.PENDING, saved.getStatus());
         assertTrue(saved.getFilePath().endsWith(".mp3"));
         assertTrue(Files.exists(tempDir.resolve(saved.getFilePath())), "音频应落盘到上传目录");
+        assertNotNull(saved.getAudioSha256());
+        assertTrue(saved.getAudioSha256().matches("[0-9a-f]{64}"), "应记录 64 位小写 hex SHA-256");
 
         verify(pipelineService).run(7L);
         verify(auditService).record(eq(AuditAction.RECORDING_UPLOAD), eq("RECORDING"), eq(7L),

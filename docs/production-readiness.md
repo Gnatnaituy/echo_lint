@@ -10,7 +10,7 @@
 | 批次 | 内容 | 状态 |
 |---|---|---|
 | 1 | 身份/权限/复核工作流/操作审计（原 P0-1 作为 P1 前置） | ✅ 已完成（2026-10-20） |
-| 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅ 已完成；2b 待开始 |
+| 2 | 录音元数据与筛选、报表导出、词库运营、合规抽样、通知告警、可观测性、工程化 | 2a ✅；2b-1 ✅；2b-2 待开始 |
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 待开始 |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 待开始 |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | 待开始 |
@@ -132,7 +132,97 @@
 - [x] 导出/词库写操作审计（REPORT_EXPORT / DICTIONARY_IMPORT / DICTIONARY_BULK_UPDATE）
 - [x] CI（GitHub Actions：后端测试 + 前端构建/测试）
 
-### 2b 运营与工程化（待开始）
+### 2b-1 平台加固（✅ 已完成）
+
+#### 依赖与配置
+- 新增依赖：`micrometer-registry-prometheus`、`springdoc-openapi-starter-webmvc-ui`、`flyway-core` + `flyway-mysql`。
+- `application.yml`：
+  - `management.endpoints.web.exposure.include: health,info,prometheus`
+  - `server.shutdown: graceful`、`spring.lifecycle.timeout-per-shutdown-phase: 20s`
+  - `spring.flyway.enabled: true`、`baseline-on-migrate: true`、`baseline-version: 1`、`locations: classpath:db/migration`
+  - 保留 `ddl-auto: update`（后续迁移从 V2 开始，逐步转 validate）
+- `src/main/resources/db/migration/V1__baseline.sql`：仅基线标记（注释即可），不重复建表。
+- `SecurityConfig`：放行 `/actuator/health`、`/actuator/info`、`/actuator/prometheus`（后端端口仅回环/内网，由部署层限制）、
+  `/v3/api-docs/**`、`/swagger-ui/**`、`/swagger-ui.html`。
+- `docker-compose.yml`：backend/frontend 增加 `logging` 限制（max-size 10m、max-file 3）；backend 增加 `stop_grace_period: 30s`。
+
+#### 上传安全与数据完整性
+- `Recording` 新增 `audioSha256`（64 位 hex，唯一索引，历史数据可为 null）；
+  新增复合索引：`(status,id)`、`(agentName,callTime)`、`(teamName,callTime)`、`(assignedTo,status)`。
+- 上传时单次流式计算 SHA-256（边落临时文件边摘要，成功后原子移动到正式目录）；
+  发现重复哈希 → 409，消息带已存在的录音 id；失败/重复时清理临时文件。
+- 文件头预检：新增 `AudioFileValidator`，按扩展名校验 magic bytes（mp3/wav/flac/ogg/opus/m4a/mp4/mov/webm/aac/amr/caf）；
+  不匹配 → 400「文件内容与扩展名不符」。现有上传单测需要提供合法文件头。
+- 删除录音时级联删除 corpus 派生数据（`CorpusEntryRepository.deleteByRecordingId`）。
+
+#### 事务与异步
+- `ReviewService` 最终结论落库后，词挖掘（AI，可能耗时数百秒）移出事务：
+  使用 `TransactionSynchronizationManager` afterCommit 触发异步方法（`@Async("pipelineExecutor")` 或独立 executor），
+  异常吞掉只记日志；无事务上下文时（单测）直接调用。
+
+#### 验收
+- 后端 `mvn -q -B clean test` 全绿、`mvn -q -B -DskipTests package` 成功。
+- 本机 MySQL（127.0.0.1:3307，audit/audit123，可建临时库）启动打包 jar 验证：
+  `/actuator/prometheus` 200、`/v3/api-docs` 200、Swagger UI 200、Flyway 基线写入 `flyway_schema_history`、
+  重复上传 409、伪造扩展名 400、删除录音级联清理 corpus、应用日志 0 ERROR；验证后清理临时库与文件。
+
+### 2b-1 完成记录
+
+- 后端 163 个单测全绿（新增 30 个）；`mvn -B -DskipTests package` 成功。
+- 冒烟（打包 jar + 临时 MySQL）：
+  - 全新库：Flyway V1 执行、预置 191 词 / 8 语料；既有表库：BASELINE v1、自动补 `audio_sha256` 列、种子幂等。
+  - `/actuator/prometheus`、`/v3/api-docs`、`/swagger-ui/index.html` 均 200。
+  - 合法 mp3 上传 202；同字节重复 409（带已存在 id，目录无残留）；伪造 .mp3 400；API 不返回 audioSha256。
+  - SIGTERM 后 2s 优雅停机；日志 0 ERROR。
+- 额外加固：compose 三个端口（3307/8082/8081）只绑回环；容器日志轮转。
+- 已知限制：结构化 JSON 日志未做；需要部署层限制 prometheus/导出接口为内网；`ddl-auto=update` 仍启用。
+
+### Batch 2b-2 契约（运营与 AI 质量，下一轮）
+
+#### 合规抽样
+- 配置 `app.sample.dfa-miss-rate`（env `APP_SAMPLE_DFA_MISS_RATE`，0~1，默认 0）。
+- `Recording` 新增 `sampled`（boolean，默认 false），Summary/详情/CSV 透出。
+- PipelineService：DFA 无命中时按概率进入抽样；抽样录音继续走 AI 语义复筛
+  （AI 判违规 → NEEDS_REVIEW；AI 判合规 → COMPLIANT 并在 pipeline log 标注「抽样复核」；
+  AI 不可用 → 降级 NEEDS_REVIEW，不允许静默放行）。
+- 报表 recordings.csv 增加 sampled 列；统计可返回 sampled 数量。
+
+#### 通知告警（Webhook）
+- 配置：`app.notify.enabled`、`app.notify.webhook-url`、`app.notify.webhook-secret`
+  （可选 HMAC-SHA256 头 `X-EchoLint-Signature`）、`app.notify.timeout-seconds`、
+  `app.notify.backlog-threshold`（默认 50）。
+- `NotificationService` 异步发送 JSON：`{event, occurrenceTime, recordingId?, title, detail, link?}`；
+  事件：`REVIEW_CONFIRMED_VIOLATION`（复核最终确认违规）、`RECORDING_FAILED`（流水线失败）、
+  `REVIEW_BACKLOG`（每日定时，NEEDS_REVIEW 超过阈值）、`NOTIFY_TEST`。
+- 发送失败只记 warn，不影响主流程；URL 仅来自配置（避免运行时 SSRF）。
+- `@EnableScheduling` + 每日定时检查积压；时区 Asia/Shanghai。
+- API（ADMIN）：`GET /api/settings/notifications` 返回 enabled/urlConfigured/threshold/事件列表；
+  `POST /api/settings/notifications/test` 发送测试事件并返回结果。
+- 审计动作 `NOTIFY_TEST`。
+
+#### AI 全文分块与严格解析
+- `app.screen-models.chunk-chars`（默认 12000）、`app.screen-models.max-chunks`（默认 6）、
+  `app.screen-models.min-confidence`（默认 0.6）。
+- 转写文本超长时分块（带重叠）逐块调用模型；任一块违规即整体违规（取最高置信度合并原句/理由），
+  每块调用都写 `ai_invocations` 留痕；最多 max-chunks 块，超出截断并在日志注明。
+- 严格解析：缺少 `violation` 布尔字段/返回非 JSON → 视为解析失败（降级人工，不得自动放行）；
+  `violation=true` 且置信度 < min-confidence → 降级 NEEDS_REVIEW（degraded=true）；
+  `violation=false` 才可自动 COMPLIANT。
+- 单测覆盖：分块合并、缺字段、低置信度、正常合规。
+
+#### 前端
+- 系统设置页新增「抽样与通知」卡片（ADMIN）：显示抽样比例、Webhook 是否配置、积压阈值，
+  提供「发送测试 Webhook」按钮与结果提示；非 ADMIN 只读/隐藏。
+- 录音列表、复核队列、详情抽屉显示「抽样」标记；报表页汇总卡增加「抽样数」。
+- 审计页补 `NOTIFY_TEST` 文案；API client 增加 notifications 接口。
+- 不新增依赖。
+
+#### 验收
+- 后端 `mvn clean test` 全绿；前端 build/test 全绿。
+- 本机 MySQL + 打包 jar 冒烟：抽样比例 1.0 时 DFA 未命中也进 AI/人工；
+  Webhook 测试可收到（用本地 http 接收器验证 JSON 与签名）；超长文本分块调用次数正确；
+  缺 violation 字段的模型回复被降级。
+
 
 - [ ] 合规抽样：DFA 未命中的录音按比例进入 AI/人工抽检（可配置）
 - [ ] 通知告警：Webhook（企微/钉钉/自定义），高违规、待复核积压、处理失败

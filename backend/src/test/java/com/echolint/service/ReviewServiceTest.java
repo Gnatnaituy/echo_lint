@@ -28,6 +28,8 @@ import org.mockito.quality.Strictness;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,7 +68,8 @@ class ReviewServiceTest {
     void setUp() {
         appProperties = new AppProperties();
         service = new ReviewService(recordingRepository, pipelineLogRepository, corpusService,
-                wordMiningService, objectMapper, reviewRecordRepository, auditService, appProperties);
+                new AsyncWordMiningTrigger(wordMiningService), objectMapper, reviewRecordRepository,
+                auditService, appProperties);
         when(recordingRepository.save(any(Recording.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -138,6 +141,46 @@ class ReviewServiceTest {
         verify(corpusService).append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("确认辱骂"));
         verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
         verify(auditService).record(eq(AuditAction.REVIEW_SUBMIT), eq("RECORDING"), eq(7L), anyString());
+    }
+
+    @Test
+    void miningRunsOnlyAfterTransactionCommit() {
+        Recording recording = needsReview();
+        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        loginAs("alice", 5L);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
+
+            // AI 词挖掘可能耗时数百秒，不允许留在复核事务内执行
+            verify(wordMiningService, never()).mineAndSuggest(any(), any());
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertFalse(synchronizations.isEmpty(), "应在当前事务注册 afterCommit 回调");
+
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+            verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void miningFailureAfterCommitDoesNotPropagate() {
+        Recording recording = needsReview();
+        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        doThrow(new RuntimeException("AI 不可用")).when(wordMiningService).mineAndSuggest(any(), any());
+        loginAs("alice", 5L);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
+            assertEquals(RecordingStatus.VIOLATION_CONFIRMED, saved.getStatus());
+
+            assertDoesNotThrow(() -> TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

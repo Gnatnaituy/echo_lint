@@ -4,6 +4,7 @@ import com.echolint.domain.CallDirection;
 import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.ReviewResult;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,7 +20,12 @@ import java.time.LocalDateTime;
         @Index(name = "idx_recording_upload_time", columnList = "uploadTime"),
         @Index(name = "idx_recording_call_time", columnList = "callTime"),
         @Index(name = "idx_recording_agent", columnList = "agentName"),
-        @Index(name = "idx_recording_team", columnList = "teamName")
+        @Index(name = "idx_recording_team", columnList = "teamName"),
+        // 复核队列/列表高频组合条件（Batch 2b-1）
+        @Index(name = "idx_recording_status_id", columnList = "status,id"),
+        @Index(name = "idx_recording_agent_call_time", columnList = "agentName,callTime"),
+        @Index(name = "idx_recording_team_call_time", columnList = "teamName,callTime"),
+        @Index(name = "idx_recording_assigned_status", columnList = "assignedTo,status")
 })
 @Getter
 @Setter
@@ -41,6 +47,14 @@ public class Recording {
 
     @Column(length = 64)
     private String mimeType;
+
+    /**
+     * 音频内容的 SHA-256（64 位小写 hex），用于上传去重。
+     * 历史数据为 null（唯一索引允许多个 NULL）；仅内部使用，不通过 API 返回。
+     */
+    @JsonIgnore
+    @Column(length = 64, unique = true)
+    private String audioSha256;
 
     /** Whisper 返回的时长（秒） */
     private Integer durationSeconds;

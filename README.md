@@ -259,6 +259,24 @@ APP_ADMIN_PASSWORD=<至少 8 位的强密码>
 复核工作流默认单人复核；设置 `APP_REVIEW_REQUIRED_APPROVALS=2` 后进入**双人复核**：每次提交落一条复核记录，
 达到人数才落最终结论并回馈语料库，同一人不能连续复核同一条录音。终态录音可由管理员「重开复核」。
 
+### 可观测性与接口文档
+
+```bash
+# 健康检查
+curl http://localhost:8082/actuator/health
+# Prometheus 指标（后端端口只绑回环/内网，切勿直接暴露公网）
+curl http://localhost:8082/actuator/prometheus
+# OpenAPI JSON / Swagger UI
+#   http://localhost:8082/v3/api-docs
+#   http://localhost:8082/swagger-ui/index.html
+```
+
+- 数据库结构由 **Flyway** 管理：`V1` 为基线标记（既有库自动 baseline 到 v1），后续变更从 `V2__*.sql` 开始；
+  预置词典/语料由 `DataSeedRunner` 在 JPA 建表后幂等执行。
+- 上传做 **SHA-256 去重**（重复文件 409，返回已存在录音 id）与 **magic bytes 校验**（内容与扩展名不符 400）；
+  文件先写临时文件再原子移动，失败/重复自动清理。
+- 容器日志已配置轮转（`max-size=10m, max-file=3`），支持优雅停机（`server.shutdown=graceful`）。
+
 ## 本地开发
 
 ```bash

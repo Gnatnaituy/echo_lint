@@ -15,8 +15,8 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     ports:
-      # 本机调试用：宿主 3307 → 容器 3306（若本机 3306 空闲可直接改 3306:3306）
-      - "3307:3306"
+      # 本机调试用：宿主 3307 → 容器 3306；只绑回环，避免把 MySQL 暴露到局域网/公网
+      - "127.0.0.1:3307:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
       interval: 5s
@@ -29,6 +29,9 @@ services:
     image: echolint-backend
     container_name: echolint-backend
     restart: unless-stopped
+    # 与 server.shutdown: graceful + spring.lifecycle.timeout-per-shutdown-phase: 20s 配合，
+    # 给在途的上传/导出/流水线留出收尾时间
+    stop_grace_period: 30s
     depends_on:
       mysql:
         condition: service_healthy
@@ -57,8 +60,14 @@ services:
     volumes:
       - uploads:/app/data/uploads
     ports:
-      # 本机 8080 若被其他服务占用，可改为 8082:8080 或任意空闲端口
-      - "8082:8080"
+      # 本机 8080 若被其他服务占用，可改为 8082:8080 或任意空闲端口；只绑回环供本机调试
+      - "127.0.0.1:8082:8080"
+    # 容器日志轮转，避免长时间运行写满磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8080"]
       interval: 10s
@@ -75,7 +84,13 @@ services:
       backend:
         condition: service_started
     ports:
-      - "8081:80"
+      # 本机调试入口：http://localhost:8081；只绑回环
+      - "127.0.0.1:8081:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql-data:

@@ -1,5 +1,7 @@
 server:
   port: 8080
+  # 优雅停机：先停止接收新请求，再等待在途请求（含上传/导出）完成，最多 20s
+  shutdown: graceful
   servlet:
     session:
       cookie:
@@ -10,6 +12,9 @@ server:
 spring:
   application:
     name: echolint
+  # 优雅停机的单阶段超时（与 server.shutdown: graceful 配合）
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/echolint?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false}
     username: ${SPRING_DATASOURCE_USERNAME:audit}
@@ -20,11 +25,21 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
-    defer-datasource-initialization: true
+  # 版本化迁移：已存在的库由 baseline-on-migrate 直接登记为版本 1（不重复建表），
+  # 全新的空库执行 V1（仅注释的基线标记）。后续结构变更从 V2__*.sql 开始。
+  #
+  # 注意：不能同时开启 spring.jpa.defer-datasource-initialization —— Boot 3.3 会把
+  # EntityManagerFactory 视为「数据库初始化器」，与 Flyway 初始化器互相 depends-on，
+  # 启动直接报 Circular depends-on。预置数据改由 DataSeedRunner 在 JPA 建表后执行。
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+  # data.sql 由 DataSeedRunner 在应用启动完成后执行（幂等），不再走 Boot 的 SQL 初始化流程
   sql:
     init:
-      mode: always
-      encoding: UTF-8
+      mode: never
   servlet:
     multipart:
       max-file-size: 210MB
@@ -34,7 +49,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # prometheus 应用层放行，部署层必须限制为内网/回环访问，切勿直接暴露公网
+        include: health,info,prometheus
 
 app:
   upload-dir: ${APP_UPLOAD_DIR:data/uploads}
