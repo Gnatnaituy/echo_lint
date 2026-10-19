@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 人工复检
+ * 人工复检：复核人取自当前登录用户，请求体中的 reviewer 会被忽略。
  */
 @RestController
 @RequestMapping("/api/reviews")

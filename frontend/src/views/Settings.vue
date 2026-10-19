@@ -31,7 +31,12 @@
               </div>
             </div>
           </div>
-          <el-button :loading="testing === 'active'" :disabled="testing === 'draft'" @click="testActive">
+          <el-button
+            v-if="canWrite"
+            :loading="testing === 'active'"
+            :disabled="testing === 'draft'"
+            @click="testActive"
+          >
             <el-icon v-if="testing !== 'active'" class="el-icon--left"><Connection /></el-icon>
             测试连通性
           </el-button>
@@ -61,6 +66,7 @@
         <span class="tiny dim">保存后立即生效，无需重启；选择会持久化保存</span>
       </div>
       <div class="panel-body">
+        <template v-if="canWrite">
         <div class="provider-grid">
           <button
             v-for="p in view?.providers || []"
@@ -111,6 +117,14 @@
           可下拉选择，也可直接输入候选之外的新模型名（供应商上新模型时无需改配置重启）。
           切换立即影响之后的所有复筛与词挖掘，已有结论的历史录音不会被重新判定。
         </div>
+        </template>
+        <el-alert
+          v-else
+          type="info"
+          :closable="false"
+          show-icon
+          title="只读角色可查看当前生效模型；切换模型与连通性测试仅管理员可用。"
+        />
       </div>
     </section>
 
@@ -148,6 +162,10 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+import auth from '../auth'
+
+// 系统设置写操作仅 ADMIN：非管理员只读查看，后端仍会独立校验
+const canWrite = computed(() => auth.hasRole('ADMIN'))
 
 const view = ref(null)
 const draft = reactive({ providerId: '', model: '' })

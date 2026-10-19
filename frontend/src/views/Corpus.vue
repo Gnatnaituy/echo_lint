@@ -112,11 +112,12 @@
         </el-table-column>
         <el-table-column label="操作" width="86" align="right">
           <template #default="{ row }">
-            <el-popconfirm title="确认删除该条语料？" @confirm="remove(row)">
+            <el-popconfirm v-if="canDelete" title="确认删除该条语料？" @confirm="remove(row)">
               <template #reference>
                 <el-button size="small" link type="danger">删除</el-button>
               </template>
             </el-popconfirm>
+            <span v-else class="dim">—</span>
           </template>
         </el-table-column>
         <template #empty>
@@ -186,8 +187,12 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, Download } from '@element-plus/icons-vue'
 import api from '../api'
+import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import { VIOLATION_TYPES, formatTimeShort } from '../constants'
+
+// 语料删除仅 ADMIN（见权限矩阵），其余角色只读
+const canDelete = computed(() => auth.hasRole('ADMIN'))
 
 const rows = ref([])
 const total = ref(0)

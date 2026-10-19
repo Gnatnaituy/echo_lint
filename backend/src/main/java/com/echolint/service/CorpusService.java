@@ -47,9 +47,15 @@ public class CorpusService {
     }
 
     /**
-     * 人工复检结论回馈语料库
+     * 人工复检结论回馈语料库。
+     *
+     * <p>语料表 transcript 非空；历史/异常数据可能没有转写文本，此时跳过回馈而不是让复检事务失败。</p>
      */
     public CorpusEntry append(Recording recording, CorpusLabel label, String violationType, String reason) {
+        if (!StringUtils.hasText(recording.getTranscript())) {
+            log.warn("录音 {} 没有转写文本，跳过语料回馈（label={}）", recording.getId(), label);
+            return null;
+        }
         CorpusEntry entry = new CorpusEntry();
         entry.setLabel(label);
         entry.setTranscript(recording.getTranscript());

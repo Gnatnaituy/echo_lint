@@ -56,6 +56,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import auth from '../auth'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -65,27 +66,34 @@ defineEmits(['toggle'])
 
 const route = useRoute()
 
-const groups = [
-  {
-    title: '稽核作业',
-    items: [
-      { path: '/', label: '工作台', icon: 'Odometer' },
-      { path: '/recordings', label: '录音管理', icon: 'Files' },
-      { path: '/review', label: '人工复检', icon: 'DocumentChecked', badge: true }
-    ]
-  },
-  {
-    title: '知识配置',
-    items: [
-      { path: '/dictionary', label: '敏感词库', icon: 'Collection' },
-      { path: '/corpus', label: '语料库', icon: 'Notebook' }
-    ]
-  },
-  {
-    title: '系统',
-    items: [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
+// 用户管理 / 操作审计仅 ADMIN 可见（后端仍会独立鉴权）
+const groups = computed(() => {
+  const systemItems = [{ path: '/settings', label: '系统设置', icon: 'Setting' }]
+  if (auth.hasRole('ADMIN')) {
+    systemItems.push(
+      { path: '/users', label: '用户管理', icon: 'User' },
+      { path: '/audit', label: '操作审计', icon: 'List' }
+    )
   }
-]
+  return [
+    {
+      title: '稽核作业',
+      items: [
+        { path: '/', label: '工作台', icon: 'Odometer' },
+        { path: '/recordings', label: '录音管理', icon: 'Files' },
+        { path: '/review', label: '人工复检', icon: 'DocumentChecked', badge: true }
+      ]
+    },
+    {
+      title: '知识配置',
+      items: [
+        { path: '/dictionary', label: '敏感词库', icon: 'Collection' },
+        { path: '/corpus', label: '语料库', icon: 'Notebook' }
+      ]
+    },
+    { title: '系统', items: systemItems }
+  ]
+})
 
 const isActive = (path) => (path === '/' ? route.path === '/' : route.path.startsWith(path))
 

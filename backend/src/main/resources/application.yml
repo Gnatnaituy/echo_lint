@@ -1,5 +1,11 @@
 server:
   port: 8080
+  servlet:
+    session:
+      cookie:
+        # 会话 cookie 由浏览器自动携带（前端不存 token），HttpOnly 防 XSS 读取，SameSite=Lax 防 CSRF
+        http-only: true
+        same-site: lax
 
 spring:
   application:
@@ -43,6 +49,13 @@ app:
     left-speaker: ${APP_STEREO_LEFT_SPEAKER:坐席}
     right-speaker: ${APP_STEREO_RIGHT_SPEAKER:客户}
     split-timeout-seconds: 300
+  # 复核工作流：一条录音需要几个复核人通过才落最终结论（1=单人，2=双人复核）
+  review:
+    required-approvals: ${APP_REVIEW_REQUIRED_APPROVALS:1}
+  # 首次启动引导管理员（用户表为空时创建；生产请务必通过环境变量覆盖密码）
+  admin:
+    username: ${APP_ADMIN_USERNAME:admin}
+    password: ${APP_ADMIN_PASSWORD:admin12345}
   # AI 语义复筛 + 敏感词挖掘所用的模型供应商（OpenAI 兼容 chat completions）。
   # 运行时可切换：当前选择存在 app_settings 表，界面入口为「系统设置」页，无需重启。
   screen-models:

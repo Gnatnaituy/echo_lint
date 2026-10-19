@@ -7,6 +7,8 @@ import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
+import com.echolint.repository.AppUserRepository;
+import com.echolint.repository.ReviewRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,6 +42,12 @@ class RecordingServiceTest {
     private AiInvocationService aiInvocationService;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private AuditService auditService;
+    @Mock
+    private AppUserRepository userRepository;
+    @Mock
+    private ReviewRecordRepository reviewRecordRepository;
 
     @TempDir
     Path tempDir;
@@ -51,7 +59,8 @@ class RecordingServiceTest {
     void setUp() {
         appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
-        service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService, pipelineService, appProperties, objectMapper);
+        service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
+                pipelineService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository);
     }
 
     private Recording recording(RecordingStatus status) {

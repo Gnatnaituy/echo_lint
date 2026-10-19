@@ -23,19 +23,88 @@
 
       <div class="divider"></div>
 
-      <div class="user">
-        <div class="avatar">管</div>
-        <div class="user-meta">
-          <div class="user-name">管理员</div>
-          <div class="user-role">Compliance Ops</div>
-        </div>
-      </div>
+      <!-- 当前登录用户：显示名 + 角色；菜单含修改密码 / 退出登录 -->
+      <el-dropdown trigger="click" popper-class="user-dropdown" @command="onCommand">
+        <button type="button" class="user" title="账号菜单">
+          <span class="avatar">{{ avatarText }}</span>
+          <span class="user-meta">
+            <span class="user-name">{{ auth.displayName || '未登录' }}</span>
+            <span class="user-role">{{ auth.roleLabel }}</span>
+          </span>
+          <el-icon class="user-caret" :size="12"><ArrowDown /></el-icon>
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item disabled>
+              <div class="menu-user">
+                <div class="menu-name">{{ auth.displayName || auth.username || '未登录' }}</div>
+                <div class="menu-sub">{{ auth.username || '—' }} · {{ auth.roleLabel }}</div>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item command="password" divided>
+              <el-icon><Lock /></el-icon>
+              修改密码
+            </el-dropdown-item>
+            <el-dropdown-item command="logout">
+              <el-icon><SwitchButton /></el-icon>
+              退出登录
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
+
+    <!-- 修改密码 -->
+    <el-dialog v-model="pwdVisible" title="修改密码" width="430px" append-to-body @closed="resetPwd">
+      <el-form
+        ref="pwdFormRef"
+        :model="pwdForm"
+        :rules="pwdRules"
+        label-width="88px"
+        @submit.prevent="submitPassword"
+      >
+        <el-form-item label="原密码" prop="oldPassword">
+          <el-input
+            v-model="pwdForm.oldPassword"
+            type="password"
+            show-password
+            autocomplete="current-password"
+            placeholder="请输入当前密码"
+          />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input
+            v-model="pwdForm.newPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="至少 8 位"
+          />
+        </el-form-item>
+        <el-form-item label="确认新密码" prop="confirmPassword">
+          <el-input
+            v-model="pwdForm.confirmPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="再次输入新密码"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdVisible = false">取消</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">保存</el-button>
+      </template>
+    </el-dialog>
   </header>
 </template>
 
 <script setup>
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import auth from '../auth'
+import api from '../api'
 
 defineProps({
   title: { type: String, default: '' },
@@ -45,6 +114,77 @@ defineProps({
 defineEmits(['refresh'])
 
 const router = useRouter()
+
+const avatarText = computed(() => {
+  const name = auth.displayName || auth.username || ''
+  return name ? name.slice(0, 1).toUpperCase() : '?'
+})
+
+/* ---------- 账号菜单 ---------- */
+function onCommand(command) {
+  if (command === 'password') {
+    resetPwd()
+    pwdVisible.value = true
+  } else if (command === 'logout') {
+    logout()
+  }
+}
+
+async function logout() {
+  await auth.logout()
+  ElMessage.success('已退出登录')
+  router.replace('/login')
+}
+
+/* ---------- 修改密码 ---------- */
+const pwdVisible = ref(false)
+const pwdSaving = ref(false)
+const pwdFormRef = ref(null)
+const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+function validateConfirm(rule, value, callback) {
+  if (!value) return callback(new Error('请再次输入新密码'))
+  if (value !== pwdForm.newPassword) return callback(new Error('两次输入的新密码不一致'))
+  callback()
+}
+
+const pwdRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 8, message: '密码至少 8 位', trigger: 'blur' }
+  ],
+  confirmPassword: [{ validator: validateConfirm, trigger: 'blur' }]
+}
+
+function resetPwd() {
+  pwdForm.oldPassword = ''
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  pwdFormRef.value?.clearValidate?.()
+}
+
+async function submitPassword() {
+  if (!pwdFormRef.value) return
+  try {
+    await pwdFormRef.value.validate()
+  } catch {
+    return
+  }
+  pwdSaving.value = true
+  try {
+    await api.changePassword({
+      oldPassword: pwdForm.oldPassword,
+      newPassword: pwdForm.newPassword
+    })
+    ElMessage.success('密码修改成功')
+    pwdVisible.value = false
+  } catch {
+    // 请求层已统一提示（原密码错误 / 403 等）
+  } finally {
+    pwdSaving.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -153,10 +293,22 @@ const router = useRouter()
   margin: 0 2px;
 }
 
+/* 用户菜单按钮（重置原生 button 样式，保持原有视觉） */
 .user {
   display: flex;
   align-items: center;
   gap: 9px;
+  height: 40px;
+  padding: 0 8px 0 4px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.user:hover {
+  background: var(--ink-50);
 }
 .avatar {
   width: 32px;
@@ -169,16 +321,27 @@ const router = useRouter()
   font-weight: 600;
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
 }
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.3;
+}
 .user-name {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-700);
-  line-height: 1.3;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .user-role {
   font-size: 10.5px;
   color: var(--el-text-color-placeholder);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
+}
+.user-caret {
+  color: var(--ink-400);
 }
 </style>

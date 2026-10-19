@@ -15,4 +15,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(ElementPlus, { locale: zhCn })
 app.use(router)
-app.mount('#app')
+
+// 等首次导航的路由守卫完成（含 /api/auth/me 会话恢复）再挂载，
+// 避免未登录时先闪现带壳层的工作台再跳登录页。
+router.isReady().then(() => app.mount('#app'))

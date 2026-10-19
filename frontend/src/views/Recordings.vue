@@ -17,6 +17,30 @@
         </div>
 
         <div class="actions">
+          <span v-if="!canWrite" class="chip info read-only-chip">只读模式</span>
+          <el-select
+            v-model="assignedFilter"
+            placeholder="全部指派"
+            clearable
+            class="filter-select"
+            @change="reload"
+          >
+            <el-option label="只看我的" value="mine" />
+          </el-select>
+          <el-select
+            v-model="priorityFilter"
+            placeholder="全部优先级"
+            clearable
+            class="priority-select"
+            @change="reload"
+          >
+            <el-option
+              v-for="opt in PRIORITY_OPTIONS"
+              :key="opt.value"
+              :label="`${opt.label}优先级`"
+              :value="opt.value"
+            />
+          </el-select>
           <el-input
             v-model="keyword"
             placeholder="搜索文件名 / 转写内容"
@@ -31,6 +55,7 @@
           </el-input>
           <el-button :icon="Refresh" circle @click="reload" />
           <el-upload
+            v-if="canWrite"
             :show-file-list="false"
             :http-request="doUpload"
             :before-upload="beforeUpload"
@@ -42,9 +67,14 @@
         </div>
       </div>
       <div class="hint">
-        上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛；初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
-        <br />
-        若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
+        <template v-if="canWrite">
+          上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛；初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
+          <br />
+          若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
+        </template>
+        <template v-else>
+          只读账号可查看录音、转写与 AI 判定详情；上传、删除、认领与指派等写操作不可用。
+        </template>
       </div>
     </section>
 
@@ -94,6 +124,23 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="优先级" width="92" align="center">
+          <template #default="{ row }">
+            <PriorityTag :priority="row.priority" />
+          </template>
+        </el-table-column>
+
+        <el-table-column label="指派" width="112" align="center">
+          <template #default="{ row }">
+            <span
+              v-if="row.assignedTo"
+              class="chip"
+              :class="{ brand: row.assignedTo === auth.username }"
+            >{{ row.assignedTo === auth.username ? '我' : row.assignedTo }}</span>
+            <span v-else class="dim">未指派</span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="状态" width="150" align="center">
           <template #default="{ row }">
             <div class="status-cell">
@@ -122,7 +169,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="196" align="right">
+        <el-table-column label="操作" width="300" align="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
             <el-button
@@ -132,8 +179,32 @@
               type="danger"
               @click.stop="$router.push(`/review?id=${row.id}`)"
             >去复检</el-button>
+            <el-button
+              v-if="canClaimRow(row)"
+              size="small"
+              link
+              type="primary"
+              @click.stop="claim(row)"
+            >认领</el-button>
+            <el-button
+              v-if="isAdmin && row.status === 'NEEDS_REVIEW'"
+              size="small"
+              link
+              type="primary"
+              @click.stop="openAssign(row)"
+            >指派</el-button>
             <el-popconfirm
-              v-if="reprocessInfo(row)"
+              v-if="isAdmin && isFinalReviewStatus(row.status)"
+              title="重开为待人工复检？将清空最终结论并保留复核历史。"
+              width="260"
+              @confirm="reopen(row)"
+            >
+              <template #reference>
+                <el-button size="small" link type="warning" @click.stop>重开</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm
+              v-if="canWrite && reprocessInfo(row)"
               :title="reprocessInfo(row).confirm"
               width="260"
               @confirm="reprocess(row)"
@@ -147,7 +218,11 @@
                 >{{ reprocessInfo(row).label }}</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm title="确认删除该录音（含文件与日志）？" @confirm="remove(row)">
+            <el-popconfirm
+              v-if="canWrite"
+              title="确认删除该录音（含文件与日志）？"
+              @confirm="remove(row)"
+            >
               <template #reference>
                 <el-button size="small" link type="danger" @click.stop>删除</el-button>
               </template>
@@ -192,6 +267,13 @@
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
                   <span v-if="detail.channelCount === 2" class="chip brand">双声道双轨</span>
+                  <PriorityTag :priority="detail.priority" />
+                  <span class="chip">
+                    {{ detail.assignedTo ? `指派：${detail.assignedTo}` : '未指派' }}
+                  </span>
+                  <span v-if="detailProgress.required > 1" class="chip info">
+                    复核 {{ detailProgress.text }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -202,8 +284,29 @@
                 size="small"
                 @click="$router.push(`/review?id=${detail.id}`)"
               >去人工复检</el-button>
+              <el-button
+                v-if="canClaimRow(detail)"
+                type="primary"
+                size="small"
+                @click="claim(detail)"
+              >认领</el-button>
+              <el-button
+                v-if="isAdmin && detail.status === 'NEEDS_REVIEW'"
+                size="small"
+                @click="openAssign(detail)"
+              >指派</el-button>
               <el-popconfirm
-                v-if="reprocessInfo(detail)"
+                v-if="isAdmin && isFinalReviewStatus(detail.status)"
+                title="重开为待人工复检？将清空最终结论并保留复核历史。"
+                width="260"
+                @confirm="reopen(detail)"
+              >
+                <template #reference>
+                  <el-button type="warning" size="small">重开</el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="canWrite && reprocessInfo(detail)"
                 :title="reprocessInfo(detail).confirm"
                 width="260"
                 @confirm="reprocess(detail)"
@@ -445,6 +548,9 @@
         </template>
       </div>
     </el-drawer>
+
+    <!-- 指派复核人（ADMIN） -->
+    <AssignDialog v-model="assignVisible" :recording="assignTarget" @assigned="onAssigned" />
   </div>
 </template>
 
@@ -454,6 +560,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, UploadFilled, Close } from '@element-plus/icons-vue'
 import api from '../api'
+import auth from '../auth'
+import AssignDialog from '../components/AssignDialog.vue'
+import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
@@ -463,8 +572,11 @@ import {
   formatSize,
   formatTime,
   formatTimeShort,
+  isFinalReviewStatus,
   isStale,
+  PRIORITY_OPTIONS,
   reprocessInfo,
+  reviewProgress,
   PROCESSING_STATUSES
 } from '../constants'
 
@@ -478,6 +590,8 @@ const pageSize = 10
 const loading = ref(false)
 const statusFilter = ref('')
 const keyword = ref('')
+const priorityFilter = ref('')
+const assignedFilter = ref('')
 const overview = ref(null)
 
 const detailVisible = ref(false)
@@ -485,6 +599,18 @@ const detailLoading = ref(false)
 const detail = ref(null)
 const logs = ref([])
 const aiInvocations = ref([])
+
+// 角色与工作流
+const canWrite = computed(() => auth.hasRole('ADMIN', 'REVIEWER'))
+const isAdmin = computed(() => auth.hasRole('ADMIN'))
+const detailProgress = computed(() => reviewProgress(detail.value))
+const assignVisible = ref(false)
+const assignTarget = ref(null)
+
+/** 未认领的待复检录音可被 ADMIN / REVIEWER 认领 */
+function canClaimRow(row) {
+  return canWrite.value && row?.status === 'NEEDS_REVIEW' && !row.assignedTo
+}
 
 const FILTERS = [
   { key: '', label: '全部', countKey: 'ALL' },
@@ -643,6 +769,8 @@ async function load() {
     const data = await api.listRecordings({
       statuses,
       keyword: keyword.value || undefined,
+      assignedTo: assignedFilter.value === 'mine' ? auth.username : undefined,
+      priority: priorityFilter.value || undefined,
       page: page.value,
       size: pageSize
     })
@@ -739,6 +867,54 @@ async function remove(row) {
   loadOverview()
 }
 
+/* ---------- 复核工作流：认领 / 指派 / 重开 ---------- */
+
+/** 认领：仅未指派的待复检录音；已被他人认领时后端返回 409 */
+async function claim(row) {
+  if (!row?.id) return
+  try {
+    const saved = await api.claimRecording(row.id)
+    const assignedTo = saved?.assignedTo || auth.username
+    const patch = saved && typeof saved === 'object' ? saved : {}
+    rows.value = rows.value.map((r) =>
+      r.id === row.id ? { ...r, ...patch, assignedTo } : r
+    )
+    if (detail.value?.id === row.id) {
+      detail.value = { ...detail.value, ...patch, assignedTo }
+    }
+    ElMessage.success('已认领，可在人工复检页处理')
+  } catch {
+    // 409 等由请求层统一提示
+  }
+}
+
+function openAssign(row) {
+  if (!row?.id) return
+  assignTarget.value = row
+  assignVisible.value = true
+}
+
+function onAssigned({ username }) {
+  const id = assignTarget.value?.id
+  if (!id) return
+  rows.value = rows.value.map((r) => (r.id === id ? { ...r, assignedTo: username } : r))
+  if (detail.value?.id === id) detail.value = { ...detail.value, assignedTo: username }
+}
+
+/** 重开终态录音（ADMIN）：清空最终结论，回到待人工复检 */
+async function reopen(row) {
+  if (!row?.id) return
+  try {
+    await api.reopenRecording(row.id)
+    ElMessage.success('已重开为待人工复检')
+    if (detail.value?.id === row.id) detailVisible.value = false
+    await load()
+    loadOverview()
+  } catch {
+    // 请求层已统一提示
+  }
+}
+
 let timer = null
 const hasProcessing = () => rows.value.some((r) => PROCESSING_STATUSES.includes(r.status))
 
@@ -813,6 +989,15 @@ onUnmounted(() => clearInterval(timer))
 }
 .search {
   width: 250px;
+}
+.priority-select {
+  width: 132px;
+}
+.filter-select {
+  width: 118px;
+}
+.read-only-chip {
+  flex: none;
 }
 .hint {
   padding: 0 18px 14px;

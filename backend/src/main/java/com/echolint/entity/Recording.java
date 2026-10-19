@@ -1,6 +1,7 @@
 package com.echolint.entity;
 
 import com.echolint.domain.RecordingStatus;
+import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.ReviewResult;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -105,6 +106,22 @@ public class Recording {
     /** 最近一次状态变更时间（用于判断处理是否卡住） */
     private LocalDateTime statusUpdatedAt;
 
+    /** 指派的复核人用户名（可空；认领/管理员指派后写入） */
+    @Column(length = 64)
+    private String assignedTo;
+
+    /**
+     * 复核优先级 LOW / NORMAL / HIGH。
+     * 历史数据可能为 null，列表展示时按 NORMAL 处理。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private ReviewPriority priority = ReviewPriority.NORMAL;
+
+    /** 已完成的复核轮次（达到 app.review.required-approvals 后落最终结论） */
+    @Column(nullable = false)
+    private int reviewCount = 0;
+
     @Lob
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
@@ -113,6 +130,9 @@ public class Recording {
     void prePersist() {
         if (uploadTime == null) {
             uploadTime = LocalDateTime.now();
+        }
+        if (priority == null) {
+            priority = ReviewPriority.NORMAL;
         }
         statusUpdatedAt = LocalDateTime.now();
     }

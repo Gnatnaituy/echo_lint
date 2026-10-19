@@ -1,12 +1,14 @@
 package com.echolint.controller;
 
 import com.echolint.dfa.DfaHit;
+import com.echolint.domain.AuditAction;
 import com.echolint.domain.WordSeverity;
 import com.echolint.domain.WordSource;
 import com.echolint.dto.DictWordRequest;
 import com.echolint.dto.TestTextRequest;
 import com.echolint.entity.DictionaryWord;
 import com.echolint.exception.BizException;
+import com.echolint.service.AuditService;
 import com.echolint.service.DfaService;
 import com.echolint.dfa.WordNormalizer;
 import com.echolint.repository.DictionaryWordRepository;
@@ -35,6 +37,7 @@ public class DictionaryController {
 
     private final DictionaryWordRepository repository;
     private final DfaService dfaService;
+    private final AuditService auditService;
 
     @GetMapping
     public Page<DictionaryWord> list(@RequestParam(required = false) String keyword,
@@ -76,6 +79,8 @@ public class DictionaryController {
         word.setEnabled(request.enabled() == null || request.enabled());
         DictionaryWord saved = repository.save(word);
         dfaService.rebuild();
+        auditService.record(AuditAction.DICTIONARY_CREATE, "DICTIONARY_WORD", saved.getId(),
+                "新增敏感词 " + saved.getWord());
         return saved;
     }
 
@@ -103,13 +108,18 @@ public class DictionaryController {
         }
         DictionaryWord saved = repository.save(word);
         dfaService.rebuild();
+        auditService.record(AuditAction.DICTIONARY_UPDATE, "DICTIONARY_WORD", saved.getId(),
+                "更新敏感词 " + saved.getWord());
         return saved;
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
+        DictionaryWord word = repository.findById(id).orElse(null);
         repository.deleteById(id);
         dfaService.rebuild();
+        auditService.record(AuditAction.DICTIONARY_DELETE, "DICTIONARY_WORD", id,
+                word == null ? "删除敏感词" : "删除敏感词 " + word.getWord());
     }
 
     /**

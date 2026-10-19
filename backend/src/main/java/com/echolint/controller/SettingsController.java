@@ -1,6 +1,8 @@
 package com.echolint.controller;
 
+import com.echolint.domain.AuditAction;
 import com.echolint.dto.ScreenModelRequest;
+import com.echolint.service.AuditService;
 import com.echolint.service.ScreenModelService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SettingsController {
 
     private final ScreenModelService screenModelService;
+    private final AuditService auditService;
 
     /** 当前生效的模型 + 全部候选供应商 */
     @GetMapping("/screen-model")
@@ -31,7 +34,10 @@ public class SettingsController {
     /** 运行时切换（落库持久化，立即生效，无需重启） */
     @PutMapping("/screen-model")
     public ScreenModelService.View updateScreenModel(@Valid @RequestBody ScreenModelRequest request) {
-        return screenModelService.switchTo(request.providerId(), request.model());
+        ScreenModelService.View view = screenModelService.switchTo(request.providerId(), request.model());
+        auditService.record(AuditAction.SETTINGS_UPDATE, "SETTINGS", "screen-model",
+                "切换复筛模型为 " + view.providerId() + " · " + view.model());
+        return view;
     }
 
     /** 连通性测试：请求体留空则测当前生效的模型 */

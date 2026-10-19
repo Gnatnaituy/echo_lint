@@ -1,11 +1,13 @@
 package com.echolint.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.echolint.domain.AuditAction;
 import com.echolint.domain.CorpusLabel;
 import com.echolint.domain.ViolationType;
 import com.echolint.dto.CorpusRequest;
 import com.echolint.entity.CorpusEntry;
 import com.echolint.exception.BizException;
+import com.echolint.service.AuditService;
 import com.echolint.service.CorpusService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 public class CorpusController {
 
     private final CorpusService corpusService;
+    private final AuditService auditService;
     private final ObjectMapper objectMapper;
 
     @GetMapping
@@ -53,12 +56,16 @@ public class CorpusController {
         String type = label == CorpusLabel.VIOLATION
                 ? ViolationType.fromCode(request.violationType()).name()
                 : null;
-        return corpusService.appendManual(request.transcript(), label, type, request.reason());
+        CorpusEntry saved = corpusService.appendManual(request.transcript(), label, type, request.reason());
+        auditService.record(AuditAction.CORPUS_CREATE, "CORPUS_ENTRY", saved.getId(),
+                "新增语料 label=" + label + (type == null ? "" : "，类型 " + type));
+        return saved;
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         corpusService.delete(id);
+        auditService.record(AuditAction.CORPUS_DELETE, "CORPUS_ENTRY", id, "删除语料");
     }
 
     @GetMapping("/export")

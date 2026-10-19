@@ -522,3 +522,28 @@ a {
   color: var(--el-text-color-regular);
   font-weight: 500;
 }
+
+/* ==========================  顶栏账号下拉菜单  ========================== */
+
+.user-dropdown .el-dropdown-menu__item {
+  font-size: 13px;
+  gap: 7px;
+}
+.user-dropdown .el-dropdown-menu__item.is-disabled {
+  opacity: 1;
+  cursor: default;
+}
+.user-dropdown .menu-user {
+  line-height: 1.45;
+  padding: 2px 0;
+}
+.user-dropdown .menu-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+.user-dropdown .menu-sub {
+  font-size: 11.5px;
+  color: var(--el-text-color-placeholder);
+}
+

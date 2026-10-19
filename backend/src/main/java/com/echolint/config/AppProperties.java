@@ -17,6 +17,34 @@ public class AppProperties {
     private List<String> allowedExtensions = List.of("mp3", "wav", "m4a", "mp4", "webm", "ogg", "flac", "aac");
     private int pipelinePoolSize = 2;
     private Stereo stereo = new Stereo();
+    private Review review = new Review();
+    private Admin admin = new Admin();
+
+    /**
+     * 复核工作流配置
+     */
+    @Getter
+    @Setter
+    public static class Review {
+        /** 一条录音需要多少个复核人通过才落最终结论；1 = 单人复核，2 = 双人复核 */
+        private int requiredApprovals = 1;
+    }
+
+    /**
+     * 首次启动引导管理员（仅当用户表为空时使用）。
+     * 生产环境请通过 APP_ADMIN_USERNAME / APP_ADMIN_PASSWORD 覆盖默认值。
+     */
+    @Getter
+    @Setter
+    public static class Admin {
+        private String username = "admin";
+        private String password = "admin12345";
+    }
+
+    /** 生效的复核通过人数（至少 1，避免配置错误导致流程卡死） */
+    public int reviewRequiredApprovals() {
+        return Math.max(1, review == null ? 1 : review.getRequiredApprovals());
+    }
 
     /**
      * 双声道（双轨）录音处理：左右声道分离后分别转写，对齐成双栏对话

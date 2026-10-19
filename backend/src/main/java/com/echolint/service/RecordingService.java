@@ -2,13 +2,20 @@ package com.echolint.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
+import com.echolint.domain.AuditAction;
 import com.echolint.domain.RecordingStatus;
+import com.echolint.domain.ReviewPriority;
+import com.echolint.domain.UserRole;
 import com.echolint.entity.AiInvocation;
+import com.echolint.entity.AppUser;
 import com.echolint.entity.PipelineLog;
 import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
+import com.echolint.repository.AppUserRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
+import com.echolint.repository.ReviewRecordRepository;
+import com.echolint.security.SecurityUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +38,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * 录音管理：上传、查询、详情、删除、重试
+ * 录音管理：上传、查询、详情、删除、重试、认领、指派、重开。
  */
 @Slf4j
 @Service
@@ -44,6 +51,9 @@ public class RecordingService {
     private final PipelineService pipelineService;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
+    private final AppUserRepository userRepository;
+    private final ReviewRecordRepository reviewRecordRepository;
 
     /**
      * 上传录音：落盘 -> 建记录(PENDING) -> 异步启动稽核流水线
@@ -71,6 +81,8 @@ public class RecordingService {
         recording.setStatus(RecordingStatus.PENDING);
         Recording saved = recordingRepository.saveAndFlush(recording);
 
+        auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
+                "上传录音 " + original + "（" + file.getSize() + " 字节）");
         log.info("录音 {} 上传成功（{}，{} 字节），启动稽核流水线", saved.getId(), original, file.getSize());
         pipelineService.run(saved.getId());
         return saved;
@@ -97,7 +109,11 @@ public class RecordingService {
         return fileName.substring(idx + 1).toLowerCase(Locale.ROOT);
     }
 
-    public Page<Recording> query(List<RecordingStatus> statuses, String keyword, Pageable pageable) {
+    /**
+     * 录音列表：状态 / 关键字 / 指派对象 / 优先级 过滤。
+     */
+    public Page<Recording> query(List<RecordingStatus> statuses, String keyword,
+                                 String assignedTo, ReviewPriority priority, Pageable pageable) {
         Specification<Recording> spec = (root, query, cb) -> {
             List<Predicate> ps = new ArrayList<>();
             if (statuses != null && !statuses.isEmpty()) {
@@ -108,6 +124,16 @@ public class RecordingService {
                 ps.add(cb.or(
                         cb.like(cb.lower(root.get("transcript")), kw),
                         cb.like(cb.lower(root.get("fileName")), kw)));
+            }
+            if (StringUtils.hasText(assignedTo)) {
+                ps.add(cb.equal(cb.lower(root.get("assignedTo")),
+                        assignedTo.trim().toLowerCase(Locale.ROOT)));
+            }
+            if (priority != null) {
+                // 历史数据 priority 为 null 时按默认值 NORMAL 处理
+                ps.add(priority == ReviewPriority.NORMAL
+                        ? cb.or(cb.equal(root.get("priority"), priority), cb.isNull(root.get("priority")))
+                        : cb.equal(root.get("priority"), priority));
             }
             return cb.and(ps.toArray(Predicate[]::new));
         };
@@ -134,6 +160,7 @@ public class RecordingService {
         Recording recording = get(id);
         pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
         aiInvocationService.deleteByRecording(id);
+        reviewRecordRepository.deleteByRecordingId(id);
         recordingRepository.delete(recording);
         deleteFile(recording.getFilePath());
         // 双声道分轨文件一并清理
@@ -145,6 +172,8 @@ public class RecordingService {
                 log.warn("解析分轨文件失败: {}", e.getMessage());
             }
         }
+        auditService.record(AuditAction.RECORDING_DELETE, "RECORDING", id,
+                "删除录音 " + recording.getFileName());
         log.info("录音 {} 已删除", id);
     }
 
@@ -208,8 +237,103 @@ public class RecordingService {
         recording.setProcessedTime(null);
         recordingRepository.saveAndFlush(recording);
 
+        auditService.record(AuditAction.RECORDING_RETRY, "RECORDING", id,
+                "重新处理录音（原状态 " + status + "）");
         pipelineService.run(recording.getId());
         log.info("录音 {} 手动触发重新处理（原状态 {}）", id, status);
         return recording;
+    }
+
+    /**
+     * 认领复核：仅待复检录音；已被他人认领返回 409；重复认领自己幂等。
+     */
+    @Transactional
+    public Recording claim(Long id) {
+        Recording recording = get(id);
+        String username = currentUsernameOrThrow();
+        if (recording.getStatus() != RecordingStatus.NEEDS_REVIEW) {
+            throw new BizException("仅待复检录音可认领（当前状态 " + recording.getStatus() + "）",
+                    HttpStatus.CONFLICT);
+        }
+        if (StringUtils.hasText(recording.getAssignedTo())
+                && !recording.getAssignedTo().equalsIgnoreCase(username)) {
+            throw new BizException("该录音已被 " + recording.getAssignedTo() + " 认领",
+                    HttpStatus.CONFLICT);
+        }
+        recording.setAssignedTo(username);
+        Recording saved = recordingRepository.save(recording);
+        auditService.record(AuditAction.RECORDING_CLAIM, "RECORDING", id, "认领复核");
+        log.info("用户 {} 认领录音 {}", username, id);
+        return saved;
+    }
+
+    /**
+     * 管理员指派复核人：用户必须存在、启用且角色为 ADMIN / REVIEWER。
+     */
+    @Transactional
+    public Recording assign(Long id, String username) {
+        Recording recording = get(id);
+        String target = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(target)) {
+            throw new BizException("用户名不能为空");
+        }
+        AppUser user = userRepository.findByUsername(target)
+                .orElseThrow(() -> new BizException("用户不存在: " + target));
+        if (!user.isEnabled()) {
+            throw new BizException("用户已被禁用，不能指派: " + target);
+        }
+        if (user.getRole() == UserRole.VIEWER) {
+            throw new BizException("只能指派给管理员或复核员");
+        }
+        recording.setAssignedTo(user.getUsername());
+        Recording saved = recordingRepository.save(recording);
+        auditService.record(AuditAction.RECORDING_ASSIGN, "RECORDING", id,
+                "指派给 " + user.getUsername());
+        log.info("录音 {} 指派给 {}", id, user.getUsername());
+        return saved;
+    }
+
+    /**
+     * 重开复核（ADMIN）：仅终态录音可重开；清空最终结论与复核轮次，保留复核历史。
+     */
+    @Transactional
+    public Recording reopen(Long id) {
+        Recording recording = get(id);
+        RecordingStatus status = recording.getStatus();
+        if (status != RecordingStatus.VIOLATION_CONFIRMED
+                && status != RecordingStatus.FALSE_POSITIVE
+                && status != RecordingStatus.COMPLIANT) {
+            throw new BizException("仅已出最终结论的录音可重开（当前状态 " + status + "）",
+                    HttpStatus.CONFLICT);
+        }
+        recording.setStatus(RecordingStatus.NEEDS_REVIEW);
+        recording.setReviewResult(null);
+        recording.setViolationType(null);
+        recording.setViolationTypeLabel(null);
+        recording.setReviewer(null);
+        recording.setReviewTime(null);
+        recording.setReviewComment(null);
+        recording.setReviewCount(0);
+        Recording saved = recordingRepository.save(recording);
+
+        saveLog(id, "REVIEW", "INFO", "管理员重开复核（原状态 " + status + "），复核历史保留");
+        auditService.record(AuditAction.REVIEW_REOPEN, "RECORDING", id,
+                "重开复核（原状态 " + status + "）");
+        log.info("录音 {} 被重开复核（原状态 {}）", id, status);
+        return saved;
+    }
+
+    private String currentUsernameOrThrow() {
+        return SecurityUtils.currentUsername()
+                .orElseThrow(() -> new BizException("未登录或登录已过期", HttpStatus.UNAUTHORIZED));
+    }
+
+    private void saveLog(Long recordingId, String stage, String level, String message) {
+        PipelineLog entry = new PipelineLog();
+        entry.setRecordingId(recordingId);
+        entry.setStage(stage);
+        entry.setLevel(level);
+        entry.setMessage(message);
+        pipelineLogRepository.save(entry);
     }
 }

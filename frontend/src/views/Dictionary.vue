@@ -42,22 +42,28 @@
           <span class="tiny dim">使用当前启用词典实时匹配</span>
         </div>
         <div class="panel-body">
-          <el-input
-            v-model="testText"
-            type="textarea"
-            :rows="3"
-            placeholder="粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!"
-          />
-          <div class="row mt-10">
-            <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">检测</el-button>
-            <el-button v-if="tested" link @click="clearTest">清空</el-button>
-            <span v-if="tested && testHits.length" class="chip danger">命中 {{ testHits.length }} 处</span>
-            <span v-else-if="tested" class="chip ok">未命中，文本干净</span>
-          </div>
+          <template v-if="canWrite">
+            <el-input
+              v-model="testText"
+              type="textarea"
+              :rows="3"
+              placeholder="粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!"
+            />
+            <div class="row mt-10">
+              <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">检测</el-button>
+              <el-button v-if="tested" link @click="clearTest">清空</el-button>
+              <span v-if="tested && testHits.length" class="chip danger">命中 {{ testHits.length }} 处</span>
+              <span v-else-if="tested" class="chip ok">未命中，文本干净</span>
+            </div>
 
-          <div v-if="tested && testText" class="preview">
-            <div class="preview-label">命中预览</div>
-            <TranscriptViewer :text="testText" :hits="testHits" />
+            <div v-if="tested && testText" class="preview">
+              <div class="preview-label">命中预览</div>
+              <TranscriptViewer :text="testText" :hits="testHits" />
+            </div>
+          </template>
+          <div v-else class="readonly-hint">
+            <el-icon :size="15"><Lock /></el-icon>
+            <span>只读角色可浏览词库与统计；DFA 检测工具与词条维护仅管理员可用。</span>
           </div>
         </div>
       </section>
@@ -115,11 +121,12 @@
           </button>
         </div>
         <div class="actions">
+          <span v-if="!canWrite" class="chip info">只读模式</span>
           <el-input v-model="keyword" placeholder="搜索词条" clearable class="search" @keyup.enter="reload" @clear="reload">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
           <el-button :icon="Refresh" circle @click="reload" />
-          <el-button type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
+          <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
         </div>
       </div>
 
@@ -171,7 +178,10 @@
         </el-table-column>
         <el-table-column label="启用" width="84" align="center">
           <template #default="{ row }">
-            <el-switch :model-value="row.enabled" @change="(v) => toggle(row, v)" />
+            <el-switch v-if="canWrite" :model-value="row.enabled" @change="(v) => toggle(row, v)" />
+            <span v-else class="chip" :class="row.enabled ? 'ok' : 'info'">
+              {{ row.enabled ? '启用' : '停用' }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="更新时间" width="150">
@@ -179,7 +189,7 @@
             <span class="num dim">{{ formatTimeShort(row.updatedAt || row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="110" align="right">
+        <el-table-column v-if="canWrite" label="操作" width="110" align="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-popconfirm title="确认删除该词？" @confirm="remove(row)">
@@ -253,11 +263,15 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, MagicStick } from '@element-plus/icons-vue'
 import api from '../api'
+import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTimeShort } from '../constants'
 
 const route = useRoute()
+
+// 敏感词写操作仅 ADMIN：非管理员隐藏入口（后端仍会独立校验）
+const canWrite = computed(() => auth.hasRole('ADMIN'))
 
 const rows = ref([])
 const total = ref(0)
@@ -388,23 +402,33 @@ async function save() {
     dialogVisible.value = false
     reload()
     loadOverview()
+  } catch {
+    // 403 等由请求层统一提示
   } finally {
     saving.value = false
   }
 }
 
 async function toggle(row, v) {
-  await api.updateWord(row.id, { enabled: v })
-  ElMessage.success(v ? `已启用「${row.word}」` : `已停用「${row.word}」`)
-  load()
-  loadOverview()
+  try {
+    await api.updateWord(row.id, { enabled: v })
+    ElMessage.success(v ? `已启用「${row.word}」` : `已停用「${row.word}」`)
+    load()
+    loadOverview()
+  } catch {
+    // 403 等由请求层统一提示
+  }
 }
 
 async function remove(row) {
-  await api.deleteWord(row.id)
-  ElMessage.success('已删除')
-  load()
-  loadOverview()
+  try {
+    await api.deleteWord(row.id)
+    ElMessage.success('已删除')
+    load()
+    loadOverview()
+  } catch {
+    // 403 等由请求层统一提示
+  }
 }
 
 async function runTest() {
@@ -617,5 +641,14 @@ onMounted(() => {
   font-weight: 600;
   color: var(--ink-600);
   margin-bottom: 4px;
+}
+.readonly-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 12.5px;
+  line-height: 1.7;
 }
 </style>

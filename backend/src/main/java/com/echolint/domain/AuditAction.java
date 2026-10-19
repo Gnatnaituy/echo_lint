@@ -1,0 +1,25 @@
+package com.echolint.domain;
+
+/**
+ * 操作审计动作。审计写入失败不影响主流程（见 AuditService）。
+ */
+public enum AuditAction {
+    LOGIN,
+    LOGOUT,
+    USER_CREATE,
+    USER_UPDATE,
+    USER_DISABLE,
+    RECORDING_UPLOAD,
+    RECORDING_DELETE,
+    RECORDING_RETRY,
+    RECORDING_CLAIM,
+    RECORDING_ASSIGN,
+    REVIEW_SUBMIT,
+    REVIEW_REOPEN,
+    DICTIONARY_CREATE,
+    DICTIONARY_UPDATE,
+    DICTIONARY_DELETE,
+    CORPUS_CREATE,
+    CORPUS_DELETE,
+    SETTINGS_UPDATE
+}

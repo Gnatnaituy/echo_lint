@@ -241,6 +241,23 @@ docker compose up -d --build
 
 停止：`docker compose down`（数据保存在 named volume，`docker compose down -v` 可清空）。
 
+### 登录与权限
+
+系统使用 **会话 Cookie**（`HttpOnly` + `SameSite=Lax`）认证，前端不保存 token；`/api/**` 与 `/uploads/**`
+均需登录，未登录返回 JSON 401。首次启动且用户表为空时会自动创建管理员：
+
+```bash
+# 管理员账号来自环境变量；默认 admin / admin12345（生产必须覆盖）
+APP_ADMIN_USERNAME=admin
+APP_ADMIN_PASSWORD=<至少 8 位的强密码>
+```
+
+角色：`ADMIN`（全部权限）、`REVIEWER`（上传、复检、认领、重开）、`VIEWER`（只读）。
+管理员可在「用户管理」页创建/停用账号、重置密码；所有敏感操作写入「操作审计」。
+
+复核工作流默认单人复核；设置 `APP_REVIEW_REQUIRED_APPROVALS=2` 后进入**双人复核**：每次提交落一条复核记录，
+达到人数才落最终结论并回馈语料库，同一人不能连续复核同一条录音。终态录音可由管理员「重开复核」。
+
 ## 本地开发
 
 ```bash
@@ -274,6 +291,9 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 端点（可指向代理） |
 | `DEEPSEEK_SCREEN_MODEL` | `deepseek-flash` | DeepSeek 默认模型 |
 | `APP_SCREEN_PROVIDER` | `openai` | 首次启动（`app_settings` 表为空）时的复筛供应商 |
+| `APP_ADMIN_USERNAME` | `admin` | 首次启动引导管理员用户名（用户表为空时创建） |
+| `APP_ADMIN_PASSWORD` | `admin12345` | 引导管理员密码，**生产必须覆盖** |
+| `APP_REVIEW_REQUIRED_APPROVALS` | `1` | 一条录音需要几位复核人通过才落最终结论（2 = 双人复核） |
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
@@ -300,6 +320,29 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | GET | `/api/settings/screen-model` | 当前复筛模型 + 全部候选供应商 |
 | PUT | `/api/settings/screen-model` | 切换复筛模型 `{providerId, model?}`（落库持久化） |
 | POST | `/api/settings/screen-model/test` | 连通性测试（请求体留空则测当前生效模型） |
+
+认证与权限：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/auth/login` | `{username,password}` → 用户信息；失败 401 |
+| POST | `/api/auth/logout` | 注销会话 |
+| GET | `/api/auth/me` | 当前登录用户 |
+| POST | `/api/auth/password` | 修改密码 `{oldPassword,newPassword}` |
+| GET/POST | `/api/users` | 用户列表 / 新建（ADMIN） |
+| PUT/DELETE | `/api/users/{id}` | 修改角色/启停/重置密码、禁用（ADMIN） |
+| GET | `/api/audit-logs?page&size&actor&action` | 操作审计（ADMIN） |
+
+复核工作流：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/recordings?statuses=&keyword=&assignedTo=&priority=&page=&size=` | 支持指派/优先级筛选，`size` 上限 100 |
+| POST | `/api/recordings/{id}/claim` | 认领复核（ADMIN/REVIEWER） |
+| PUT | `/api/recordings/{id}/assign` | 指派复核人 `{username}`（ADMIN） |
+| POST | `/api/recordings/{id}/reopen` | 重开终态录音（ADMIN） |
+| GET | `/api/recordings/{id}/reviews` | 复核历史 |
+| POST | `/api/reviews/{id}` | 提交复核；复核人取自登录态，支持双人复核 |
 
 ## 录音状态机
 

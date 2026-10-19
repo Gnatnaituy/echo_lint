@@ -42,6 +42,11 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       # 首次启动的默认复筛供应商（未在界面切换过时生效）：openai | deepseek
       APP_SCREEN_PROVIDER: ${APP_SCREEN_PROVIDER:-openai}
+      # 首次启动引导管理员（仅当用户表为空时创建；生产务必覆盖默认密码）
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-admin12345}
+      # 一条录音需要几个复核人通过才落最终结论：1=单人复核，2=双人复核
+      APP_REVIEW_REQUIRED_APPROVALS: ${APP_REVIEW_REQUIRED_APPROVALS:-1}
       # 转写改道到本机 whisper.cpp（Metal 加速，不占 Docker 的 CPU）：
       #   tools/whisper-server.sh --daemon
       #   .env 里设 WHISPER_BASE_URL=http://host.docker.internal:9900  WHISPER_API_KEY=local

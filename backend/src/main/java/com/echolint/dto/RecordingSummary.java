@@ -3,6 +3,7 @@ package com.echolint.dto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.domain.RecordingStatus;
+import com.echolint.domain.ReviewPriority;
 import com.echolint.domain.ReviewResult;
 
 import java.time.LocalDateTime;
@@ -34,9 +35,18 @@ public record RecordingSummary(
         LocalDateTime uploadTime,
         LocalDateTime processedTime,
         /** 最近一次状态变更时间，前端据此判断处理是否卡住 */
-        LocalDateTime statusUpdatedAt) {
+        LocalDateTime statusUpdatedAt,
+        /** 指派的复核人用户名 */
+        String assignedTo,
+        /** 复核优先级，历史数据 null 按 NORMAL 返回 */
+        ReviewPriority priority,
+        /** 已完成复核轮次 */
+        int reviewCount,
+        /** 落最终结论所需的复核通过人数（app.review.required-approvals） */
+        int requiredApprovals) {
 
-    public static RecordingSummary from(com.echolint.entity.Recording r, ObjectMapper objectMapper) {
+    public static RecordingSummary from(com.echolint.entity.Recording r, ObjectMapper objectMapper,
+                                        int requiredApprovals) {
         String snippet = r.getTranscript();
         if (snippet != null && snippet.length() > 300) {
             snippet = snippet.substring(0, 300) + "...";
@@ -85,6 +95,10 @@ public record RecordingSummary(
                 r.getErrorMessage(),
                 r.getUploadTime(),
                 r.getProcessedTime(),
-                r.getStatusUpdatedAt());
+                r.getStatusUpdatedAt(),
+                r.getAssignedTo(),
+                r.getPriority() == null ? ReviewPriority.NORMAL : r.getPriority(),
+                r.getReviewCount(),
+                Math.max(1, requiredApprovals));
     }
 }

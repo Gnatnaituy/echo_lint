@@ -1,6 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import auth from '../auth'
 
 const routes = [
+  {
+    // 登录页：独立布局（不套壳层），已登录用户由守卫送回工作台
+    path: '/login',
+    component: () => import('../views/Login.vue'),
+    meta: { title: '登录', public: true }
+  },
   {
     path: '/',
     component: () => import('../views/Dashboard.vue'),
@@ -27,6 +35,16 @@ const routes = [
     meta: { title: '语料库' }
   },
   {
+    path: '/users',
+    component: () => import('../views/Users.vue'),
+    meta: { title: '用户管理', roles: ['ADMIN'] }
+  },
+  {
+    path: '/audit',
+    component: () => import('../views/Audit.vue'),
+    meta: { title: '操作审计', roles: ['ADMIN'] }
+  },
+  {
     path: '/settings',
     component: () => import('../views/Settings.vue'),
     meta: { title: '系统设置' }
@@ -42,6 +60,37 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+/**
+ * 全局守卫：
+ * - 公开路由（登录页）直接放行；已登录访问 /login 则回工作台
+ * - 未登录先尝试 /api/auth/me 恢复会话（刷新页面/服务端会话仍有效时无需重登）
+ * - 会话恢复失败 → /login?redirect=<原地址>
+ * - meta.roles 命中当前角色才可进入，否则提示并回工作台
+ */
+router.beforeEach(async (to) => {
+  if (to.meta?.public) {
+    if (to.path === '/login' && auth.user) return { path: '/' }
+    return true
+  }
+
+  if (!auth.user) {
+    const user = await auth.fetchMe()
+    if (!user) {
+      const full = to.fullPath || ''
+      const redirect = full && full !== '/' && !full.startsWith('/login') ? full : undefined
+      return { path: '/login', query: redirect ? { redirect } : {} }
+    }
+  }
+
+  const roles = to.meta?.roles
+  if (Array.isArray(roles) && roles.length && !auth.hasRole(...roles)) {
+    ElMessage.error('无权限访问该页面')
+    return { path: '/' }
+  }
+
+  return true
 })
 
 router.afterEach((to) => {

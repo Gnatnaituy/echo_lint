@@ -35,6 +35,130 @@ export const SOURCE_META = {
   MINED: { label: 'AI 挖掘', type: 'warning' }
 }
 
+/* ==========================================================================
+   身份 / 复核工作流 / 操作审计
+   ========================================================================== */
+
+/** 角色元数据：前端只用于展示与隐藏入口，权限由后端独立校验 */
+export const ROLE_META = {
+  ADMIN: { label: '管理员', short: '管理', type: 'danger', description: '用户管理、操作审计、配置与复核' },
+  REVIEWER: { label: '复核员', short: '复核', type: 'warning', description: '上传录音、认领与提交复核结论' },
+  VIEWER: { label: '只读', short: '只读', type: 'info', description: '只读访问，不执行写操作' }
+}
+
+export const ROLE_OPTIONS = Object.keys(ROLE_META).map((value) => ({
+  value,
+  label: ROLE_META[value].label
+}))
+
+export function roleLabel(role) {
+  return ROLE_META[role]?.label || (role ? String(role) : '—')
+}
+
+/** 复核优先级：后端默认 NORMAL，未知值按 NORMAL 处理 */
+export const PRIORITY_META = {
+  HIGH: { label: '高', type: 'danger', order: 0 },
+  NORMAL: { label: '普通', type: 'primary', order: 1 },
+  LOW: { label: '低', type: 'info', order: 2 }
+}
+
+export const PRIORITY_OPTIONS = Object.keys(PRIORITY_META)
+  .sort((a, b) => PRIORITY_META[a].order - PRIORITY_META[b].order)
+  .map((value) => ({ value, label: PRIORITY_META[value].label }))
+
+export function priorityMeta(priority) {
+  return PRIORITY_META[priority] || PRIORITY_META.NORMAL
+}
+
+/** 复核终态：ADMIN 可重开为 NEEDS_REVIEW */
+export const FINAL_REVIEW_STATUSES = ['VIOLATION_CONFIRMED', 'FALSE_POSITIVE', 'COMPLIANT']
+
+export function isFinalReviewStatus(status) {
+  return FINAL_REVIEW_STATUSES.includes(status)
+}
+
+/**
+ * 复核进度：reviewCount / requiredApprovals。
+ * 后端缺省时为单人复核（required=1），前端只做展示与提交提示。
+ */
+export function reviewProgress(record) {
+  const count = Math.max(0, Number(record?.reviewCount) || 0)
+  const required = Math.max(1, Number(record?.requiredApprovals) || 1)
+  return {
+    count,
+    required,
+    done: count >= required,
+    remaining: Math.max(0, required - count),
+    text: `${count}/${required}`
+  }
+}
+
+/** 操作审计动作标签 */
+export const AUDIT_ACTION_META = {
+  LOGIN: { label: '登录', type: 'primary' },
+  LOGOUT: { label: '退出登录', type: 'info' },
+  USER_CREATE: { label: '创建用户', type: 'success' },
+  USER_UPDATE: { label: '更新用户', type: 'warning' },
+  USER_DISABLE: { label: '禁用用户', type: 'danger' },
+  RECORDING_UPLOAD: { label: '上传录音', type: 'primary' },
+  RECORDING_DELETE: { label: '删除录音', type: 'danger' },
+  RECORDING_RETRY: { label: '重试处理', type: 'warning' },
+  RECORDING_CLAIM: { label: '认领录音', type: 'primary' },
+  RECORDING_ASSIGN: { label: '指派录音', type: 'primary' },
+  REVIEW_SUBMIT: { label: '提交复核', type: 'success' },
+  REVIEW_REOPEN: { label: '重开复核', type: 'warning' },
+  DICTIONARY_CREATE: { label: '新增敏感词', type: 'success' },
+  DICTIONARY_UPDATE: { label: '更新敏感词', type: 'warning' },
+  DICTIONARY_DELETE: { label: '删除敏感词', type: 'danger' },
+  CORPUS_CREATE: { label: '新增语料', type: 'success' },
+  CORPUS_DELETE: { label: '删除语料', type: 'danger' },
+  SETTINGS_UPDATE: { label: '修改设置', type: 'warning' },
+  PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
+}
+
+export const AUDIT_ACTION_OPTIONS = Object.keys(AUDIT_ACTION_META).map((value) => ({
+  value,
+  label: AUDIT_ACTION_META[value].label
+}))
+
+export function auditActionMeta(action) {
+  return AUDIT_ACTION_META[action] || { label: action || '—', type: 'info' }
+}
+
+export function auditActionLabel(action) {
+  return auditActionMeta(action).label
+}
+
+/**
+ * 智能时间：今天 HH:mm / 昨天 HH:mm / 今年 MM-DD HH:mm / 更早 YYYY-MM-DD HH:mm。
+ * 后端 LocalDateTime 无时区（如 2026-10-20T10:30:00），按浏览器本地时间解析。
+ */
+export function formatSmartTime(ts, now = Date.now()) {
+  if (!ts) return '—'
+  const d = new Date(String(ts).replace(' ', 'T'))
+  if (Number.isNaN(d.getTime())) return String(ts).replace('T', ' ').substring(0, 19)
+  const nowDate = new Date(now)
+  const pad = (n) => String(n).padStart(2, '0')
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  if (sameDay(d, nowDate)) return `今天 ${hm}`
+  const yesterday = new Date(nowDate)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (sameDay(d, yesterday)) return `昨天 ${hm}`
+  const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return d.getFullYear() === nowDate.getFullYear() ? `${md} ${hm}` : `${d.getFullYear()}-${md} ${hm}`
+}
+
+/** 登录后跳转目标：仅允许站内绝对路径，避免开放重定向 */
+export function safeRedirect(target, fallback = '/') {
+  if (typeof target !== 'string') return fallback
+  const path = target.trim()
+  if (!path.startsWith('/') || path.startsWith('//')) return fallback
+  if (path === '/login' || path.startsWith('/login?') || path.startsWith('/login/')) return fallback
+  return path
+}
+
 export function formatDuration(seconds) {
   if (!seconds) return '-'
   const m = Math.floor(seconds / 60)

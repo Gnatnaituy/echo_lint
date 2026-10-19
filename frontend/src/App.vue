@@ -1,5 +1,8 @@
 <template>
-  <div class="shell">
+  <!-- 公开路由（登录页）使用独立布局，不套侧栏/顶栏壳层 -->
+  <router-view v-if="isPublic" />
+
+  <div v-else class="shell">
     <AppSidebar :collapsed="collapsed" :badge-count="pendingReview" @toggle="collapsed = !collapsed" />
     <div class="shell-main">
       <AppHeader
@@ -16,7 +19,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from './api'
 import AppSidebar from './components/AppSidebar.vue'
@@ -27,7 +30,11 @@ const collapsed = ref(false)
 const pendingReview = ref(0)
 const healthy = ref(true)
 
+/** 登录页等公开路由：无壳层，也不轮询业务统计 */
+const isPublic = computed(() => route.meta?.public === true)
+
 async function refreshStatus() {
+  if (isPublic.value) return
   try {
     const data = await api.overview()
     pendingReview.value = data.statusCounts?.NEEDS_REVIEW || 0
@@ -50,15 +57,31 @@ function syncCollapse() {
 }
 
 let timer = null
+function startPolling() {
+  if (timer) return
+  refreshStatus()
+  timer = setInterval(refreshStatus, 15000)
+}
+function stopPolling() {
+  if (!timer) return
+  clearInterval(timer)
+  timer = null
+}
+
+// 登录/退出切换时启停轮询，避免登录页上请求受保护接口
+watch(isPublic, (pub) => {
+  if (pub) stopPolling()
+  else startPolling()
+})
+
 onMounted(() => {
   syncCollapse()
   window.addEventListener('resize', syncCollapse)
-  refreshStatus()
-  timer = setInterval(refreshStatus, 15000)
+  if (!isPublic.value) startPolling()
 })
 onUnmounted(() => {
   window.removeEventListener('resize', syncCollapse)
-  clearInterval(timer)
+  stopPolling()
 })
 </script>
 
