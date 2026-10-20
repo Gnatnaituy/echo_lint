@@ -49,11 +49,11 @@ export function normalizeScreenTrend(overviewRaw) {
     .map((row) => {
       const data = asObject(row)
       return {
-        label: toText(pick(data, ['label', 'date', 'day'])),
+        date: toText(pick(data, ['date', 'day', 'label'])),
         count: nonNegative(pick(data, ['count', 'total', 'uploads']))
       }
     })
-    .filter((row) => row.label)
+    .filter((row) => row.date)
 }
 
 /* ---------- 违规类型分布 ---------- */

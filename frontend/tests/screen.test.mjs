@@ -50,9 +50,9 @@ test('近 7 日趋势：字段别名 / 过滤空标签 / 非数组', () => {
     ]
   })
   assert.deepEqual(trend, [
-    { label: '10-01', count: 3 },
-    { label: '10-02', count: 5 },
-    { label: '10-03', count: 2 }
+    { date: '10-01', count: 3 },
+    { date: '10-02', count: 5 },
+    { date: '10-03', count: 2 }
   ])
   assert.deepEqual(normalizeScreenTrend({}), [])
   assert.deepEqual(normalizeScreenTrend(null), [])
