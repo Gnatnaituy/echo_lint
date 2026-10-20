@@ -38,7 +38,10 @@
   /* 表面 */
   --surface: #ffffff;
   --surface-sunken: #f4f6fb;
-  --surface-sidebar: linear-gradient(180deg, #0b1220 0%, #101a30 100%);
+  /* 浅色侧栏：顶部白色高光 → 底部淡蓝灰，叠加品牌色柔光，形成层次 */
+  --surface-sidebar:
+    radial-gradient(120% 70% at 0% 0%, rgba(59, 110, 246, 0.10) 0%, rgba(59, 110, 246, 0) 58%),
+    linear-gradient(180deg, #ffffff 0%, #f9fbff 52%, #f1f5fc 100%);
   --border: #e8ecf3;
   --border-strong: #dbe2ec;
 
@@ -261,7 +264,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: var(--sh-xs);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px rgba(15, 23, 42, 0.035);
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 

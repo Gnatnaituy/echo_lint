@@ -14,6 +14,13 @@ import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
 import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
 import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys'
 import { normalizeKnowledgeEntry, normalizeKnowledgePage } from '../utils/knowledge'
+import {
+  normalizeKnowledgeSearch,
+  normalizeRagEvaluation,
+  normalizeRagSettings,
+  normalizeRagTest,
+  normalizeReindexResult
+} from '../utils/rag'
 
 const http = axios.create({
   baseURL: '/api',
@@ -398,6 +405,36 @@ export const api = {
       .then((data) => normalizeEvaluation(data))
   },
 
+  // 系统设置：RAG 检索增强（ADMIN）；读 / 测试 / 评测 silent，由设置页卡片展示 403/404 降级
+  /** GET /api/settings/rag -> 归一化 {enabled, source, embedding, retrieval, index} */
+  getRagSettings() {
+    return http
+      .get('/settings/rag', { silent: true })
+      .then((data) => normalizeRagSettings(data))
+  },
+  /** PUT /api/settings/rag {enabled, topK, minScore, maxContextChars, corpusExamples} -> 同 GET */
+  updateRagSettings(payload) {
+    return http.put('/settings/rag', payload).then((data) => normalizeRagSettings(data))
+  },
+  /** POST /api/settings/rag/test -> 归一化 {ok, providerLabel, model, dimensions, latencyMs, message} */
+  testRagEmbedding() {
+    return http
+      .post('/settings/rag/test', undefined, { silent: true })
+      .then((data) => normalizeRagTest(data))
+  },
+  /** POST /api/settings/rag/reindex {scope:'knowledge'|'corpus'|'all'} -> {queued, skipped, message}（异步） */
+  reindexRag(scope) {
+    return http
+      .post('/settings/rag/reindex', { scope })
+      .then((data) => normalizeReindexResult(data))
+  },
+  /** POST /api/settings/rag/evaluate {sampleSize:1~20} -> 归一化 baseline / rag / delta / cases */
+  evaluateRag(sampleSize) {
+    return http
+      .post('/settings/rag/evaluate', { sampleSize }, { silent: true })
+      .then((data) => normalizeRagEvaluation(data))
+  },
+
   // 系统设置：运营通知（ADMIN）；silent 由页面自行展示 403/404 的降级提示
   /** GET /api/settings/notifications -> 归一化的 {enabled, urlConfigured, backlogThreshold, samplingRate, events} */
   notificationSettings() {
@@ -485,6 +522,31 @@ export const api = {
   },
   deleteKnowledge(id) {
     return http.delete(`/knowledge/${encodeURIComponent(id)}`)
+  },
+  /**
+   * 语义检索预览（ADMIN / REVIEWER）：POST {query, topK}（topK 约定 1~10）
+   * -> 归一化 {query, results:[{chunkId,entryId,title,category,content,score}]}
+   * silent：检索预览对话框内展示 403/404 降级与失败原因，不弹全局提示。
+   */
+  searchKnowledge({ query, topK } = {}) {
+    return http
+      .post('/knowledge/search', { query, topK }, { silent: true })
+      .then((data) => normalizeKnowledgeSearch(data))
+  },
+  /**
+   * 导入文档（ADMIN / REVIEWER，multipart/form-data）：字段 file 必填，title/category 可选。
+   * 返回 201 条目（indexStatus=PENDING，后台异步解析 + 索引）；重复文档 409 由请求层统一提示。
+   */
+  uploadKnowledgeDocument(file, { title, category } = {}) {
+    const fd = new FormData()
+    fd.append('file', file)
+    appendOptional(fd, 'title', title)
+    appendOptional(fd, 'category', category)
+    return http.post('/knowledge/documents', fd).then((data) => normalizeKnowledgeEntry(data))
+  },
+  /** 重建单条知识库索引（ADMIN / REVIEWER）-> {id, status}（异步执行） */
+  reindexKnowledge(id) {
+    return http.post(`/knowledge/${encodeURIComponent(id)}/reindex`)
   }
 }
 

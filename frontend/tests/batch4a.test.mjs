@@ -121,7 +121,15 @@ test('知识库条目：契约字段 + tags 逗号串转数组', () => {
     enabled: true,
     createdBy: 'admin',
     createdAt: '2026-10-20T09:00:00',
-    updatedAt: '2026-10-20T10:00:00'
+    updatedAt: '2026-10-20T10:00:00',
+    // Batch 6 RAG 索引字段：缺失时安全兜底，不臆造状态
+    indexStatus: '',
+    indexError: '',
+    indexedAt: '',
+    sourceType: '',
+    sourceFilename: '',
+    sourceSize: null,
+    chunkCount: null
   })
 })
 

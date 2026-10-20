@@ -85,12 +85,6 @@ export default {
   'nav.login': '登录',
 
   // 侧栏流水线提示
-  'side.flowTitle': '稽核流水线',
-  'side.flowTranscribe': 'Whisper 转写',
-  'side.flowDfa': 'DFA 初筛',
-  'side.flowAi': 'AI 语义复筛',
-  'side.flowReview': '人工复检',
-  'side.flowFeedback': '语料回馈',
 
   // 登录页
   'login.title': '登录稽核平台',

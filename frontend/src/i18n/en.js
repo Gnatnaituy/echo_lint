@@ -83,12 +83,6 @@ export default {
   'nav.login': 'Sign in',
 
   // Sidebar pipeline hint
-  'side.flowTitle': 'Pipeline',
-  'side.flowTranscribe': 'Whisper transcription',
-  'side.flowDfa': 'DFA screening',
-  'side.flowAi': 'AI screening',
-  'side.flowReview': 'Manual review',
-  'side.flowFeedback': 'Feedback loop',
 
   // Login page
   'login.title': 'Sign in to EchoLint',

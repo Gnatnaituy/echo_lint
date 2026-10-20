@@ -1,11 +1,13 @@
 /**
  * 知识库条目归一化。
  *
- * 后端契约（docs/production-readiness.md Batch 4a）：
+ * 后端契约（docs/production-readiness.md Batch 4a / docs/rag-contract.md Batch 6）：
  * - GET /api/knowledge?keyword=&category=&enabled=&page=&size= （登录可读，Spring Page）
  * - POST / PUT / DELETE /api/knowledge[/{id}]（ADMIN + REVIEWER）
  * 字段：{id,title,category,violationType,tags,content,enabled,createdBy,createdAt,updatedAt}
  * tags 后端以逗号分隔字符串存储，这里统一归一化为字符串数组供界面展示/编辑。
+ * RAG 索引字段（Batch 6）：indexStatus/indexError/indexedAt/sourceType/sourceFilename/
+ * sourceSize/chunkCount，缺失时为 null / ''，由界面显示占位，不臆造状态。
  */
 
 import { asObject, pick, toBoolean, toNumber, toText, toStringList } from './shape.js'
@@ -26,7 +28,15 @@ export function normalizeKnowledgeEntry(raw) {
     enabled: toBoolean(pick(data, ['enabled'])),
     createdBy: toText(pick(data, ['createdBy', 'created_by', 'creator'])),
     createdAt: toText(pick(data, ['createdAt', 'created_at'])),
-    updatedAt: toText(pick(data, ['updatedAt', 'updated_at']))
+    updatedAt: toText(pick(data, ['updatedAt', 'updated_at'])),
+    // RAG 索引状态（Batch 6）：后端驼峰字段，兼容 snake_case
+    indexStatus: toText(pick(data, ['indexStatus', 'index_status'])),
+    indexError: toText(pick(data, ['indexError', 'index_error'])),
+    indexedAt: toText(pick(data, ['indexedAt', 'indexed_at'])),
+    sourceType: toText(pick(data, ['sourceType', 'source_type'])),
+    sourceFilename: toText(pick(data, ['sourceFilename', 'source_filename', 'filename'])),
+    sourceSize: toNumber(pick(data, ['sourceSize', 'source_size'])),
+    chunkCount: toNumber(pick(data, ['chunkCount', 'chunk_count']))
   }
 }
 
