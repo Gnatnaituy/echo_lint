@@ -44,5 +44,10 @@ public enum AuditAction {
     /** 知识库 / SOP（Batch 4a）：新增 / 修改 / 删除 */
     KNOWLEDGE_CREATE,
     KNOWLEDGE_UPDATE,
-    KNOWLEDGE_DELETE
+    KNOWLEDGE_DELETE,
+    /** RAG 检索增强（Batch 6）：设置变更 / 重建索引 / 对比评测 / 文档导入 */
+    RAG_SETTINGS_UPDATE,
+    RAG_REINDEX,
+    RAG_EVALUATE,
+    RAG_DOCUMENT_IMPORT
 }

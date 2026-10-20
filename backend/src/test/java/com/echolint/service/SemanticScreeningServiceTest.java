@@ -1,6 +1,8 @@
 package com.echolint.service;
 
 import com.echolint.config.ScreenModelProperties;
+import com.echolint.service.rag.RagContext;
+import com.echolint.service.rag.RagRetrievalService;
 import com.echolint.exception.BizException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +54,8 @@ class SemanticScreeningServiceTest {
     private AiModelCaller aiModelCaller;
     @Mock
     private AiQuotaService quotaService;
+    @Mock
+    private RagRetrievalService ragRetrievalService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Deque<JsonNode> modelReplies = new ArrayDeque<>();
@@ -81,8 +85,10 @@ class SemanticScreeningServiceTest {
                 .thenReturn(new ScreenModelService.ScreeningModel(model, "A"));
 
         promptSupport = new ScreeningPromptSupport(properties, objectMapper);
+        when(ragRetrievalService.knowledgeContext(anyString(), any()))
+                .thenReturn(RagContext.disabled());
         service = new SemanticScreeningService(properties, screenModelService, invocations, objectMapper,
-                aiModelCaller, quotaService, promptSupport);
+                aiModelCaller, quotaService, promptSupport, ragRetrievalService);
     }
 
     /** 构造 OpenAI 兼容响应，content 即模型输出的 JSON 文本；带 usage 用于成本快照 */

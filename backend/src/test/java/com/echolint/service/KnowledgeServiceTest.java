@@ -4,6 +4,7 @@ import com.echolint.dto.KnowledgeRequest;
 import com.echolint.entity.KnowledgeEntry;
 import com.echolint.exception.BizException;
 import com.echolint.repository.KnowledgeEntryRepository;
+import com.echolint.service.rag.RagIndexService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
@@ -40,6 +41,8 @@ class KnowledgeServiceTest {
     @Mock
     private KnowledgeEntryRepository repository;
     @Mock
+    private RagIndexService ragIndexService;
+    @Mock
     private Root<KnowledgeEntry> root;
     @Mock
     private CriteriaQuery<?> criteriaQuery;
@@ -54,7 +57,7 @@ class KnowledgeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KnowledgeService(repository);
+        service = new KnowledgeService(repository, ragIndexService);
         lenient().when(root.get(anyString())).thenAnswer(inv -> path);
         lenient().when(cb.lower(any())).thenAnswer(inv -> lowered);
         lenient().when(cb.like(any(Expression.class), anyString())).thenAnswer(inv -> mock(Predicate.class));

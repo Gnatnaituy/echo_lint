@@ -20,4 +20,12 @@ public interface CorpusEntryRepository extends JpaRepository<CorpusEntry, Long>,
 
     /** 删除录音时级联清理该录音回馈的语料（Batch 2b-1） */
     void deleteByRecordingId(Long recordingId);
+
+    // ---------------- RAG 语义 few-shot（Batch 6） ----------------
+
+    /** 已向量化的语料数（索引统计用） */
+    long countByEmbeddingTextIsNotNull();
+
+    /** 启动回填：尚未向量化的历史语料 */
+    List<CorpusEntry> findByEmbeddingTextIsNull();
 }

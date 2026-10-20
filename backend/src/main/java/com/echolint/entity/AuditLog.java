@@ -40,7 +40,6 @@ public class AuditLog {
     @Column(length = 64)
     private String targetId;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String detail;
 

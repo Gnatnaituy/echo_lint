@@ -114,6 +114,8 @@ public class SecurityConfig {
                         // AI 供应商管理（Batch 3a）：列表只回掩码，仍属敏感配置，仅 ADMIN 可读
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers/**").hasRole("ADMIN")
+                        // RAG 设置（Batch 6）：只有 ADMIN 能查看/修改 embedding 与索引状态
+                        .requestMatchers(HttpMethod.GET, "/api/settings/rag").hasRole("ADMIN")
                         // AI 成本看板（Batch 3a）仅 ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/stats/ai-usage").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/settings/**").hasRole("ADMIN")

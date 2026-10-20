@@ -1,6 +1,7 @@
 package com.echolint.entity;
 
 import com.echolint.domain.CorpusLabel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,14 +27,12 @@ public class CorpusEntry {
     @Column(nullable = false, length = 16)
     private CorpusLabel label;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "MEDIUMTEXT")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String transcript;
 
     @Column(length = 32)
     private String violationType;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String reason;
 
@@ -45,6 +44,27 @@ public class CorpusEntry {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    // ------------------------------------------------------------------
+    // 语义 few-shot（Batch 6，Phase A）：人工复检语料的向量表示
+    // ------------------------------------------------------------------
+
+    /** 转写文本截断后的 embedding 文本形式（[0.1,0.2,...]）；内部字段，不通过 API 返回 */
+    @JsonIgnore
+    @Column(columnDefinition = "TEXT")
+    private String embeddingText;
+
+    @JsonIgnore
+    @Column(length = 128)
+    private String embeddingModel;
+
+    /** 转写文本的 SHA-256，未变化时跳过重复向量化；内部字段 */
+    @JsonIgnore
+    @Column(length = 64)
+    private String embeddingHash;
+
+    @JsonIgnore
+    private LocalDateTime embeddingUpdatedAt;
 
     @PrePersist
     void prePersist() {

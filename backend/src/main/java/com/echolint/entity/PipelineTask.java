@@ -48,7 +48,6 @@ public class PipelineTask {
     /** 下次可执行时间；PENDING 且为空视为立即可执行（兼容手写数据） */
     private LocalDateTime nextAttemptAt;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String lastError;
 

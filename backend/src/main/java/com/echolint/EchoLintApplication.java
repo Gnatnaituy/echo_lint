@@ -3,6 +3,7 @@ package com.echolint;
 import com.echolint.config.AppProperties;
 import com.echolint.config.DiarizationProperties;
 import com.echolint.config.NotifyProperties;
+import com.echolint.config.RagProperties;
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.config.SsoProperties;
 import com.echolint.config.StreamingProperties;
@@ -23,7 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableConfigurationProperties({AppProperties.class, WhisperProperties.class, ScreenModelProperties.class,
         NotifyProperties.class, TenantProperties.class, SsoProperties.class, StreamingProperties.class,
-        DiarizationProperties.class})
+        DiarizationProperties.class, RagProperties.class})
 public class EchoLintApplication {
 
     public static void main(String[] args) {

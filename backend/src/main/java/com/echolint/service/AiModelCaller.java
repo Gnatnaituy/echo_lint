@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 
 /**
- * OpenAI 兼容 chat completions 调用器（Batch 3a）：
+ * 兼容 chat completions 调用器（Batch 3a）：
  * 对 HTTP 429 / 5xx 做最多 2 次重试（500ms、1500ms 退避），其它错误立即失败。
  *
  * <p>最终失败抛 {@link BizException}，由流水线降级人工复核。网络异常/超时保持原有行为

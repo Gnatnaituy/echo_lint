@@ -8,7 +8,7 @@ import java.math.RoundingMode;
 /**
  * 一次 AI 调用的 token 用量与成本快照（Batch 3a）。
  *
- * <p>从 OpenAI 兼容响应的 {@code usage.prompt_tokens / usage.completion_tokens} 提取；
+ * <p>从兼容响应的 {@code usage.prompt_tokens / usage.completion_tokens} 提取；
  * 成本按**调用时**供应商单价计算并落库，后续改价不会改变历史账目。</p>
  *
  * @param inputTokens  输入 tokens（缺失/null = 未知）

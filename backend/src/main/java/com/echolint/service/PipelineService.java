@@ -9,6 +9,8 @@ import com.echolint.exception.BizException;
 import com.echolint.repository.DictionaryWordRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
+import com.echolint.service.rag.RagRetrievalService;
+import com.echolint.service.rag.RagSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -42,7 +44,8 @@ public class PipelineService {
     private final DfaService dfaService;
     private final SemanticScreeningService semanticScreeningService;
     private final ScreenModelService screenModelService;
-    private final CorpusService corpusService;
+    private final RagRetrievalService ragRetrievalService;
+    private final RagSettingsService ragSettingsService;
     private final com.echolint.config.AppProperties appProperties;
     private final com.echolint.config.ScreenModelProperties screenModelProperties;
     private final ObjectMapper objectMapper;
@@ -105,18 +108,33 @@ public class PipelineService {
                 incrementHitCounts(hits);
             }
 
-            // 3. AI 语义复筛（few-shot 带人工复核语料；双声道附带说话人标注；模型可在系统设置中切换）
+            // 3. AI 语义复筛（few-shot 带人工复核语料；RAG 开启时注入知识库参考；双声道附带说话人标注）
             updateStatus(recording, RecordingStatus.AI_CHECKING);
             AiScreenResult ai;
+            SemanticScreeningService.RagTrace ragTrace = null;
             try {
                 var activeModel = screenModelService.active();
                 logStage(recordingId, "AI", "INFO",
                         "语义复筛开始（主模型 " + activeModel.display()
-                                + "，A/B 分流按 app.screen-models.ab 配置生效）"
+                                + "，A/B 分流按 app.screen-models.ab 配置生效，RAG "
+                                + (ragSettingsService.isEnabled() ? "已开启" : "未开启") + "）"
                                 + (sampled ? "（抽样复核）" : ""));
-                var examples = corpusService.getFewShotExamples(screenModelProperties.getFewShotCount());
-                ai = semanticScreeningService.screen(recordingId, outcome.transcript(), outcome.segmentsJson(),
-                        hits, examples);
+                // Phase A：语义 few-shot（RAG 关闭时自动回退旧的最新样本逻辑）
+                int fewShotCount = ragSettingsService.isEnabled()
+                        && ragSettingsService.current().corpusExamples() > 0
+                        ? ragSettingsService.current().corpusExamples()
+                        : screenModelProperties.getFewShotCount();
+                var examples = ragRetrievalService.corpusExamples(outcome.transcript(), fewShotCount);
+                var screening = semanticScreeningService.screenWithTrace(recordingId,
+                        outcome.transcript(), outcome.segmentsJson(), hits, examples);
+                ai = screening.result();
+                ragTrace = screening.trace();
+                if (ragTrace != null && ragTrace.enabled()) {
+                    logStage(recordingId, "RAG", "INFO",
+                            "知识库检索 " + ragTrace.status() + "，引用 "
+                                    + (ragTrace.references() == null ? 0 : ragTrace.references().size())
+                                    + " 条" + (ragTrace.error() == null ? "" : "：" + ragTrace.error()));
+                }
             } catch (Exception e) {
                 // 复筛不可用（模型未配密钥 / 网络 / 额度 / 返回格式异常…）时不能漏审：
                 // DFA 已命中或抽样录音，直接降级转人工复检，失败原因写进 aiResultJson
@@ -138,7 +156,17 @@ public class PipelineService {
                     "screenModel", ai.model(),
                     // Batch 3b-2：A/B 分流组别（未开启为 "A"，失败未知为 null）
                     "screenVariant", ai.screenVariant(),
-                    "degraded", degraded)));
+                    "degraded", degraded,
+                    // Batch 6：RAG 检索轨迹（不存全文，完整上下文在 ai_invocations.request_json）
+                    "rag", ragTrace == null ? null : MapUtil.of(
+                            "enabled", ragTrace.enabled(),
+                            "status", ragTrace.status(),
+                            "references", ragTrace.references() == null ? List.of()
+                                    : ragTrace.references().stream()
+                                    .map(ref -> MapUtil.of("id", ref.chunkId(),
+                                            "title", ref.title(), "score", ref.score()))
+                                    .toList(),
+                            "error", ragTrace.error()))));
             recordingRepository.save(recording);
 
             if (!degraded && !ai.violation()) {

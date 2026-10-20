@@ -31,7 +31,6 @@ public class PipelineLog {
     @Column(length = 16)
     private String level = "INFO";
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String message;
 

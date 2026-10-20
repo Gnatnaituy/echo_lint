@@ -5,6 +5,7 @@ import com.echolint.entity.KnowledgeEntry;
 import com.echolint.exception.BizException;
 import com.echolint.repository.KnowledgeEntryRepository;
 import com.echolint.security.SecurityUtils;
+import com.echolint.service.rag.RagIndexService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ import java.util.Locale;
 public class KnowledgeService {
 
     private final KnowledgeEntryRepository repository;
+    private final RagIndexService ragIndexService;
 
     /**
      * 分页查询：keyword 模糊匹配标题/正文/标签；category 精确（忽略大小写）；enabled 可空。
@@ -72,14 +74,18 @@ public class KnowledgeService {
         entry.setCreatedBy(SecurityUtils.currentUsername().orElse("system"));
         KnowledgeEntry saved = repository.save(entry);
         log.info("知识库条目已创建 id={} title={}", saved.getId(), saved.getTitle());
+        // RAG 开启时异步分块+向量化；关闭时 no-op（管理员可在设置页手动重建）
+        ragIndexService.enqueueKnowledge(saved.getId());
         return saved;
     }
 
     public KnowledgeEntry update(Long id, KnowledgeRequest request) {
         KnowledgeEntry entry = get(id);
         apply(entry, request);
+        entry.setIndexStatus("PENDING");
         KnowledgeEntry saved = repository.save(entry);
         log.info("知识库条目已更新 id={} title={}", saved.getId(), saved.getTitle());
+        ragIndexService.enqueueKnowledge(saved.getId());
         return saved;
     }
 
@@ -87,6 +93,7 @@ public class KnowledgeService {
     public KnowledgeEntry delete(Long id) {
         KnowledgeEntry entry = get(id);
         repository.delete(entry);
+        ragIndexService.deleteKnowledgeChunks(id);
         log.info("知识库条目已删除 id={} title={}", id, entry.getTitle());
         return entry;
     }

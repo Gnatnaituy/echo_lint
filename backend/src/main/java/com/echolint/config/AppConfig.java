@@ -75,6 +75,27 @@ public class AppConfig {
         return executor;
     }
 
+    /**
+     * RAG 索引/文档解析线程池（Batch 6）。
+     *
+     * <p>知识库写入、语料回馈、文档导入都异步向量化；与流水线线程池隔离，
+     * 避免 embedding 网络耗时拖慢录音稽核主流程。队列满时直接拒绝并记日志，
+     * 条目的 PENDING 状态保留，可由管理员手动重建。</p>
+     */
+    @Bean(name = "ragIndexExecutor")
+    public ThreadPoolTaskExecutor ragIndexExecutor(RagProperties ragProperties) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        int poolSize = ragProperties.effectiveIndexPoolSize();
+        executor.setCorePoolSize(poolSize);
+        executor.setMaxPoolSize(poolSize);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("rag-index-");
+        executor.setRejectedExecutionHandler((task, pool) ->
+                log.warn("RAG 索引队列已满，跳过本次索引任务（可稍后手动重建）"));
+        executor.initialize();
+        return executor;
+    }
+
     @Bean
     public ApplicationRunner startupAdvice(ScreenModelService screenModelService, AppProperties appProperties,
                                            ScreenModelProperties screenModelProperties,
@@ -85,17 +106,9 @@ public class AppConfig {
                 log.info("语音转写：{}（模型 {}，上传上限 {}MB）",
                         whisperProperties.getBaseUrl(), whisperProperties.getModel(),
                         appProperties.getMaxSizeBytes() / 1024 / 1024);
-                // 官方 API 单文件上限 25MB，上传上限放宽后大文件会在远端才失败，提前提醒
-                if (whisperProperties.getBaseUrl().contains("api.openai.com")
-                        && appProperties.getMaxSizeBytes() > 26214400L) {
-                    log.warn("上传上限已放宽到 {}MB，但转写走的是 OpenAI 官方 API（单文件上限 25MB）。" +
-                            "超过 25MB 的录音会在调用远端时失败；如需处理长录音，请把 WHISPER_BASE_URL " +
-                            "指向自建服务（如本机 whisper.cpp，见 tools/whisper-server.sh）。",
-                            appProperties.getMaxSizeBytes() / 1024 / 1024);
-                }
             } else {
                 log.warn("未配置转写服务密钥 —— 录音上传后将置为 FAILED。" +
-                        "请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）或 OPENAI_API_KEY。");
+                        "请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）。");
             }
             try {
                 var active = screenModelService.active();

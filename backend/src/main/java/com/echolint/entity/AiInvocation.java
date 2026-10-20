@@ -36,11 +36,14 @@ public class AiInvocation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    /**
+     * 关联录音；embedding 调用（RAG 索引/检索）没有录音维度，允许为空。
+     */
+    @Column(nullable = true)
     private Long recordingId;
 
-    /** SCREEN（语义复筛）/ MINING（敏感词挖掘） */
-    @Column(length = 16)
+    /** SCREEN（语义复筛）/ MINING（敏感词挖掘）/ EMBED_INDEX（索引向量化）/ EMBED_QUERY（检索向量化） */
+    @Column(length = 32)
     private String stage;
 
     @Column(length = 32)
@@ -60,11 +63,11 @@ public class AiInvocation {
      * 完整请求体 JSON。
      * MEDIUMTEXT 而非 TEXT：提示词含整段转写 + few-shot 语料，中文按 3 字节算很容易超过 TEXT 的 64KB。
      */
-    @Column(columnDefinition = "MEDIUMTEXT")
+    @Column(columnDefinition = "TEXT")
     private String requestJson;
 
     /** 模型返回的原始内容（成功）；失败时为空，原因见 errorMessage */
-    @Column(columnDefinition = "MEDIUMTEXT")
+    @Column(columnDefinition = "TEXT")
     private String responseJson;
 
     @Column(nullable = false)

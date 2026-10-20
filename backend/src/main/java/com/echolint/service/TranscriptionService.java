@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Whisper 语音转写（OpenAI whisper-1, response_format=verbose_json）
+ * Whisper 语音转写（本机 whisper.cpp，response_format=verbose_json）
  * 单次调用只负责一路音频；双声道由 {@link AudioTranscriptionService} 编排。
  */
 @Slf4j
@@ -100,7 +100,7 @@ public class TranscriptionService {
     private void checkApiKey() {
         if (!props.apiKeyConfigured()) {
             throw new BizException("未配置转写服务密钥：请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）"
-                    + "或 OPENAI_API_KEY，然后重启服务");
+                    + "，然后重启服务");
         }
     }
 

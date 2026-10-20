@@ -56,6 +56,14 @@ public class AiQuotaService {
         checkRequestsPerMinute(model);
     }
 
+    /**
+     * RAG embedding 调用前的每日 token 配额校验（embedding 没有 chat 模型句柄，
+     * 不参与「按供应商每分钟请求数」限流；用量仍写入 ai_invocations 参与每日合计）。
+     */
+    public void checkDailyTokensOnly() {
+        checkDailyTokens();
+    }
+
     private void checkDailyTokens() {
         long limit = properties.getDailyTokenLimit();
         if (limit <= 0) {

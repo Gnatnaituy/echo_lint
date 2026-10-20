@@ -41,7 +41,6 @@ public class ReviewRecord {
     @Column(length = 32)
     private String violationType;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String comment;
 

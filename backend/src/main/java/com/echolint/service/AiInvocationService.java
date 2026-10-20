@@ -7,9 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * AI 调用留痕：把每次语义复筛 / 敏感词挖掘的完整请求与原始回复写库。
+ * AI 调用留痕：把每次语义复筛 / 敏感词挖掘 / embedding 的完整请求与原始回复写库。
  *
- * 刻意做成「永不抛异常」—— 留痕是观测手段，不能因为它失败而影响稽核主流程。
+ * <p>刻意做成「永不抛异常」—— 留痕是观测手段，不能因为它失败而影响稽核主流程。</p>
  */
 @Slf4j
 @Service
@@ -18,6 +18,10 @@ public class AiInvocationService {
 
     public static final String STAGE_SCREEN = "SCREEN";
     public static final String STAGE_MINING = "MINING";
+    /** 知识库/语料索引时的 embedding 调用（无录音，recordingId 为空） */
+    public static final String STAGE_EMBED_INDEX = "EMBED_INDEX";
+    /** 复筛检索时的 query embedding 调用（关联到当前录音） */
+    public static final String STAGE_EMBED_QUERY = "EMBED_QUERY";
 
     private final AiInvocationRepository repository;
 
@@ -52,20 +56,53 @@ public class AiInvocationService {
         save(recordingId, stage, model, requestJson, null, errorMessage, latencyMs, true, null);
     }
 
+    // ------------------------------------------------------------------
+    // embedding 调用留痕（RAG，Batch 6）：没有 ScreenModelService.ActiveModel，
+    // 直接记录供应商/模型/端点，成本看板与配额统计沿用 ai_invocations 聚合。
+    // ------------------------------------------------------------------
+
+    /** 记录一次成功的 embedding 调用 */
+    public void recordEmbeddingSuccess(Long recordingId, String stage, String providerId,
+                                       String providerLabel, String model, String endpoint,
+                                       String requestJson, String responseJson, long latencyMs,
+                                       AiUsage usage) {
+        save(recordingId, stage, providerId, providerLabel, model, endpoint,
+                requestJson, responseJson, null, latencyMs, false, usage);
+    }
+
+    /** 记录一次失败的 embedding 调用（请求体仍落库，便于排查） */
+    public void recordEmbeddingFailure(Long recordingId, String stage, String providerId,
+                                       String providerLabel, String model, String endpoint,
+                                       String requestJson, String errorMessage, long latencyMs) {
+        save(recordingId, stage, providerId, providerLabel, model, endpoint,
+                requestJson, null, errorMessage, latencyMs, true, null);
+    }
+
     private void save(Long recordingId, String stage, ScreenModelService.ActiveModel model,
                       String requestJson, String responseJson, String errorMessage,
                       long latencyMs, boolean degraded, AiUsage usage) {
+        if (model == null) {
+            save(recordingId, stage, null, null, null, null,
+                    requestJson, responseJson, errorMessage, latencyMs, degraded, usage);
+            return;
+        }
+        save(recordingId, stage, model.providerId(), model.providerLabel(), model.model(),
+                ScreenModelService.endpointOf(model), requestJson, responseJson, errorMessage,
+                latencyMs, degraded, usage);
+    }
+
+    private void save(Long recordingId, String stage, String providerId, String providerLabel,
+                      String model, String endpoint, String requestJson, String responseJson,
+                      String errorMessage, long latencyMs, boolean degraded, AiUsage usage) {
         try {
             AiInvocation inv = new AiInvocation();
             inv.setRecordingId(recordingId);
             inv.setStage(stage);
-            if (model != null) {
-                inv.setProviderId(model.providerId());
-                inv.setProviderLabel(model.providerLabel());
-                inv.setModel(model.model());
-                inv.setEndpoint(ScreenModelService.endpointOf(model));
-                inv.setDegraded(degraded);
-            }
+            inv.setProviderId(providerId);
+            inv.setProviderLabel(providerLabel);
+            inv.setModel(model);
+            inv.setEndpoint(endpoint);
+            inv.setDegraded(degraded);
             inv.setRequestJson(requestJson);
             inv.setResponseJson(responseJson);
             inv.setErrorMessage(errorMessage);
