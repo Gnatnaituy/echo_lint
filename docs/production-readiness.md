@@ -14,6 +14,7 @@
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 ✅（P1 完成） |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 4a ✅；4b ✅（P2 可独立项完成） |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | ✅ 已完成 |
+| 6 | PostgreSQL 17 + pgvector 迁移、知识库语义检索（RAG） | RAG ✅ 已完成（2026-10-20）；数据迁移待演练 |
 
 ---
 
@@ -371,7 +372,7 @@
 ### 验收
 - 后端 `mvn clean test`、前端 build/test 全绿。
 - 单测：A/B 选择确定性、评测指标（tp/fp/tn/fn、precision/recall/accuracy）、失败样本处理。
-- 本机 MySQL + 真实桩（本地 OpenAI 兼容模型）冒烟：A/B percent=100 走 B 且结论含 variant；
+- 本机 MySQL + 真实桩（本地兼容模型）冒烟：A/B percent=100 走 B 且结论含 variant；
   评测返回指标与逐条结果；权限与审计正确。
 
 
@@ -622,14 +623,184 @@
 | 访问地址 | http://8.137.123.233/ （HTTP/80；前端 nginx，后端仅 127.0.0.1:8082） |
 | 管理员 | `admin`（密码在服务器 `/opt/echolint/.env` 的 `APP_ADMIN_PASSWORD`） |
 | 数据库 | `gx-mysql` 内 `echolint` 库；Flyway baseline v1；预置 191 词 |
-| AI | DeepSeek 已加密落库（ProviderRegistry）；OpenAI 未配置 |
+| AI | DeepSeek 已加密落库（ProviderRegistry）；阿里云百炼待配置 `DASHSCOPE_API_KEY` |
 | DB 备份 | `/opt/echolint/backups/echolint-20261020-071045.sql.gz` |
 | 镜像回滚 | `echolint-backend:rollback-20261020-071045`、`echolint-frontend:rollback-20261020-071045` |
 | 验证 | 登录 200、匿名 API/上传 401、管理接口 200、容器 healthy、日志 0 ERROR、内存稳定（backend ~319MiB/512MiB） |
 
 ### 上线前仍需处理（P0/运维项，非 P1/P2 代码范围）
 
-- **转写服务**：服务器无 `OPENAI_API_KEY` 也未接 whisper 服务，上传录音会转写失败（FAILED）；需配置 `OPENAI_API_KEY` 或 `WHISPER_BASE_URL`/`WHISPER_API_KEY`。
+- **转写服务**：使用本机 whisper.cpp；需启动 `tools/whisper-server.sh --daemon` 并配置 `WHISPER_BASE_URL`/`WHISPER_API_KEY`，否则上传录音会转写失败（FAILED）。
 - **HTTPS/域名**：当前 HTTP 明文、公网 80；建议域名 + 证书 + 反代，并把 `server.servlet.session.cookie.secure` 打开。
 - **备份/监控**：本次为手工备份；建议 cron 每日 mysqldump + uploads 卷备份，接入 Prometheus 告警与日志轮转。
 - **安全**：`APP_SECRET_KEY` 已配置，变更会导致已存供应商密文不可解密；管理员默认密码请首次登录后立即修改。
+
+---
+
+## Batch 6 · PostgreSQL 迁移 + RAG（✅ 已完成）
+
+> 状态：RAG 后端、前端与管理接口已完成，真实端到端冒烟结果见文末「完成记录」；
+> **MySQL 旧数据的 pgloader 端到端迁移仍未执行**，上线前必须按迁移手册演练（本文不预填迁移结果）。
+> 相关文档：`docs/rag-integration.md`（用户向：架构/配置/API/索引/降级/评测）、
+> `docs/rag-contract.md`（内部契约）、`docs/postgres-migration.md`（迁移/校验/回滚手册）。
+
+### 目标
+
+- 数据库从 **MySQL 8** 整体迁移到 **PostgreSQL 17 + pgvector**：不再依赖 MySQL 驱动/方言，
+  为知识库语义检索提供向量能力。
+- 接入 **RAG 检索增强**：知识库/SOP 分块向量化，复筛时按语义召回并注入提示词；
+  检索结果在 AI 结论与调用留痕中可追溯；embedding 不可用时自动降级、不阻塞复筛。
+- 保持默认关闭、零行为变化：`APP_RAG_ENABLED=false` 时复筛与旧版一致。
+
+### 范围
+
+**数据库与部署**
+
+- compose 服务 `postgres`：镜像 `pgvector/pgvector:pg17`、容器 `echolint-postgres`、
+  宿主 `127.0.0.1:5433 → 5432`、库 `echolint`、用户 `audit/audit123`、数据卷 `pg-data`；
+  后端容器内 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/echolint`。
+- 本地开发：启动 `docker compose up -d postgres`；后端默认
+  `jdbc:postgresql://localhost:5432/echolint`，连容器用宿主 `5433`。
+- Flyway `V2__postgres_pgvector_rag.sql`：`CREATE EXTENSION vector`、`knowledge_chunks`；
+  `V3__rag_embedding_1024.sql`：把 HNSW 表达式索引调整为 **1024 维**（阿里云百炼 embedding）。
+  业务表仍由 Hibernate `ddl-auto: update` 管理。
+- 旧 MySQL 数据迁移：**先启动新版应用在空 PG 上建 schema，再用 pgloader/CSV 只搬数据（data only）**，
+  不可让 pgloader 建表；行数/关键表抽样/时间字段/序列 `setval`/pgvector 扩展与索引逐项校验，
+  并保留回滚到 MySQL 备份的路径（见 `docs/postgres-migration.md`）。
+
+**RAG 功能（配置与行为契约见 `docs/rag-contract.md`）**
+
+- 配置：`app.rag.*` / `APP_RAG_*` 全量变量（enabled、top-k、min-score、max-context-chars、
+  corpus-examples、embedding.*、chunk.*、corpus.max-chars、index.*、documents.*），
+  `.env.example` 与 `application.yml` 逐项核对一致，compose 已透传全部变量。
+- 数据模型：`knowledge_chunks`（含 HNSW 索引）；`knowledge_entries` 新增来源/索引状态列；
+  `corpus_entries` 新增 embedding 列；`ai_invocations.recording_id` 可空、新增 embedding stage。
+- 知识库：写入后异步分块+向量化，失败置 `FAILED` 可重试/重建；支持 PDF/DOCX/TXT/MD 文档导入；
+  新增语义检索接口。
+- 复筛：知识库召回 + 语料语义 few-shot 注入 prompt；`recordings.aiResultJson.rag` 记录
+  `enabled/status/references`；检索失败降级为「不注入」并 WARN，不阻塞复筛。
+- 管理端：`/api/settings/rag` 读取/保存/连通性测试/重建索引/模型评测；前端设置页与知识库页。
+
+**文档与工具**
+
+- `README.md`：技术栈、快速开始、端口、本地开发、演示数据、环境变量、注意事项全部 PostgreSQL 化；
+  RAG 小节补充功能概要与文档入口。
+- `docs/rag-integration.md`（新增）：总体架构、pgvector 表/HNSW 表达式索引、全量配置、API、
+  索引生命周期与失败恢复、降级行为、评测方法与解读、成本与隐私、已知限制、运维排障。
+- `docs/postgres-migration.md`：迁移前检查、schema 初始化顺序、pgloader 命令、数据校验、pgvector 校验、
+  回滚方案、常见坑。
+- `.env.example`：数据库段 + RAG 全量变量（带默认值与中文注释）。
+- `tools/seed_demo_data.py`、`tools/demo/make_demo.py`、`tools/demo/README.md`：psql 写库、PostgreSQL
+  方言（布尔 `true/false`、`setval`、`INTERVAL`、标准字符串转义）。
+
+### 验收清单（按实际状态勾选）
+
+**构建与单测**
+
+- [x] 后端最终全量回归：`mvn -B -q test` **EXIT=0**；surefire **75 classes / 526 tests /
+      0 failures / 0 errors / 0 skipped**（Lead 实测；含 RAG controller/service/检索/文档抽取/分块新增测试，
+      与本文本机 surefire 汇总一致）
+- [x] 前端 `npm run build` + `npm test`：**120/120 通过**（前端 teammate 实测，收尾补文案后仍全绿）
+- [ ] 后端打包 `mvn -q -B -DskipTests package`：本次最终回归只跑 `test`，未单独执行打包
+- [ ] CI（`.github/workflows/ci.yml`）在分支上的运行结果未核对；CI 当前不依赖数据库
+
+**数据库与迁移**
+
+- [x] 全新空 PG 启动：Flyway V1/V2/V3 成功；`vector` 0.8.7、`knowledge_chunks`、HNSW 表达式索引（1024 维）存在；
+      `ai_invocations.recording_id` 可空验证；应用启动 6.7s
+- [x] 新版应用在空库完成 schema 初始化与主链路冒烟：上传 → 转写 → DFA → AI 复筛 → 知识库索引
+- [ ] pgloader `data only` 端到端迁移：**未执行**
+- [ ] 行数/关键表抽样/时间字段/序列 `setval` 校验：随迁移演练待做
+- [ ] 迁移后（含旧数据）应用冒烟：待迁移演练
+- [ ] 回滚到 MySQL 备份演练：未执行
+
+**RAG**
+
+- [x] 语料回填：8/8 条语料完成 embedding
+- [x] 知识库写入异步索引：创建条目 → 异步分块 + 向量化 → `READY`
+- [x] 文档导入（md 端到端）：解析 + 索引 `READY`；PDF/DOCX 抽取由单测覆盖（未做二进制端到端）
+- [x] 语义检索预览：命中（示例 score 0.56）
+- [x] `PUT /api/settings/rag` 保存并在运行时生效
+- [x] 评测接口：返回 baseline / rag / delta / cases
+- [x] 录音端到端注入：`aiResultJson.rag.status=ok` 且带 references；
+      `ai_invocations` 的 SCREEN `request_json` 同时包含「知识库参考」与「人工复核参考案例」
+- [x] embedding 留痕与成本：EMBED_INDEX 18 条、EMBED_QUERY 3 条（含 recording_id=1 的查询向量化）；
+      成本/配额统计可聚合
+- [ ] RAG 关闭回归（无 embedding 调用、与旧版一致）：单测覆盖，未单独做端到端冒烟
+- [ ] embedding 不可用/超时降级：单测覆盖，未单独做端到端冒烟
+- [ ] 全量重建索引接口（knowledge/corpus/all）：启动回填已验证，未单独冒烟全量重建接口
+- [ ] 管理端 RAG 设置页/知识库索引状态：前端 build + 单测通过，未做浏览器端到端验收
+- [ ] 文档导入失败分支（超限/魔数不符/重复 409）：单测覆盖，未做端到端
+
+### 完成记录（2026-10-20，真实执行）
+
+**环境与启动**
+
+- PostgreSQL **17.11** + pgvector **0.8.7**（`pgvector/pgvector:pg17` 镜像）。
+- Flyway V1 + V2 + V3 成功；`knowledge_chunks`、HNSW 表达式索引（1024 维）、`ai_invocations.recording_id` 可空均验证通过；
+  应用启动 **6.7s**。
+- RAG 冒烟使用**本地兼容模型桩**（embedding / chat / whisper 三个端点），未调用真实外部供应商。
+
+**RAG 功能**
+
+- 语料回填：8/8 条语料完成 embedding。
+- 知识库：创建条目 → 异步分块 + 向量化 → `READY`。
+- 文档导入：`md` 文件 → 解析 + 索引 `READY`（PDF/DOCX 抽取由单测覆盖）。
+- 检索预览：命中，示例 `score=0.56`。
+- 设置：`PUT /api/settings/rag` 生效。
+- 评测：`POST /api/settings/rag/evaluate` 返回 baseline / rag / delta / cases。
+
+**录音端到端**
+
+- 上传 wav → stub 转写 → DFA 命中（傻逼 / 滚蛋）→ AI 复筛（stub 判定违规）。
+- `recordings.aiResultJson` 含 `"rag":{"status":"ok","references":[...]}`。
+- `ai_invocations` 中 SCREEN 的 `request_json` 同时包含「知识库参考」与「人工复核参考案例」两段。
+- embedding 留痕：`EMBED_INDEX` 18 条、`EMBED_QUERY` 3 条（含 `recording_id=1` 的查询向量化）；
+  成本/配额统计可聚合。
+
+**测试**
+
+- 后端：本机 surefire 汇总 **526 tests / 75 classes，0 failures / 0 errors**（含新增 RAG 测试）。
+- 前端：**120/120 tests 通过 + `npm run build` 通过**（前端 teammate 实测；Lead 在收尾时又补了
+  `Recordings.vue` 的 `EMBED_QUERY`/`EMBED_INDEX` 阶段文案与 `constants.js` 的 RAG 审计中文标签，补后仍全绿）。
+- 最终回归：后端 `mvn -B -q test` **EXIT=0**，surefire **75 classes / 526 tests / 0 failures / 0 errors / 0 skipped**
+  （Lead 实测，与本文记录一致）。
+
+**文档与配置**
+
+- 新增 `docs/rag-integration.md`；README RAG 小节与 `.env.example` 已同步。
+- `.env.example` 的 19 个 `APP_RAG_*` 与 `application.yml` 逐项核对一致；`docker-compose.yml` 已透传全部 19 个变量。
+- `docker-compose.yml` 本次补透传 `DASHSCOPE_BASE_URL` / `DEEPSEEK_BASE_URL`（此前在 `.env` 设置不会进容器），
+  README 环境变量表与 `.env.example` 已注明。
+- SQL 自检命令、维度变更重建索引步骤、API curl 示例见 `docs/rag-integration.md` §5/§10。
+
+
+### 2026-10-21 国内化调整（embedding / 转写去境外依赖）
+
+- **完全移除 OpenAI**：删除 `openai` 供应商配置、`OPENAI_*` 环境变量与 OpenAI 相关默认值；
+  DeepSeek 作为复筛模型，转写固定本机 whisper.cpp。
+- **RAG embedding 切换阿里云百炼**：供应商 `aliyun`（`https://dashscope.aliyuncs.com/compatible-mode/v1`），
+  模型 `qwen3.7-text-embedding`，维度 **1024**；请求体显式发送 `dimensions=1024`。
+- **Flyway V3**：HNSW 表达式索引由 1536 维调整为 1024 维，并清理/复位旧维度向量。
+- 当前环境未配置 `DASHSCOPE_API_KEY`，RAG 保持关闭；配置密钥后打开开关并「全量重建」即可。
+- 验证：后端全量单测通过；`GET /api/settings/rag` 显示 provider=aliyun / dimensions=1024；
+  provider 列表中不再包含 OpenAI。
+
+
+### 已知偏差与限制
+
+- **pgloader 端到端迁移未执行**：迁移手册给出了完整步骤、校验与回滚清单，上线前必须演练；
+  本文不填写任何迁移耗时/行数比对结果。
+- **Flyway 10.10 对 PostgreSQL 17 仅版本告警**，迁移（V1/V2/V3）可正常执行，不影响功能。
+- **HNSW 维度写死在 V3（1024）**：更换 embedding 模型/维度需按 `docs/rag-integration.md` §5.4 清空向量、
+  重建索引；新维度必须与 `APP_RAG_EMBEDDING_DIMENSIONS` 一致。
+- **embedding 供应商/模型/维度来自配置**：修改需重启；设置页只能热改开关与检索参数（topK/minScore 等）。
+- **导入文档原文不自动清理**：删除知识库条目只删数据库记录与分块，`knowledge-docs` 卷中的文件保留。
+- **向量规模上限**：pgvector HNSW 单机索引，无分区/分片；知识库分块规模大时需评估内存、构建时间与召回率；
+  检索为纯向量召回，没有混合检索/rerank/query rewrite。
+- **进程内索引状态**：异步线程池与同条目互斥是单实例语义；多实例部署时启动回填可能重复消耗 embedding
+  （结果幂等，但会重复计费），重索引没有分布式锁。
+- **RAG 未做多租户隔离**：沿用当前单租户模型。
+- **管理端页面未做浏览器端到端验收**：前端 build 与单测通过，接口已实测，页面交互待前端最终确认。
+- **验收缺口**：RAG 关闭回归、embedding 降级、全量重建索引、文档导入失败分支目前由单测覆盖，
+  未单独做端到端冒烟（见上方未勾选项）。

@@ -289,15 +289,36 @@ SCENARIOS = [
 ]
 
 def sql_str(s):
+    """PostgreSQL 字符串字面量：standard_conforming_strings=on，反斜杠不转义，只需单引号翻倍。"""
     if s is None:
         return "NULL"
-    return "'" + s.replace("\\", "\\\\").replace("'", "''") + "'"
+    return "'" + s.replace("'", "''") + "'"
 
 def js(obj):
     return sql_str(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
 
+def ago(minutes):
+    return f"(NOW() - INTERVAL '{minutes} minutes')"
+
+def after(ref, seconds):
+    return f"({ref} + INTERVAL '{seconds} seconds')"
+
+def after_minutes(ref, minutes):
+    return f"({ref} + INTERVAL '{minutes} minutes')"
+
+def bool_lit(value):
+    return "TRUE" if value else "FALSE"
+
+def reset_sequence(table):
+    # 显式写入 demo id 不会推进 PostgreSQL 序列；空表让下一个 id 从 1 开始
+    return (
+        f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
+        f"COALESCE((SELECT MAX(id) FROM {table}), 1), "
+        f"EXISTS (SELECT 1 FROM {table}));"
+    )
+
 lines = [
-    "SET NAMES utf8mb4;",
+    "SET client_encoding TO 'UTF8';",
     "DELETE FROM pipeline_logs WHERE recording_id BETWEEN 1001 AND 1099;",
     "DELETE FROM review_records WHERE recording_id BETWEEN 1001 AND 1099;",
     "DELETE FROM ai_invocations WHERE recording_id BETWEEN 1001 AND 1099;",
@@ -313,9 +334,9 @@ for idx, sc in enumerate(SCENARIOS):
     segments, duration, transcript, file_path, size, channel_files = build_audio(sc, sid)
     hits = find_hits(transcript, sc["words"])
     ai = ai_json(sc)
-    upload = f"DATE_SUB(NOW(), INTERVAL {sc['minutes_ago']} MINUTE)"
-    processed = f"DATE_ADD({upload}, INTERVAL {5 + idx} SECOND)" if sc["status"] not in ("PENDING",) else "NULL"
-    call_time = f"DATE_SUB({upload}, INTERVAL 3 MINUTE)"
+    upload = ago(sc["minutes_ago"])
+    processed = after(upload, 5 + idx) if sc["status"] not in ("PENDING",) else "NULL"
+    call_time = ago(sc["minutes_ago"] + 3)
     review_count = 1 if sc.get("confirmed") else 0
     review_result = None
     reviewer = None
@@ -328,7 +349,7 @@ for idx, sc in enumerate(SCENARIOS):
         review_result = cresult
         review_comment = comment
         reviewer = rev
-        review_time = f"DATE_ADD({upload}, INTERVAL {mins} MINUTE)"
+        review_time = after_minutes(upload, mins)
         if cresult == "CONFIRMED_VIOLATION":
             violation_type = ctype
             violation_label = clabel
@@ -365,7 +386,7 @@ for idx, sc in enumerate(SCENARIOS):
         sql_str(sc["agent"]), sql_str(sc["team"]), call_time, sql_str(sc["direction"]),
         sql_str(sc["business"]), sql_str(sc["priority"]),
         sql_str(sc["assigned"]) if sc["assigned"] else "NULL",
-        str(review_count), str(sc["sampled"]), "NULL",
+        str(review_count), bool_lit(sc["sampled"]), "NULL",
     ])
     lines.append(f"INSERT INTO recordings ({columns}) VALUES ({values});")
 
@@ -392,7 +413,7 @@ for idx, sc in enumerate(SCENARIOS):
         for stage, level, msg, secs in logs:
             lines.append(
                 "INSERT INTO pipeline_logs (recording_id,stage,level,message,created_at) VALUES ("
-                f"{sid},{sql_str(stage)},{sql_str(level)},{sql_str(msg)},DATE_ADD({upload}, INTERVAL {secs} SECOND));")
+                f"{sid},{sql_str(stage)},{sql_str(level)},{sql_str(msg)},{after(upload, secs)});")
 
     # review records
     if sc.get("confirmed"):
@@ -401,7 +422,7 @@ for idx, sc in enumerate(SCENARIOS):
         lines.append(
             "INSERT INTO review_records (recording_id,reviewer_id,reviewer_username,result,violation_type,comment,round,created_at) VALUES ("
             f"{sid},NULL,{sql_str(rev)},{sql_str(cresult)},{sql_str(review_vtype)},"
-            f"{sql_str(comment)},1,DATE_ADD({upload}, INTERVAL {mins} MINUTE));")
+            f"{sql_str(comment)},1,{after_minutes(upload, mins)});")
 
     # ai invocation
     if ai and sc["status"] not in ("PENDING", "FAILED"):
@@ -418,13 +439,13 @@ for idx, sc in enumerate(SCENARIOS):
             "INSERT INTO ai_invocations (recording_id,stage,provider_id,provider_label,model,endpoint,request_json,response_json,"
             "success,error_message,latency_ms,request_chars,response_chars,degraded,created_at,input_tokens,output_tokens,cost_micros) VALUES ("
             f"{sid},'SCREEN','deepseek','DeepSeek','deepseek-flash','https://api.deepseek.com/chat/completions',"
-            f"{js(req)},{js(resp)},1,NULL,{1200 + idx * 130},300,240,0,"
-            f"DATE_ADD({upload}, INTERVAL {5 + idx} SECOND),{in_tok},{out_tok},{cost});")
+            f"{js(req)},{js(resp)},TRUE,NULL,{1200 + idx * 130},300,240,FALSE,"
+            f"{after(upload, 5 + idx)},{in_tok},{out_tok},{cost});")
 
     # task
     task_status = "SUCCEEDED" if sc["status"] not in ("PENDING", "FAILED") else ("DEAD" if sc["status"] == "FAILED" else "PENDING")
     attempts = 1 if task_status == "SUCCEEDED" else (3 if task_status == "DEAD" else 0)
-    finished = f"DATE_ADD({upload}, INTERVAL {30 + idx} SECOND)" if task_status == "SUCCEEDED" else "NULL"
+    finished = after(upload, 30 + idx) if task_status == "SUCCEEDED" else "NULL"
     last_err = sql_str(sc["error"]) if task_status == "DEAD" else "NULL"
     next_at = "NULL" if task_status != "PENDING" else "NOW()"
     lines.append(
@@ -444,12 +465,10 @@ knowledge = [
 for title, cat, vt, tags, content in knowledge:
     lines.append(
         "INSERT INTO knowledge_entries (title,category,violation_type,tags,content,enabled,created_by,created_at,updated_at) VALUES ("
-        f"{sql_str(title)},{sql_str(cat)},{sql_str(vt)},{sql_str(tags)},{sql_str(content)},1,'demo',NOW(),NOW());")
+        f"{sql_str(title)},{sql_str(cat)},{sql_str(vt)},{sql_str(tags)},{sql_str(content)},TRUE,'demo',NOW(),NOW());")
 
-lines.append("ALTER TABLE recordings AUTO_INCREMENT = 1100;")
-lines.append("ALTER TABLE pipeline_tasks AUTO_INCREMENT = 1100;")
-lines.append("ALTER TABLE ai_invocations AUTO_INCREMENT = 1100;")
-lines.append("ALTER TABLE review_records AUTO_INCREMENT = 1100;")
+for table in ("recordings", "pipeline_tasks", "ai_invocations", "review_records"):
+    lines.append(reset_sequence(table))
 
 (BASE / "seed.sql").write_text("\n".join(lines) + "\n", encoding="utf-8")
 (BASE / "manifest.json").write_text(json.dumps([m for m in manifest if True], ensure_ascii=False, indent=2), encoding="utf-8")

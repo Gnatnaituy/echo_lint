@@ -10,7 +10,7 @@
     python3 tools/seed_demo_data.py                     # 写入 12 条演示录音（id 从 1000 起，含分段与标记）
     python3 tools/seed_demo_data.py --with-audio        # 额外为 #1001 生成等长静音音轨，可演示音画联动
     python3 tools/seed_demo_data.py --clean             # 仅删除演示数据
-    python3 tools/seed_demo_data.py --api http://localhost:8082 --container echolint-mysql
+    python3 tools/seed_demo_data.py --api http://localhost:8082 --container echolint-postgres
 """
 import argparse
 import json
@@ -22,7 +22,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 SQL_FILE = Path("/tmp/seed_demo_data.sql")
-MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB = "audit", "audit123", "echolint"
+# 通过 docker exec 在 PostgreSQL 容器里执行 psql（compose 服务 postgres / 容器 echolint-postgres）。
+# 官方镜像的本地 socket 是 trust 认证，因此不需要在命令行里传密码。
+PG_USER, PG_DB = "audit", "echolint"
 ID_BASE = 1000  # 演示数据 id 起始，删除时按 id >= ID_BASE 清理
 AUDIO_DEMO_ID = 1001  # --with-audio 时为该条生成等长静音音频，用于演示音画联动
 
@@ -90,9 +92,14 @@ def hits_for(api: str, text: str):
 
 
 def esc(s):
+    """把值转成 PostgreSQL 字符串字面量。
+
+    PostgreSQL 默认 standard_conforming_strings=on：反斜杠不是转义符，
+    因此只需把单引号翻倍；不能像 MySQL 那样再转义反斜杠（否则 JSON 里会多出一层）。
+    """
     if s is None:
         return "NULL"
-    return "'" + s.replace("\\", "\\\\").replace("'", "''") + "'"
+    return "'" + s.replace("'", "''") + "'"
 
 
 def build_records(now):
@@ -187,7 +194,7 @@ def build_records(now):
 def generate_sql(api: str, with_audio: bool = False) -> int:
     now = datetime.now()
     records = build_records(now)
-    lines = ["SET NAMES utf8mb4;",
+    lines = ["SET client_encoding TO 'UTF8';",
              f"DELETE FROM pipeline_logs WHERE recording_id >= {ID_BASE};",
              f"DELETE FROM recordings WHERE id >= {ID_BASE};"]
     hit_total = 0
@@ -250,25 +257,46 @@ def generate_sql(api: str, with_audio: bool = False) -> int:
                 f"{r['id']}, {esc(stage)}, {esc(level)}, {esc(msg)}, {esc(t)});"
             )
 
+    # 演示数据显式写入 id，不会推进 PostgreSQL 的 identity/sequence；
+    # 重置到当前最大值，否则后续真实上传会从 1 开始自增，迟早撞上 1000+ 的演示 id。
+    # setval(seq, value, is_called)：空表时 (1,false) 让下一个 id 从 1 开始，非空表时从 max+1 开始。
+    lines.append(
+        "SELECT setval(pg_get_serial_sequence('recordings', 'id'), "
+        "COALESCE((SELECT MAX(id) FROM recordings), 1), "
+        "EXISTS (SELECT 1 FROM recordings));"
+    )
+
     SQL_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"已生成 {len(records)} 条演示录音（DFA 命中 {hit_total} 处）→ {SQL_FILE}")
     return len(records)
 
 
+def _run(cmd, stdin=None) -> None:
+    """执行命令；失败时把 psql 的 stderr 原样带出来，避免只剩一个 exit code。"""
+    try:
+        subprocess.run(cmd, stdin=stdin, check=True, capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or b"").decode("utf-8", "replace").strip()
+        raise SystemExit(f"命令执行失败：{' '.join(cmd)}\n{detail}") from exc
+
+
+def psql_base(container: str) -> list:
+    # --container 指向 compose 的 postgres 容器（默认 echolint-postgres）
+    return ["docker", "exec", "-i", container, "psql", "-U", PG_USER, "-d", PG_DB,
+            "-v", "ON_ERROR_STOP=1"]
+
+
 def apply_sql(container: str, clean_only: bool) -> None:
     if clean_only:
-        sql = f"DELETE FROM pipeline_logs WHERE recording_id >= {ID_BASE}; DELETE FROM recordings WHERE id >= {ID_BASE};"
-        subprocess.run(
-            ["docker", "exec", container, "mysql", f"-u{MYSQL_USER}", f"-p{MYSQL_PASSWORD}", MYSQL_DB, "-e", sql],
-            check=True, capture_output=True,
-        )
+        sql = (f"SET client_encoding TO 'UTF8'; "
+               f"DELETE FROM pipeline_logs WHERE recording_id >= {ID_BASE}; "
+               f"DELETE FROM recordings WHERE id >= {ID_BASE};")
+        _run(["docker", "exec", container, "psql", "-U", PG_USER, "-d", PG_DB,
+              "-v", "ON_ERROR_STOP=1", "-c", sql])
         print(f"已清理演示数据（id >= {ID_BASE}）")
         return
     with SQL_FILE.open("rb") as f:
-        subprocess.run(
-            ["docker", "exec", "-i", container, "mysql", f"-u{MYSQL_USER}", f"-p{MYSQL_PASSWORD}", MYSQL_DB],
-            stdin=f, check=True, capture_output=True,
-        )
+        _run(psql_base(container), stdin=f)
     print("演示数据已写入数据库")
 
 
@@ -305,7 +333,7 @@ def attach_demo_audio(container: str, upload_dir: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="生成/清理录音稽核演示数据")
     parser.add_argument("--api", default="http://localhost:8082", help="后端地址（用于计算 DFA 命中）")
-    parser.add_argument("--container", default="echolint-mysql", help="MySQL 容器名")
+    parser.add_argument("--container", default="echolint-postgres", help="PostgreSQL 容器名（compose 服务 postgres）")
     parser.add_argument("--clean", action="store_true", help="仅清理演示数据")
     parser.add_argument("--with-audio", action="store_true", help="为演示录音生成等长静音音频")
     parser.add_argument("--upload-container", default="echolint-backend", help="后端容器名（投放音频用）")

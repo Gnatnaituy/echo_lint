@@ -2,14 +2,14 @@
 
 > **EchoLint** = Echo（录音） + Lint（自动化体检）：把每一通录音当作待检代码，先机械地查关键词，再让 AI 读语境，最后交给人拍板。
 
-基于 **OpenAI Whisper** 的录音合规稽核服务：录音上传后自动完成 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，人工复检结论自动回馈语料库，并从中挖掘新敏感词，形成自增长闭环。
+基于 **本机 whisper.cpp** 的录音合规稽核服务：录音上传后自动完成 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，人工复检结论自动回馈语料库，并从中挖掘新敏感词，形成自增长闭环。
 
 ## 总体流程
 
 ```
 ┌────────┐   ┌───────────────────┐   ┌──────────────┐   ┌───────────────────┐   ┌──────────────┐
 │ 手动上传 │ → │ ① Whisper 英转文   │ → │ ② DFA 初筛    │ → │ ③ AI 语义复筛      │ → │ ④ 人工复检     │
-│ (≤25MB) │   │   (whisper-1)     │   │  敏感词词典    │   │   (模型可切换)    │   │  confirm/reject│
+│ (≤200MB)│   │  (whisper.cpp)    │   │  敏感词词典    │   │   (模型可切换)    │   │  confirm/reject│
 └────────┘   └───────────────────┘   └──────┬───────┘   └─────────┬─────────┘   └──────┬───────┘
                                             │ 未命中               │ 不构成违规          │
                                             ▼                     ▼                    │
@@ -25,7 +25,7 @@
   > 跳变只允许字母之间插入分隔符；字母缺失的写法（如 `f**k` 少了 `u`/`c`）不命中，这类漏网由 AI 语义复筛与人工复检兜底。
 - **双声道（双轨）录音**：自动探测声道数，立体声时分离左右声道并**分别转写**，按时间对齐成对话（详见下文）。
 - **AI 复筛**：结合上下文判断命中词是否构成真实违规，`few-shot` 自动注入人工复核语料；双轨录音会带上**说话人标注**（坐席违规与客户辱骂性质不同）。
-  **模型可在「系统设置」页运行时切换**（OpenAI / DeepSeek / 任意 OpenAI 兼容网关），切换立即生效、重启后保持（详见下文）。
+  **模型可在「系统设置」页运行时切换**（DeepSeek / 阿里云百炼 / 任意兼容网关），切换立即生效、重启后保持（详见下文）。
 - **人工复检**：初筛 + 复筛均判违规 → 进入复检队列；确认违规 / 判定误报。复筛不可用时**降级转人工**，不漏审。
 - **语料回馈**：复检结论写入语料库（复筛时作为参考案例）；确认违规的录音由 AI 挖掘新敏感词入库（默认停用，人工审核后启用）。
 
@@ -33,10 +33,10 @@
 
 | 层 | 技术 |
 |---|---|
-| 后端 | Spring Boot 3.3 / Java 17, Spring Data JPA, WebClient, MySQL 8 |
-| AI | OpenAI（Whisper 转写 + 可选复筛）、DeepSeek（可选复筛 / 词挖掘），统一走 OpenAI 兼容协议；转写亦可换成本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp)（Metal 加速，录音不出本机） |
+| 后端 | Spring Boot 3.3 / Java 17, Spring Data JPA, WebClient, PostgreSQL 17 + pgvector（语义检索） |
+| AI | DeepSeek（语义复筛 / 词挖掘）、阿里云百炼（RAG embedding）、本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp)（语音转写）；全部走兼容接口，录音与文本不出境 |
 | 前端 | Vue 3 + Vite + Element Plus + vue-router + axios |
-| 部署 | docker-compose（MySQL + 后端 + Nginx 前端） |
+| 部署 | docker-compose（PostgreSQL/pgvector + 后端 + Nginx 前端） |
 
 ## 目录结构
 
@@ -44,7 +44,7 @@
 echolint/
 ├── backend/                      # Spring Boot 后端
 │   ├── src/main/java/com/echolint/
-│   │   ├── config/               # 配置：OpenAI、异步流水线、CORS/静态资源
+│   │   ├── config/               # 配置：AI 供应商、异步流水线、CORS/静态资源
 │   │   ├── controller/           # 录音/复检/词典/语料/统计 接口
 │   │   ├── dfa/                  # DFA 匹配器（AC 自动机 + 词规范化）
 │   │   ├── domain/               # 枚举（状态机/违规类型/严重度）
@@ -56,11 +56,13 @@ echolint/
 │   └── src/test/                 # DFA 单元测试
 ├── frontend/                     # Vue3 前端（工作台/录音管理/人工复检/敏感词库/语料库/系统设置）
 │   └── src/styles/index.css      # 设计令牌 + Element Plus 主题层
-├── tools/seed_demo_data.py       # 演示数据生成/清理（预览 UI 用）
-├── tools/whisper-server.sh       # 本机 whisper.cpp 转写服务（伪装成 OpenAI 端点）
+├── tools/seed_demo_data.py       # 演示数据生成/清理（直连 PostgreSQL，预览 UI 用）
+├── tools/whisper-server.sh       # 本机 whisper.cpp 转写服务（伪装成兼容转写端点）
 ├── docs/screenshots/             # 界面截图
+├── docs/postgres-migration.md    # MySQL → PostgreSQL 迁移、校验与回滚手册
+├── docs/rag-integration.md       # RAG 检索增强：架构/配置/API/索引/降级/评测
 ├── docker-compose.yml            # 一键部署
-└── .env.example                  # OPENAI_API_KEY 配置样例
+└── .env.example                  # 环境变量样例（数据库 / AI / RAG）
 ```
 
 ## 管理端界面
@@ -123,9 +125,9 @@ echolint/
 
 > Docker 镜像已内置 ffmpeg/ffprobe；**本地开发需自行安装**（macOS: `brew install ffmpeg`），否则双声道能力降级为单路。
 
-### AI 复筛模型切换（OpenAI / DeepSeek）
+### AI 复筛模型切换（DeepSeek / 阿里云百炼）
 
-语义复筛与敏感词挖掘都是 **OpenAI 兼容的 chat completions** 调用，所以「换模型」= 换 `base-url + api-key + model` 三件套。
+语义复筛与敏感词挖掘都是 **兼容 chat completions 协议**的调用，所以「换模型」= 换 `base-url + api-key + model` 三件套。
 系统把这套组合做成**供应商清单**，并在「系统设置」页支持**运行时切换**：立即生效、无需重启、重启后保持。
 
 | 能力 | 说明 |
@@ -135,14 +137,14 @@ echolint/
 | 连通性测试 | 可测「当前生效」或「待保存」的选择（先验证再切换），返回真实耗时与供应商报错原文 |
 | 候选模型 | 下拉候选来自配置，同时支持**直接输入**列表外的新模型名 —— 供应商上新模型无需改配置重启 |
 | 判定留痕 | AI 结论里记录 `screenProvider / screenModel`，录音详情与复检工作区显示「判定模型」，便于回溯与横向对比 |
-| 不参与切换 | **Whisper 转写固定走 OpenAI**（chat 类供应商不提供转写能力）；DFA 初筛是本地算法，不调用外部模型 |
+| 不参与切换 | **Whisper 转写固定走本机 whisper.cpp**；DFA 初筛是本地算法，不调用外部模型 |
 | 降级保护 | 当前模型缺密钥 / 网络失败 / 额度不足时，DFA 命中的录音**降级转人工复检**（`aiResultJson.degraded=true`），既不自动放行也不卡死 |
 
 内置供应商（`application.yml` → `app.screen-models.providers`）：
 
 | 供应商 | 默认模型 | 端点 | 候选模型 |
 |---|---|---|---|
-| OpenAI | `gpt-4o-mini` | `/v1/chat/completions` | `gpt-4o-mini` / `gpt-4o` / `gpt-4.1-mini` |
+| 阿里云百炼 | `qwen-plus` | `/chat/completions` | `qwen-plus` / `qwen-max` / `qwen-turbo` |
 | DeepSeek | `deepseek-flash` | `/chat/completions` | `deepseek-flash` / `deepseek-v4-pro` |
 
 启用 DeepSeek：
@@ -176,7 +178,7 @@ app:
 
 ### 本地转写（whisper.cpp，可选）
 
-录音涉及客户隐私时，可以把转写从 OpenAI 换到**本机 whisper.cpp**：录音不出本机、无时长费用、无并发限制、也不受 25MB 限制。
+转写固定使用**本机 whisper.cpp**：录音不出本机、无时长费用、无并发限制，也不受 25MB 限制。
 
 ```bash
 brew install whisper.cpp ffmpeg
@@ -192,11 +194,11 @@ WHISPER_API_KEY=local      # whisper.cpp 本身不校验密钥，但后端要求
 
 **实测**（M1 Pro / 16 核 GPU / `large-v3-turbo` / Metal）：**约 12x 实时** —— 79 秒录音转写 6 秒；本项目双声道会调用两次，10 分钟双轨通话约需 1.5 分钟。
 
-> **零代码改动是怎么做到的**：whisper.cpp 的 server 只暴露 `/inference`（1.9.5 实测无 `/v1/audio/transcriptions`），脚本用 `--inference-path /v1/audio/transcriptions` 把它**改名**成 OpenAI 的路径。响应结构本来就和 OpenAI 对齐：`segments[].{start,end,text}` 同名同单位（秒），顶层也有 `language` / `duration` / `text`，因此 `TranscriptionService` 一行都不用改。
+> **零代码改动是怎么做到的**：whisper.cpp 的 server 只暴露 `/inference`（1.9.5 实测无 `/v1/audio/transcriptions`），脚本用 `--inference-path /v1/audio/transcriptions` 把它**改名**成兼容转写路径。响应结构走兼容格式：`segments[].{start,end,text}` 同名同单位（秒），顶层也有 `language` / `duration` / `text`，因此 `TranscriptionService` 一行都不用改。
 >
 > 端口只绑 `127.0.0.1`；Docker Desktop 的 `host.docker.internal` 可以直达宿主回环，无需暴露到局域网。
 
-> ⚠️ **转写配置用独立的 `whisper.*` 前缀，不是复用 `openai.*`**。因为 docker-compose 会注入空的 `OPENAI_API_KEY=""`，而环境变量按宽松绑定等价于 `openai.api-key`、**优先级高于 `application.yml`**，会把配置里解析好的值整个盖掉（这个问题在开发时真实踩到过）。
+> ⚠️ **转写配置用独立的 `whisper.*` 前缀**，与 `WHISPER_*` 环境变量一一对应，避免与其它供应商变量互相遮蔽。
 
 ### 逐句转写的数据来源与降级策略
 
@@ -226,14 +228,17 @@ python3 tools/seed_demo_data.py --clean  # 清理演示数据
 ```
 
 脚本会调用运行中的后端 `/api/dictionary/test` 计算命中位置，因此需要后端已启动；
-默认后端地址 `http://localhost:8082`、MySQL 容器 `echolint-mysql`，可用 `--api` / `--container` 覆盖。
+默认后端地址 `http://localhost:8082`、PostgreSQL 容器 `echolint-postgres`（compose 服务 `postgres`），
+可用 `--api` / `--container` 覆盖。脚本通过 `docker exec -i <容器> psql -U audit -d echolint` 写库，
+显式写入的 demo id 会在末尾用 `setval` 重置序列，不会与后续真实数据的主键冲突。
 
 ## 快速开始（Docker 一键）
 
 ```bash
-# 1. 配置 OpenAI 密钥（也可直接用环境变量）
+# 1. 配置本地转写与百炼 embedding
 cp .env.example .env
-#   编辑 .env，填入 OPENAI_API_KEY=sk-...
+tools/whisper-server.sh --daemon          # 本机 whisper.cpp（需先下载模型）
+#   编辑 .env，填入 WHISPER_*、DASHSCOPE_API_KEY、DEEPSEEK_API_KEY
 
 # 2. 构建并启动（首次构建需数分钟）
 docker compose up -d --build
@@ -242,7 +247,8 @@ docker compose up -d --build
 #    前端:   http://localhost:8081   （后端 API 经 Nginx 同源代理）
 #    后端:   http://localhost:8082   （健康检查 /actuator/health）
 
-# 端口说明（宿主机）：前端 8081 → Nginx:80；后端 8082 → 8080；MySQL 3307 → 3306。
+# 端口说明（宿主机）：前端 8081 → Nginx:80；后端 8082 → 8080；
+# PostgreSQL 5433 → 5432（只绑 127.0.0.1；服务名 postgres，库 echolint，用户 audit）。
 # 若与本机已有服务冲突，改 docker-compose.yml 中的宿主机端口映射即可。
 ```
 
@@ -277,8 +283,11 @@ curl http://localhost:8082/actuator/prometheus
 #   http://localhost:8082/swagger-ui/index.html
 ```
 
-- 数据库结构由 **Flyway** 管理：`V1` 为基线标记（既有库自动 baseline 到 v1），后续变更从 `V2__*.sql` 开始；
-  预置词典/语料由 `DataSeedRunner` 在 JPA 建表后幂等执行。
+- 数据库为 **PostgreSQL 17 + pgvector**，结构由 **Flyway** 管理：`V1` 为基线标记（既有库自动 baseline 到 v1）；
+  `V2__postgres_pgvector_rag.sql` 负责 `CREATE EXTENSION vector`、`knowledge_chunks` 表与 HNSW 索引，
+  其余业务表仍由 Hibernate `ddl-auto` 管理；预置词典/语料由 `DataSeedRunner` 在 JPA 建表后幂等执行。
+  从 MySQL 老库迁移的完整步骤（pgloader 只搬数据、行数/序列/pgvector 校验、回滚）见
+  **[docs/postgres-migration.md](docs/postgres-migration.md)**。
 - 上传做 **SHA-256 去重**（重复文件 409，返回已存在录音 id）与 **magic bytes 校验**（内容与扩展名不符 400）；
   文件先写临时文件再原子移动，失败/重复自动清理。
 - 容器日志已配置轮转（`max-size=10m, max-file=3`），支持优雅停机（`server.shutdown=graceful`）。
@@ -299,6 +308,21 @@ curl http://<host>/api/open/recordings/1 -H "X-API-Key: elk_xxx"
 
 - 上传复用内部校验/去重/持久任务队列；查询只返回状态、命中数、违规类型、复核结论、错误信息等限定字段。
 - 密钥停用后立即失效；当前开放 API 未提供限流与租户隔离，请只在可信网络内使用。
+
+## RAG 检索增强（Batch 6）
+
+知识库/SOP 与人工复核语料在写入时通过阿里云百炼 embedding 异步向量化（PostgreSQL + pgvector，
+HNSW 余弦索引），复筛时按语义召回并注入提示词：
+
+- **知识库 RAG**：按分块召回 SOP/话术/处置规范，带上「知识库参考」；`aiResultJson.rag` 与 AI 调用留痕记录引用了哪些知识。
+- **语义 few-shot**：从人工复核语料按相似度取样（违规/合规各半），替代固定「最新 N 条」。
+- **文档导入**：PDF / DOCX / TXT / MD 一键导入知识库，后台解析 + 分块 + 向量化，失败可重建。
+- **管理端**：系统设置页「RAG 检索增强」卡片支持开关/检索参数/embedding 连通性测试/重建索引/with-RAG 对比评测；
+  知识库页显示索引状态与文档导入入口。
+
+默认关闭（`APP_RAG_ENABLED=false`，关闭时与旧版完全一致）。开启前先在「AI 供应商」配置支持 embedding 的供应商
+（DeepSeek 不提供 embedding）；完整配置项、API、索引生命周期、降级行为、评测方法与已知限制见
+**[docs/rag-integration.md](docs/rag-integration.md)**（默认值也见 `.env.example` 的 `APP_RAG_*` 段）。
 
 ## 集成适配器（多租户 / SSO / 流式 ASR / 说话人分离）
 
@@ -326,13 +350,18 @@ curl http://localhost:8082/api/auth/sso/config
 ## 本地开发
 
 ```bash
-# 0. 准备 MySQL（compose 已把容器 3306 映射到宿主 3307，避免与本机 MySQL 冲突）
-docker compose up -d mysql
+# 0. 准备 PostgreSQL 17 + pgvector（compose 把容器 5432 映射到宿主 5433，避免与本机 PG 冲突）
+docker compose up -d postgres
 
-# 1. 后端（通过 3307 连容器 MySQL；若本机 3306 空闲可改回默认 URL）
+# 1. 后端（默认连 localhost:5432；连 compose 容器时用宿主 5433）
 cd backend
-export OPENAI_API_KEY=sk-...
-export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3307/echolint?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false'
+export DASHSCOPE_API_KEY=sk-...
+export WHISPER_BASE_URL=http://127.0.0.1:9900
+export WHISPER_API_KEY=local
+# 本机 5432 没有 PostgreSQL 时，显式指向 compose 容器：
+export SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5433/echolint'
+export SPRING_DATASOURCE_USERNAME=audit
+export SPRING_DATASOURCE_PASSWORD=audit123
 mvn spring-boot:run
 
 # 2. 前端（开发服务器，/api 与 /uploads 默认代理到 8080；
@@ -342,20 +371,24 @@ npm install
 VITE_API_TARGET=http://localhost:8082 npm run dev
 ```
 
+> 连接数据库排查：`docker exec -it echolint-postgres psql -U audit -d echolint`；
+> 宿主机也可用 `psql "postgresql://audit:audit123@127.0.0.1:5433/echolint"`。
+> 老库迁移见 [docs/postgres-migration.md](docs/postgres-migration.md)。
+
 ### 环境变量（均有默认值）
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `OPENAI_API_KEY` | (空) | OpenAI 密钥；转写与复筛的兜底密钥 |
-| `WHISPER_BASE_URL` | `https://api.openai.com` | **转写**端点，可指向本机 whisper.cpp（`http://host.docker.internal:9900`） |
-| `WHISPER_API_KEY` | (空) | **转写**密钥，覆盖 `OPENAI_API_KEY`；自建服务填任意非空值 |
-| `OPENAI_BASE_URL` | `https://api.openai.com` | 可指向代理/网关 |
-| `OPENAI_WHISPER_MODEL` | `whisper-1` | 转写模型（自建 whisper.cpp 会忽略该值，但仍需带上） |
-| `OPENAI_SCREEN_MODEL` | `gpt-4o-mini` | OpenAI 作为复筛模型时的默认模型 |
+| `WHISPER_BASE_URL` | `http://127.0.0.1:9900` | **转写**端点（本机 whisper.cpp；容器内用 `http://host.docker.internal:9900`） |
+| `WHISPER_API_KEY` | `local` | **转写**密钥；whisper.cpp 不校验，但后端要求非空 |
+| `WHISPER_MODEL` | `whisper-1` | 转写模型名（whisper.cpp 会忽略该值，但请求仍需带上） |
+| `DASHSCOPE_API_KEY` | (空) | 阿里云百炼 API Key，用于 RAG embedding |
+| `DASHSCOPE_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 百炼兼容端点（业务空间不同时按控制台替换） |
+| `DASHSCOPE_CHAT_MODEL` | `qwen-plus` | 百炼作为复筛模型时的默认模型 |
 | `DEEPSEEK_API_KEY` | (空) | DeepSeek 密钥，用于复筛 / 词挖掘（切换前必须配置） |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 端点（可指向代理） |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 端点（可指向代理）；compose 已透传 |
 | `DEEPSEEK_SCREEN_MODEL` | `deepseek-flash` | DeepSeek 默认模型 |
-| `APP_SCREEN_PROVIDER` | `openai` | 首次启动（`app_settings` 表为空）时的复筛供应商 |
+| `APP_SCREEN_PROVIDER` | `deepseek` | 首次启动（`app_settings` 表为空）时的复筛供应商 |
 | `APP_ADMIN_USERNAME` | `admin` | 首次启动引导管理员用户名（用户表为空时创建） |
 | `APP_ADMIN_PASSWORD` | `admin12345` | 引导管理员密码，**生产必须覆盖** |
 | `APP_REVIEW_REQUIRED_APPROVALS` | `1` | 一条录音需要几位复核人通过才落最终结论（2 = 双人复核） |
@@ -375,7 +408,7 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_SCREEN_AB_PERCENT` | `0` | B 组流量百分比（0~100） |
 | `APP_SCREEN_AB_PROVIDER` | (空) | B 组供应商标识（缺失/停用/缺密钥自动回退 A） |
 | `APP_SCREEN_AB_MODEL` | (空) | B 组模型名（可空=供应商默认模型） |
-| `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost:3306, audit/audit123 | 数据库连接 |
+| `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | `jdbc:postgresql://localhost:5432/echolint`, audit/audit123 | 数据库连接（compose 内为 `jdbc:postgresql://postgres:5432/echolint`；本机连容器用宿主 5433） |
 | `APP_UPLOAD_DIR` | `data/uploads` | 录音文件存储目录 |
 | `APP_STEREO_ENABLED` | `true` | 是否启用双声道分轨处理 |
 | `APP_STEREO_LEFT_SPEAKER` | `坐席` | 左声道说话人名称 |
@@ -397,6 +430,34 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | `APP_DIARIZATION_PROVIDER` | (空) | 说话人分离供应商标识 |
 | `APP_DIARIZATION_ENDPOINT` | (空) | 说话人分离服务地址（`http(s)://`） |
 | `APP_DIARIZATION_API_KEY` | (空) | 说话人分离密钥（不通过接口返回） |
+
+### RAG 环境变量（Batch 6）
+
+数据库迁移到 PostgreSQL + pgvector 后，可按需开启知识库语义检索；**默认全部关闭/有默认值**，
+关闭时复筛行为与旧版完全一致。完整说明见 `.env.example` 与 [docs/rag-integration.md](docs/rag-integration.md)。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `APP_RAG_ENABLED` | `false` | RAG 总开关；关闭时不发起任何 embedding 调用 |
+| `APP_RAG_TOP_K` | `4` | 知识库召回条数（1~20） |
+| `APP_RAG_MIN_SCORE` | `0.25` | 余弦相似度下限（0~1） |
+| `APP_RAG_MAX_CONTEXT_CHARS` | `2400` | 注入 prompt 的知识片段总字符上限 |
+| `APP_RAG_CORPUS_EXAMPLES` | `5` | 语义 few-shot 条数（0 = 回退最新 N 条） |
+| `APP_RAG_EMBEDDING_PROVIDER` | `aliyun` | embedding 供应商（复用 `ai_providers` 的 base-url/api-key） |
+| `APP_RAG_EMBEDDING_MODEL` | `qwen3.7-text-embedding` | 阿里云百炼 embedding 模型 |
+| `APP_RAG_EMBEDDING_PATH` | `/embeddings` | embedding 端点路径（base-url 已含 `/compatible-mode/v1`） |
+| `APP_RAG_EMBEDDING_DIMENSIONS` | `1024` | 向量维度，必须与 V3 迁移的 HNSW 索引一致 |
+| `APP_RAG_EMBEDDING_SEND_DIMENSIONS` | `true` | 是否在请求体显式发送 `dimensions` |
+| `APP_RAG_EMBEDDING_TIMEOUT` | `30` | embedding 请求超时（秒） |
+| `APP_RAG_EMBEDDING_BATCH_SIZE` | `8` | 单批 embedding 条数（阿里云 v3/v4 最多 10 条/批） |
+| `APP_RAG_CHUNK_CHARS` | `600` | 知识库分块字符数 |
+| `APP_RAG_CHUNK_OVERLAP` | `80` | 相邻分块重叠字符数 |
+| `APP_RAG_CORPUS_MAX_CHARS` | `6000` | 语料 embedding 前的截断长度 |
+| `APP_RAG_INDEX_POOL` | `2` | 异步索引线程数 |
+| `APP_RAG_STARTUP_BACKFILL` | `true` | 启动时回填未索引条目/语料 |
+| `APP_RAG_DOCUMENTS_DIR` | `data/knowledge-docs` | 文档导入目录 |
+| `APP_RAG_DOCUMENTS_MAX_BYTES` | `20971520` | 单文档大小上限（20MB） |
+| `APP_RAG_DOCUMENTS_EXTENSIONS` | `pdf,docx,txt,md` | 允许导入的扩展名 |
 
 ## API 一览
 
@@ -510,8 +571,7 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 
 ## 注意事项
 
-- Whisper 单文件上限 **25MB**（OpenAI 限制），上传接口同样限制；更长的录音请先切分或压缩。
-  **改用本机 whisper.cpp 后该限制即失效**（`app.max-size-bytes` 可调大，whisper.cpp 无此限制）。
+- 转写使用本机 whisper.cpp，无 25MB 限制；上传上限由 `app.max-size-bytes` 控制（默认 200MB）。
 - 语义复筛调用失败时（模型缺密钥 / 网络异常 / 额度不足），DFA 命中的录音会**降级转入人工复检**
   （`aiResultJson` 中 `degraded=true` 并带错误说明），不会漏审；恢复模型可用后重跑即可得到 AI 结论。
 - 语料库初始含 5 条合成样例，随人工复检的积累会逐渐替换为真实标注数据。
