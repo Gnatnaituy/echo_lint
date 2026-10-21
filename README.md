@@ -2,7 +2,7 @@
 
 > **EchoLint** = Echo（录音） + Lint（自动化体检）：把每一通录音当作待检代码，先机械地查关键词，再让 AI 读语境，最后交给人拍板。
 
-基于 **本机 whisper.cpp** 的录音合规稽核服务：录音上传后自动完成 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，人工复检结论自动回馈语料库，并从中挖掘新敏感词，形成自增长闭环。
+基于 **本机 whisper.cpp** 的录音合规稽核服务：录音上传后自动完成 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，人工复检结论自动回馈语料库，并从中挖掘新敏感词，形成自增长闭环；支持 PostgreSQL + pgvector 知识库 RAG 与全局 AI 对话留痕。
 
 ## 总体流程
 
@@ -67,7 +67,7 @@ echolint/
 
 ## 管理端界面
 
-统一的设计语言：深色侧栏 + 浅色内容区、6px 圆角体系、字重/字距收敛、状态用「圆点 + 文字」胶囊表达。
+统一的设计语言：浅色侧栏 + 浅色分层内容区（渐变表面、柔和投影）、6px 圆角体系、字重/字距收敛、状态用「圆点 + 文字」胶囊表达。
 
 | 工作台 | 录音管理 |
 |---|---|
@@ -87,6 +87,8 @@ echolint/
   系统提示词、用户提示词（DFA 命中词 + few-shot 语料 + 待审文本）、原始 JSON 回复、端点、耗时、字符数；
   失败的调用同样留痕，且保留**本该发出去的请求体**。复检工作区也可展开查看。
   「AI 为什么这么判」对一个合规审计产品本身就是需要留痕的审计信息，只存解析后的结论回答不了这个问题。
+- **AI 对话记录**：ADMIN 可在「AI 对话记录」页按阶段/供应商/模型/状态/关联录音/日期筛选所有 AI 调用，
+  查看完整系统/用户提示词、模型原始回复、原始请求 JSON、token/成本/耗时；列表不加载全文，详情按需拉取。
 - **手动推进处理**：`待处理`、`处理失败`，以及停留超过 2 分钟的进行中记录，行内会出现「立即/推进处理」「重试」「重新处理」按钮（详情抽屉同样有），用于处理上传后服务重启、外部 API 失败等卡住的情况；已归档或已复检的记录不提供该按钮，避免覆盖既有结论。
 - **人工复检**：左侧复检队列（可筛选）+ 右侧工作区（**逐句对照转写**、AI 判断置信度条、结论表单）；打开时**默认选中 AI 建议的违规类型**，提交后自动进入下一条。
 - **逐句对照 + 音画联动**：每句话带起始时间、DFA 命中词高亮与标记胶囊（`命中 · xxx` / `AI 判违规原句`）；**点击句子跳转到对应音频时间点**，播放时**自动高亮并滚动到当前句**（可用「跟随播放」开关关闭），也可切回「全文」视图。
@@ -285,6 +287,7 @@ curl http://localhost:8082/actuator/prometheus
 
 - 数据库为 **PostgreSQL 17 + pgvector**，结构由 **Flyway** 管理：`V1` 为基线标记（既有库自动 baseline 到 v1）；
   `V2__postgres_pgvector_rag.sql` 负责 `CREATE EXTENSION vector`、`knowledge_chunks` 表与 HNSW 索引，
+  `V3__rag_embedding_1024.sql` 将 HNSW 调整为阿里云百炼 embedding 的 **1024 维**；
   其余业务表仍由 Hibernate `ddl-auto` 管理；预置词典/语料由 `DataSeedRunner` 在 JPA 建表后幂等执行。
   从 MySQL 老库迁移的完整步骤（pgloader 只搬数据、行数/序列/pgvector 校验、回滚）见
   **[docs/postgres-migration.md](docs/postgres-migration.md)**。
@@ -320,8 +323,9 @@ HNSW 余弦索引），复筛时按语义召回并注入提示词：
 - **管理端**：系统设置页「RAG 检索增强」卡片支持开关/检索参数/embedding 连通性测试/重建索引/with-RAG 对比评测；
   知识库页显示索引状态与文档导入入口。
 
-默认关闭（`APP_RAG_ENABLED=false`，关闭时与旧版完全一致）。开启前先在「AI 供应商」配置支持 embedding 的供应商
-（DeepSeek 不提供 embedding）；完整配置项、API、索引生命周期、降级行为、评测方法与已知限制见
+默认关闭（`APP_RAG_ENABLED=false`，关闭时与旧版完全一致）。开启前在「AI 供应商」配置阿里云百炼
+（默认 `provider=aliyun`、`model=qwen3.7-text-embedding`、`1024` 维；DeepSeek 不提供 embedding），
+完整配置项、API、索引生命周期、降级行为、评测方法与已知限制见
 **[docs/rag-integration.md](docs/rag-integration.md)**（默认值也见 `.env.example` 的 `APP_RAG_*` 段）。
 
 ## 集成适配器（多租户 / SSO / 流式 ASR / 说话人分离）
@@ -494,6 +498,16 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 | POST | `/api/open/recordings/upload` | 外部系统上传（`X-API-Key`；multipart file + 可选元数据） |
 | GET | `/api/open/recordings/{id}` | 外部系统查询处理状态（`X-API-Key`） |
 | GET/POST/PUT/DELETE | `/api/knowledge...` | 知识库/SOP 查询与维护（读登录可读，写 ADMIN/REVIEWER） |
+| POST | `/api/knowledge/documents` | 导入 PDF/DOCX/TXT/MD 文档（ADMIN/REVIEWER，异步解析 + 向量化） |
+| POST | `/api/knowledge/{id}/reindex` | 重建单条知识库索引（ADMIN/REVIEWER） |
+| POST | `/api/knowledge/search` | 语义检索预览 `{query, topK}`（ADMIN/REVIEWER） |
+| GET/PUT | `/api/settings/rag` | RAG 设置查看/更新（ADMIN） |
+| POST | `/api/settings/rag/test` | embedding 连通性测试（ADMIN） |
+| POST | `/api/settings/rag/reindex` | 重建 RAG 索引 `{scope: knowledge\|corpus\|all}`（ADMIN） |
+| POST | `/api/settings/rag/evaluate` | with/without RAG 对比评测（ADMIN，≤20 条） |
+| GET | `/api/ai-invocations?stage=&providerId=&model=&success=&recordingId=&from=&to=&page=&size=` | AI 对话记录分页（ADMIN；列表不返回全文） |
+| GET | `/api/ai-invocations/facets` | AI 对话记录筛选候选（ADMIN） |
+| GET | `/api/ai-invocations/{id}` | AI 调用完整请求/回复（ADMIN） |
 
 报表与运营：
 
