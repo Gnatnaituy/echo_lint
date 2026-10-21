@@ -83,6 +83,7 @@ const groups = computed(() => {
     systemItems.push(
       { path: '/costs', labelKey: 'nav.costs', icon: 'Money' },
       { path: '/tasks', labelKey: 'nav.tasks', icon: 'Operation' },
+      { path: '/ai-chat', labelKey: 'nav.aiChat', icon: 'ChatDotRound' },
       { path: '/api-keys', labelKey: 'nav.apiKeys', icon: 'Key' },
       { path: '/users', labelKey: 'nav.users', icon: 'User' },
       { path: '/audit', labelKey: 'nav.audit', icon: 'List' }

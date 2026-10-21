@@ -10,6 +10,11 @@ import {
   normalizeProviders
 } from '../utils/providers'
 import { normalizeAiUsage } from '../utils/aiUsage'
+import {
+  normalizeAiInvocationDetail,
+  normalizeAiInvocationFacets,
+  normalizeAiInvocationPage
+} from '../utils/aiChat'
 import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
 import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
 import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys'
@@ -193,6 +198,52 @@ export const api = {
     return http.get('/audit-logs', {
       params: { page, size, actor: actor || undefined, action: action || undefined }
     })
+  },
+
+  // AI 对话记录（ADMIN）：所有 AI 调用的提示词与原始回复
+  /**
+   * GET /api/ai-invocations?stage=&providerId=&model=&success=&recordingId=&from=&to=&page=&size=
+   * -> 归一化 {items,total,page,size,totalPages}；列表不含完整提示词。
+   */
+  listAiInvocations({
+    page,
+    size,
+    stage,
+    providerId,
+    model,
+    success,
+    recordingId,
+    from,
+    to
+  } = {}) {
+    return http
+      .get('/ai-invocations', {
+        params: {
+          page,
+          size,
+          stage: param(stage),
+          providerId: param(providerId),
+          model: param(model),
+          success: typeof success === 'boolean' ? success : undefined,
+          recordingId: param(recordingId),
+          from: param(from),
+          to: param(to)
+        },
+        silent: true
+      })
+      .then((data) => normalizeAiInvocationPage(data))
+  },
+  /** GET /api/ai-invocations/{id} -> 完整 requestJson/responseJson */
+  getAiInvocation(id) {
+    return http
+      .get(`/ai-invocations/${encodeURIComponent(id)}`, { silent: true })
+      .then((data) => normalizeAiInvocationDetail(data))
+  },
+  /** GET /api/ai-invocations/facets -> 筛选下拉候选 */
+  getAiInvocationFacets() {
+    return http
+      .get('/ai-invocations/facets', { silent: true })
+      .then((data) => normalizeAiInvocationFacets(data))
   },
 
   // 录音

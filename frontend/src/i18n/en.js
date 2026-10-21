@@ -76,6 +76,7 @@ export default {
   'nav.settings': 'Settings',
   'nav.costs': 'AI Costs',
   'nav.tasks': 'Task Queue',
+  'nav.aiChat': 'AI Conversations',
   'nav.apiKeys': 'API Keys',
   'nav.users': 'Users',
   'nav.audit': 'Audit Log',

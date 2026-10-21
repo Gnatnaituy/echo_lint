@@ -78,6 +78,7 @@ export default {
   'nav.settings': '系统设置',
   'nav.costs': '成本看板',
   'nav.tasks': '任务队列',
+  'nav.aiChat': 'AI 对话记录',
   'nav.apiKeys': 'API 密钥',
   'nav.users': '用户管理',
   'nav.audit': '操作审计',
