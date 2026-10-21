@@ -87,25 +87,21 @@ public class Recording {
     private RecordingStatus status = RecordingStatus.PENDING;
 
     /** Whisper 完整转写文本 */
-    @Lob
-    @Column(columnDefinition = "MEDIUMTEXT")
+    @Column(columnDefinition = "TEXT")
     private String transcript;
 
     /** 转写分段 JSON [{speaker,channel,start,end,text},...]；双声道时带说话人/声道 */
-    @Lob
-    @Column(columnDefinition = "MEDIUMTEXT")
+    @Column(columnDefinition = "TEXT")
     private String segmentsJson;
 
     /** 声道数（1=单声道，2=双声道双轨） */
     private Integer channelCount;
 
     /** 分轨文件 JSON {"L":"xxx.L.wav","R":"xxx.R.wav"}，仅双声道存在 */
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String channelFilesJson;
 
     /** DFA 命中 [{word,start,end},...] 原始 JSON */
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String dfaHitsJson;
 
@@ -120,7 +116,6 @@ public class Recording {
     private boolean sampled = false;
 
     /** AI 复筛结果 {violation,violationType,violationTypeLabel,reason,confidence,targetSentence} JSON */
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String aiResultJson;
 
@@ -134,7 +129,6 @@ public class Recording {
     @Column(length = 64)
     private String violationTypeLabel;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String reviewComment;
 
@@ -167,7 +161,6 @@ public class Recording {
     @Column(nullable = false)
     private int reviewCount = 0;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 

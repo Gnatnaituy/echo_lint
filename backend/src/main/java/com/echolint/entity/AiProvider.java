@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * AI 模型供应商（Batch 3a）：语义复筛 / 敏感词挖掘共用的 OpenAI 兼容端点。
+ * AI 模型供应商（Batch 3a）：语义复筛 / 敏感词挖掘 / RAG embedding 共用的兼容端点。
  *
  * <p>供应商从 application.yml 迁移到数据库后，可在系统设置页增删改、无需重启；
  * 启动时把 yml 中尚未落库的供应商加密导入（builtIn=true），**不删除**任何库内行。</p>
@@ -47,7 +47,7 @@ public class AiProvider {
     @Column(length = 255)
     private String baseUrl;
 
-    /** chat completions 路径（OpenAI: /v1/chat/completions；DeepSeek: /chat/completions） */
+    /** chat completions 路径（阿里云: /chat/completions；DeepSeek: /chat/completions） */
     @Column(length = 255)
     private String chatPath;
 

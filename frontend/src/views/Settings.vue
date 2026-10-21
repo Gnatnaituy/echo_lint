@@ -529,7 +529,394 @@
       </div>
     </section>
 
-    <!-- ⑤ 生效范围 -->
+    <!-- ⑤ RAG 检索增强（ADMIN）：embedding 复用 AI 供应商；检索参数、索引统计与效果评测 -->
+    <section v-if="canWrite" class="panel">
+      <div class="panel-head">
+        <div class="section-title">RAG 检索增强</div>
+        <div class="provider-head">
+          <span class="tiny dim">关闭时复筛行为与旧版完全一致；embedding 复用「AI 供应商」的接入地址与密钥</span>
+          <el-button size="small" :loading="ragLoading" @click="loadRag">刷新</el-button>
+        </div>
+      </div>
+      <div v-loading="ragLoading" class="panel-body">
+        <!-- 接口未上线 / 无权限（403、404）时降级为可重试提示，不影响其他设置 -->
+        <div v-if="ragError" class="notify-fallback">
+          <el-icon :size="16"><WarningFilled /></el-icon>
+          <div class="notify-fallback-text">
+            <div class="strong">RAG 设置暂不可用</div>
+            <div class="tiny dim">{{ ragError }}</div>
+          </div>
+          <el-button size="small" @click="loadRag">重试</el-button>
+        </div>
+
+        <template v-else-if="rag">
+          <!-- 总开关 -->
+          <div class="rag-switch-row">
+            <div class="rag-switch-main">
+              <div class="rag-switch-line">
+                <span class="strong">启用 RAG 检索增强</span>
+                <span class="chip" :class="ragForm.enabled ? 'ok' : 'info'">
+                  {{ ragForm.enabled ? '已启用' : '未启用' }}
+                </span>
+                <span v-if="rag.source" class="chip info">配置来源：{{ ragSourceLabel(rag.source) }}</span>
+              </div>
+              <div class="tiny dim rag-note">
+                启用后复筛会召回知识库片段注入 prompt，并用语义 few-shot 补充语料示例；
+                关闭时不发起任何 embedding 调用，行为与旧版一致。
+              </div>
+            </div>
+            <el-switch
+              v-model="ragForm.enabled"
+              :loading="ragEnabledSaving"
+              :disabled="ragEnabledSaving"
+              @change="saveRagEnabled"
+            />
+          </div>
+
+          <!-- embedding 只读信息 -->
+          <div class="rag-section-head">
+            <div class="block-title">Embedding 配置（只读）</div>
+            <el-button size="small" :loading="ragTesting" :disabled="ragTesting" @click="testRagEmbedding">
+              <el-icon v-if="!ragTesting" class="el-icon--left"><Connection /></el-icon>
+              连通性测试
+            </el-button>
+          </div>
+          <div class="rag-kv-grid">
+            <div class="rag-kv">
+              <div class="notify-label">供应商 / 模型</div>
+              <div class="rag-kv-value strong">{{ rag.embedding.providerLabel || '—' }}</div>
+              <div class="mono tiny dim ellipsis" :title="rag.embedding.model">{{ rag.embedding.model || '—' }}</div>
+            </div>
+            <div class="rag-kv">
+              <div class="notify-label">请求路径</div>
+              <div class="rag-kv-value mono">{{ rag.embedding.path || '—' }}</div>
+              <div class="tiny dim">复用 AI 供应商的 Base URL 与密钥</div>
+            </div>
+            <div class="rag-kv">
+              <div class="notify-label">向量维度</div>
+              <div class="rag-kv-value num">{{ rag.embedding.dimensions ?? '—' }}</div>
+              <div class="tiny dim">超时 {{ rag.embedding.timeoutSeconds ?? '—' }} 秒</div>
+            </div>
+            <div class="rag-kv">
+              <div class="notify-label">API Key</div>
+              <div class="rag-kv-value">
+                <span class="chip" :class="embeddingKeyChip(rag.embedding.apiKeyConfigured).type">
+                  {{ embeddingKeyChip(rag.embedding.apiKeyConfigured).label }}
+                </span>
+              </div>
+              <div class="tiny dim">密钥由后端加密存储，前端只读状态</div>
+            </div>
+          </div>
+
+          <div v-if="ragTestResult" class="test-result" :class="ragTestResult.ok === true ? 'ok' : 'bad'">
+            <el-icon :size="16">
+              <component :is="ragTestResult.ok === true ? 'CircleCheckFilled' : 'CircleCloseFilled'" />
+            </el-icon>
+            <div class="test-text">
+              <div class="test-head">
+                <b>{{ ragTestResult.ok === true ? 'Embedding 连通正常' : 'Embedding 连通失败' }}</b>
+                <span v-if="ragTestResult.providerLabel || ragTestResult.model" class="mono dim">
+                  {{ ragTestResult.providerLabel || '—' }} · {{ ragTestResult.model || '—' }}
+                </span>
+                <span v-if="ragTestResult.dimensions != null" class="num dim">
+                  维度 {{ ragTestResult.dimensions }}
+                </span>
+                <span v-if="ragTestResult.latencyMs != null" class="num dim">
+                  耗时 {{ ragTestResult.latencyMs }} ms
+                </span>
+              </div>
+              <div class="test-msg">
+                {{ ragTestResult.message ||
+                  (ragTestResult.ok === true
+                    ? 'Embedding 调用成功'
+                    : '请检查供应商 Base URL、密钥与模型名') }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 检索参数 -->
+          <div class="rag-section-head">
+            <div class="block-title">检索参数</div>
+            <span class="tiny dim">保存后写入数据库并立即生效</span>
+          </div>
+          <div class="eval-form">
+            <div class="eval-field rag-field">
+              <label class="eval-label">Top K（1~10）</label>
+              <el-input-number
+                v-model="ragForm.topK"
+                :min="1"
+                :max="10"
+                :precision="0"
+                controls-position="right"
+                :disabled="ragSaving"
+                style="width: 100%"
+              />
+            </div>
+            <div class="eval-field rag-field">
+              <label class="eval-label">最低相似度（0~1）</label>
+              <el-input-number
+                v-model="ragForm.minScore"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :precision="2"
+                controls-position="right"
+                :disabled="ragSaving"
+                style="width: 100%"
+              />
+            </div>
+            <div class="eval-field rag-field">
+              <label class="eval-label">上下文上限（字符）</label>
+              <el-input-number
+                v-model="ragForm.maxContextChars"
+                :min="500"
+                :max="8000"
+                :step="100"
+                :precision="0"
+                controls-position="right"
+                :disabled="ragSaving"
+                style="width: 100%"
+              />
+            </div>
+            <div class="eval-field rag-field">
+              <label class="eval-label">语料 few-shot（0~10）</label>
+              <el-input-number
+                v-model="ragForm.corpusExamples"
+                :min="0"
+                :max="10"
+                :precision="0"
+                controls-position="right"
+                :disabled="ragSaving"
+                style="width: 100%"
+              />
+            </div>
+            <div class="eval-actions">
+              <el-button type="primary" :loading="ragSaving" :disabled="ragSaving" @click="saveRagSettings">
+                保存检索参数
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 索引统计 -->
+          <div class="rag-section-head">
+            <div class="block-title">索引统计</div>
+            <span class="tiny dim">
+              最近重建：{{ rag.index.lastReindexAt ? formatTime(rag.index.lastReindexAt) : '—' }}
+            </span>
+          </div>
+          <div class="notify-grid">
+            <div class="notify-item">
+              <div class="notify-label">知识库已就绪</div>
+              <div class="notify-value num">
+                {{ readyCountText(rag.index.knowledgeReady, rag.index.knowledgeTotal) }}
+              </div>
+              <div class="notify-sub tiny dim">
+                待处理 {{ rag.index.knowledgePending ?? '—' }} ·
+                失败 {{ rag.index.knowledgeFailed ?? '—' }}
+              </div>
+            </div>
+            <div class="notify-item">
+              <div class="notify-label">语料已向量化</div>
+              <div class="notify-value num">
+                {{ readyCountText(rag.index.corpusReady, rag.index.corpusTotal) }}
+              </div>
+              <div class="notify-sub tiny dim">语义 few-shot 召回依赖语料 embedding</div>
+            </div>
+            <div class="notify-item">
+              <div class="notify-label">向量能力</div>
+              <div class="notify-value">
+                <span class="chip" :class="vectorState.type">{{ vectorState.label }}</span>
+              </div>
+              <div class="notify-sub tiny dim">{{ vectorState.note }}</div>
+            </div>
+          </div>
+
+          <el-alert
+            v-if="rag.index.vectorAvailable === false"
+            class="rag-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="向量能力不可用：RAG 会自动降级为不注入检索结果，不阻塞复筛；请检查 PostgreSQL pgvector 扩展。"
+          />
+
+          <div class="rag-actions">
+            <el-button
+              :loading="ragReindexing === 'knowledge'"
+              :disabled="ragReindexing !== null"
+              @click="runReindex('knowledge')"
+            >
+              重建知识库索引
+            </el-button>
+            <el-button
+              :loading="ragReindexing === 'corpus'"
+              :disabled="ragReindexing !== null"
+              @click="runReindex('corpus')"
+            >
+              重建语料索引
+            </el-button>
+            <el-button
+              type="warning"
+              plain
+              :loading="ragReindexing === 'all'"
+              :disabled="ragReindexing !== null"
+              @click="runReindex('all')"
+            >
+              全量重建
+            </el-button>
+            <span class="tiny dim">后台异步执行，可稍后「刷新」查看进度</span>
+          </div>
+
+          <!-- 效果评测 -->
+          <div class="rag-section-head">
+            <div class="block-title">RAG 效果评测</div>
+            <span class="tiny dim">同一批语料对比「基线（无检索）」与「RAG（带检索）」的复筛指标</span>
+          </div>
+          <div class="eval-form">
+            <div class="eval-field eval-size">
+              <label class="eval-label">样本数（5~20）</label>
+              <el-input-number
+                v-model="ragSampleSize"
+                :min="5"
+                :max="20"
+                :precision="0"
+                :disabled="ragEvaluating"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </div>
+            <div class="eval-actions">
+              <el-button
+                type="primary"
+                :loading="ragEvaluating"
+                :disabled="ragEvaluating"
+                @click="runRagEvaluation"
+              >
+                <el-icon v-if="!ragEvaluating" class="el-icon--left"><DataAnalysis /></el-icon>
+                评测 RAG 效果
+              </el-button>
+              <span class="tiny dim">评测调用真实模型，会计入 AI 用量与配额</span>
+            </div>
+          </div>
+
+          <div v-if="ragEvaluating" class="eval-running tiny dim">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            正在逐条对比基线 / RAG 复筛（5~20 条，可能需要数十秒）…
+          </div>
+
+          <div v-if="ragEvaluationError" class="eval-error">
+            <el-icon :size="16"><WarningFilled /></el-icon>
+            <div class="eval-error-text">
+              <div class="strong">评测未完成</div>
+              <div class="tiny dim">{{ ragEvaluationError }}</div>
+            </div>
+            <el-button size="small" :disabled="ragEvaluating" @click="runRagEvaluation">重试</el-button>
+          </div>
+
+          <template v-if="ragEvaluation">
+            <div class="eval-kpis">
+              <div v-for="row in ragEvalRows" :key="row.key" class="eval-kpi">
+                <div class="ab-label">{{ row.label }}</div>
+                <div class="ab-value num">{{ formatRatioPercent(row.rag) }}</div>
+                <div class="ab-sub tiny dim">
+                  基线 {{ formatRatioPercent(row.baseline) }} · Δ {{ row.deltaText }}
+                </div>
+              </div>
+              <div class="eval-kpi">
+                <div class="ab-label">样本数</div>
+                <div class="ab-value num">{{ ragEvaluation.sampleSize ?? '—' }}</div>
+                <div class="ab-sub tiny dim">模型 {{ ragEvaluation.model || '—' }}</div>
+              </div>
+            </div>
+
+            <div class="rag-eval-meta tiny dim">
+              基线失败 {{ ragEvaluation.baseline.failed ?? '—' }} ·
+              RAG 失败 {{ ragEvaluation.rag.failed ?? '—' }}
+              <span class="sep">·</span>
+              正确数 基线 {{ ragEvaluation.baseline.correct ?? '—' }} /
+              RAG {{ ragEvaluation.rag.correct ?? '—' }}
+            </div>
+
+            <div class="rag-section-head">
+              <div class="block-title">逐条对比</div>
+              <span class="tiny dim">共 {{ ragEvaluation.cases.length }} 条</span>
+            </div>
+            <el-table :data="ragEvaluation.cases" size="small" max-height="380">
+              <el-table-column label="ID" width="76">
+                <template #default="{ row }">
+                  <span class="mono">{{ row.id ?? '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="标注" width="96" align="center">
+                <template #default="{ row }">
+                  <span class="chip" :class="evaluationLabelMeta(row.label).type">
+                    {{ evaluationLabelMeta(row.label).label }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="基线预测" width="96" align="center">
+                <template #default="{ row }">
+                  <span class="chip" :class="evaluationLabelMeta(row.baselinePrediction).type">
+                    {{ evaluationLabelMeta(row.baselinePrediction).label }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="RAG 预测" width="96" align="center">
+                <template #default="{ row }">
+                  <span class="chip" :class="evaluationLabelMeta(row.ragPrediction).type">
+                    {{ evaluationLabelMeta(row.ragPrediction).label }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="置信度（基线 → RAG）" width="166" align="right">
+                <template #default="{ row }">
+                  <span class="num tiny">
+                    {{ formatRatioPercent(row.baselineConfidence) }} →
+                    {{ formatRatioPercent(row.ragConfidence) }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="引用" min-width="150">
+                <template #default="{ row }">
+                  <span v-if="row.refs.length" class="tiny">{{ row.refs.join('、') }}</span>
+                  <span v-else class="dim">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="错误" min-width="140">
+                <template #default="{ row }">
+                  <el-tooltip
+                    v-if="row.error"
+                    :content="row.error"
+                    placement="top"
+                    :show-after="200"
+                    :popper-style="{ maxWidth: '460px', wordBreak: 'break-all' }"
+                  >
+                    <span class="eval-reason err">{{ row.error }}</span>
+                  </el-tooltip>
+                  <span v-else class="dim">—</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <div class="empty-block">
+                  <div class="empty-title">暂无逐条结果</div>
+                  <div class="tiny dim">后端返回 cases 后展示基线 / RAG 预测与引用</div>
+                </div>
+              </template>
+            </el-table>
+          </template>
+          <div v-else-if="!ragEvaluating && !ragEvaluationError" class="eval-empty tiny dim">
+            还没有 RAG 评测结果：设置样本数（5~20）后点击「评测 RAG 效果」。
+          </div>
+
+          <div class="hint tiny dim">
+            Embedding 供应商复用「AI 供应商」中的 Base URL 与密钥；未配置 / 不可用时 RAG 自动降级为
+            不注入检索结果，不阻塞复筛。索引重建与评测均为 ADMIN 接口，重建任务在后台异步执行。
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ⑥ 生效范围 -->
     <section class="panel">
       <div class="panel-head">
         <div class="section-title">生效范围与密钥配置</div>
@@ -557,7 +944,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
       </div>
     </section>
 
-    <!-- ⑥ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
+    <!-- ⑦ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
         <div class="section-title">抽样与通知</div>
@@ -846,10 +1233,10 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import auth from '../auth'
-import { notifyEventMeta } from '../constants'
+import { formatTime, notifyEventMeta } from '../constants'
 import { formatSamplingRate } from '../utils/notifications'
 import { formatPricePer1k, isProviderEnabled } from '../utils/providers'
 import {
@@ -899,6 +1286,25 @@ const evaluating = ref(false)
 const evaluation = ref(null)
 const evaluationError = ref('')
 
+// RAG 检索增强（仅 ADMIN）：embedding 复用 AI 供应商注册表；索引重建与评测均为 ADMIN 接口
+const rag = ref(null)
+const ragLoading = ref(false)
+const ragError = ref('')
+const ragSaving = ref(false)
+const ragEnabledSaving = ref(false)
+const ragTesting = ref(false)
+const ragTestResult = ref(null)
+/** 正在重建的范围：'knowledge' | 'corpus' | 'all' | null */
+const ragReindexing = ref(null)
+const ragEvaluating = ref(false)
+const ragEvaluation = ref(null)
+const ragEvaluationError = ref('')
+const ragSampleSize = ref(10)
+
+/** 与 application.yml 默认值一致：仅作编辑控件初值，保存时整体回写后端 */
+const RAG_DEFAULT_RETRIEVAL = { topK: 4, minScore: 0.25, maxContextChars: 2400, corpusExamples: 5 }
+const ragForm = reactive({ enabled: false, ...RAG_DEFAULT_RETRIEVAL })
+
 const currentProvider = computed(
   () => (view.value?.providers || []).find((p) => p.id === draft.providerId) || null
 )
@@ -910,7 +1316,7 @@ const dirty = computed(
 const scope = [
   { name: 'AI 语义复筛', follow: true, note: 'DFA 命中后的语境判断，结论决定是否转人工' },
   { name: '敏感词挖掘', follow: true, note: '确认违规后由 AI 提炼新词入库（默认停用待审核）' },
-  { name: '语音转写（Whisper）', follow: false, note: '固定走 OpenAI；chat 类供应商不提供转写能力' },
+  { name: '语音转写（Whisper）', follow: false, note: '固定走本机 whisper.cpp；chat 类供应商不提供转写能力' },
   { name: 'DFA 初筛', follow: false, note: '本地 Aho-Corasick 匹配，不调用外部模型' }
 ]
 
@@ -1336,6 +1742,235 @@ const evaluatedText = computed(() => {
   return data.total == null ? `${evaluated}` : `${evaluated} / ${data.total}`
 })
 
+/* ---------- RAG 检索增强（ADMIN） ---------- */
+
+/** 向量能力状态：字段缺失显示未知，不臆造可用性 */
+const vectorState = computed(() => {
+  const available = rag.value?.index?.vectorAvailable
+  if (available === true) {
+    return { label: '可用', type: 'ok', note: 'pgvector 可用，语义检索正常参与复筛' }
+  }
+  if (available === false) {
+    return { label: '不可用', type: 'warn', note: 'RAG 将自动降级为不注入检索结果，不阻塞复筛' }
+  }
+  return { label: '未知', type: 'info', note: '接口未返回向量能力状态（后端可能为旧版本）' }
+})
+
+/** 评测三项指标：RAG 为主值，附基线值与 delta（delta 缺失时由两者差值推导） */
+const ragEvalRows = computed(() => {
+  const data = ragEvaluation.value
+  if (!data) return []
+  const rows = [
+    { key: 'accuracy', label: 'Accuracy', baseline: data.baseline.accuracy, rag: data.rag.accuracy, delta: data.delta.accuracy },
+    { key: 'precision', label: 'Precision', baseline: data.baseline.precision, rag: data.rag.precision, delta: data.delta.precision },
+    { key: 'recall', label: 'Recall', baseline: data.baseline.recall, rag: data.rag.recall, delta: data.delta.recall }
+  ]
+  return rows.map((row) => ({
+    ...row,
+    deltaText: formatDeltaPercent(
+      row.delta ?? (row.baseline != null && row.rag != null ? row.rag - row.baseline : null)
+    )
+  }))
+})
+
+/** 同步后端返回的归一化设置到编辑控件（缺失字段回退契约默认值，便于继续保存） */
+function syncRagForm(next) {
+  const data = next || rag.value
+  if (!data) return
+  const retrieval = data.retrieval || {}
+  ragForm.enabled = data.enabled === true
+  ragForm.topK = retrieval.topK ?? RAG_DEFAULT_RETRIEVAL.topK
+  ragForm.minScore = retrieval.minScore ?? RAG_DEFAULT_RETRIEVAL.minScore
+  ragForm.maxContextChars = retrieval.maxContextChars ?? RAG_DEFAULT_RETRIEVAL.maxContextChars
+  ragForm.corpusExamples = retrieval.corpusExamples ?? RAG_DEFAULT_RETRIEVAL.corpusExamples
+}
+
+function ragPayload(enabled = ragForm.enabled) {
+  return {
+    enabled: !!enabled,
+    topK: clampRagNumber(ragForm.topK, 1, 10, RAG_DEFAULT_RETRIEVAL.topK),
+    minScore: clampRagNumber(ragForm.minScore, 0, 1, RAG_DEFAULT_RETRIEVAL.minScore),
+    maxContextChars: clampRagNumber(
+      ragForm.maxContextChars,
+      500,
+      8000,
+      RAG_DEFAULT_RETRIEVAL.maxContextChars
+    ),
+    corpusExamples: clampRagNumber(
+      ragForm.corpusExamples,
+      0,
+      10,
+      RAG_DEFAULT_RETRIEVAL.corpusExamples
+    )
+  }
+}
+
+/** 控件清空 / 非法输入时回退默认值并夹取到契约范围，避免把 NaN 发给后端 */
+function clampRagNumber(value, min, max, fallback) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return fallback
+  return Math.min(max, Math.max(min, num))
+}
+
+async function loadRag() {
+  if (!canWrite.value) return
+  ragLoading.value = true
+  ragError.value = ''
+  try {
+    rag.value = await api.getRagSettings()
+    syncRagForm(rag.value)
+  } catch (e) {
+    // 请求层 silent：卡内展示 403/404 降级提示
+    rag.value = null
+    ragError.value = adminErrorMessage(e, 'RAG 设置加载失败，请稍后重试')
+  } finally {
+    ragLoading.value = false
+  }
+}
+
+async function saveRagSettings() {
+  if (ragSaving.value) return
+  ragSaving.value = true
+  try {
+    rag.value = await api.updateRagSettings(ragPayload())
+    syncRagForm(rag.value)
+    ElMessage.success('RAG 检索参数已保存，立即生效')
+  } catch {
+    // 请求层已统一提示
+  } finally {
+    ragSaving.value = false
+  }
+}
+
+/** 总开关：切换即 PUT 保存，失败时回滚开关位置 */
+async function saveRagEnabled(value) {
+  if (ragEnabledSaving.value) return
+  ragEnabledSaving.value = true
+  try {
+    rag.value = await api.updateRagSettings(ragPayload(value))
+    syncRagForm(rag.value)
+    ElMessage.success(
+      value
+        ? 'RAG 检索增强已启用，立即生效'
+        : 'RAG 检索增强已停用，复筛行为与旧版一致'
+    )
+  } catch {
+    ragForm.enabled = rag.value?.enabled === true
+  } finally {
+    ragEnabledSaving.value = false
+  }
+}
+
+async function testRagEmbedding() {
+  if (ragTesting.value) return
+  ragTesting.value = true
+  ragTestResult.value = null
+  try {
+    ragTestResult.value = await api.testRagEmbedding()
+  } catch (e) {
+    ragTestResult.value = {
+      ok: false,
+      providerLabel: '',
+      model: '',
+      dimensions: null,
+      latencyMs: null,
+      message: adminErrorMessage(e, 'Embedding 连通性测试失败，请检查供应商配置与网络')
+    }
+  } finally {
+    ragTesting.value = false
+  }
+}
+
+function reindexLabel(scope) {
+  if (scope === 'knowledge') return '知识库'
+  if (scope === 'corpus') return '语料'
+  return '全量'
+}
+
+async function runReindex(scope) {
+  if (ragReindexing.value !== null) return
+  if (scope === 'all') {
+    try {
+      await ElMessageBox.confirm(
+        '将重新解析并索引全部知识库文档与语料条目，耗时可能较长，确认继续？',
+        '全量重建索引',
+        { type: 'warning', confirmButtonText: '开始重建', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+  }
+  ragReindexing.value = scope
+  try {
+    const result = await api.reindexRag(scope)
+    const counts = []
+    if (result.queued !== null) counts.push(`排队 ${result.queued} 条`)
+    if (result.skipped !== null) counts.push(`跳过 ${result.skipped} 条`)
+    ElMessage.success(
+      result.message ||
+        `${reindexLabel(scope)}重建已提交${
+          counts.length ? `：${counts.join('，')}` : ''
+        }（后台异步执行）`
+    )
+  } catch {
+    // 请求层已统一提示
+  } finally {
+    ragReindexing.value = null
+  }
+}
+
+async function runRagEvaluation() {
+  if (ragEvaluating.value) return
+  const sampleSize = Math.min(20, Math.max(5, Math.round(Number(ragSampleSize.value) || 10)))
+  ragSampleSize.value = sampleSize
+  ragEvaluating.value = true
+  ragEvaluationError.value = ''
+  try {
+    ragEvaluation.value = await api.evaluateRag(sampleSize)
+  } catch (e) {
+    // 请求层 silent：保留上一次结果，仅在卡内提示失败原因
+    ragEvaluationError.value = adminErrorMessage(
+      e,
+      'RAG 评测失败，请检查模型配置、AI 配额与后端日志'
+    )
+  } finally {
+    ragEvaluating.value = false
+  }
+}
+
+/** delta 以比例返回（如 0.1）：展示为 +10.0pp */
+function formatDeltaPercent(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '—'
+  const pp = num * 100
+  const sign = pp > 0 ? '+' : ''
+  return `${sign}${Number(pp.toFixed(1))}pp`
+}
+
+/** 已就绪 / 总数：任一缺失时显示占位，不臆造 0 */
+function readyCountText(ready, total) {
+  if (ready === null && total === null) return '—'
+  return `${ready ?? '—'} / ${total ?? '—'}`
+}
+
+/** Embedding API Key 状态：只展示后端是否已配置，不接触明文 */
+function embeddingKeyChip(configured) {
+  if (configured === true) return { label: '已配置', type: 'ok' }
+  if (configured === false) return { label: '未配置', type: 'warn' }
+  return { label: '未知', type: 'info' }
+}
+
+/** 配置来源：与「当前 AI 复筛模型」一致的中文展示，未知值原样回退 */
+function ragSourceLabel(source) {
+  const text = String(source || '')
+  if (!text) return ''
+  const key = text.toLowerCase()
+  if (key === 'defaults' || key === 'default') return '配置默认'
+  if (key === 'database' || key === 'db') return '界面保存'
+  return text
+}
+
 function onEvalProviderChange() {
   if (!evalModelOptions.value.includes(evalForm.model)) evalForm.model = ''
 }
@@ -1399,6 +2034,7 @@ onMounted(() => {
   if (canWrite.value) {
     loadNotifications()
     loadProviders()
+    loadRag()
   }
 })
 </script>
@@ -2004,6 +2640,85 @@ onMounted(() => {
   }
   .eval-field {
     min-width: 160px;
+  }
+}
+
+/* RAG 检索增强 */
+.rag-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
+}
+.rag-switch-main {
+  min-width: 0;
+}
+.rag-switch-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rag-note {
+  margin-top: 5px;
+  line-height: 1.65;
+}
+.rag-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0 10px;
+}
+.rag-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.rag-kv {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: #fbfcfe;
+}
+.rag-kv-value {
+  margin-top: 5px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-800);
+}
+.rag-alert {
+  margin-top: 12px;
+}
+.rag-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.rag-eval-meta {
+  margin-top: 10px;
+  line-height: 1.7;
+}
+.rag-field {
+  flex: 0 0 160px;
+  min-width: 160px;
+}
+@media (max-width: 1100px) {
+  .rag-kv-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .rag-kv-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

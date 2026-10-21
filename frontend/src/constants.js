@@ -189,6 +189,10 @@ export const AUDIT_ACTION_META = {
   KNOWLEDGE_CREATE: { label: '新增知识库条目', type: 'success' },
   KNOWLEDGE_UPDATE: { label: '更新知识库条目', type: 'warning' },
   KNOWLEDGE_DELETE: { label: '删除知识库条目', type: 'danger' },
+  RAG_SETTINGS_UPDATE: { label: '修改 RAG 设置', type: 'warning' },
+  RAG_REINDEX: { label: '重建 RAG 索引', type: 'info' },
+  RAG_EVALUATE: { label: 'RAG 对比评测', type: 'info' },
+  RAG_DOCUMENT_IMPORT: { label: '导入知识库文档', type: 'success' },
   PASSWORD_CHANGE: { label: '修改密码', type: 'warning' }
 }
 

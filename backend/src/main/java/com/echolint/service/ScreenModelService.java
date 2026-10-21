@@ -355,12 +355,12 @@ public class ScreenModelService {
 
     // ------------------------------------------------------------------ 共用工具
 
-    /** 从 OpenAI 兼容响应中取 choices[0].message.content */
-    static String contentOf(JsonNode resp) {
+    /** 从兼容响应中取 choices[0].message.content */
+    public static String contentOf(JsonNode resp) {
         return resp.path("choices").path(0).path("message").path("content").asText("");
     }
 
-    /** 从 OpenAI 兼容错误体中取 error.message，取不到就截断原文 */
+    /** 从兼容错误体中取 error.message，取不到就截断原文 */
     static String extractErrorMessage(ObjectMapper mapper, String errorBody) {
         try {
             String msg = mapper.readTree(errorBody).path("error").path("message").asText("");

@@ -2,16 +2,33 @@ package com.echolint.repository;
 
 import com.echolint.entity.AiInvocation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface AiInvocationRepository extends JpaRepository<AiInvocation, Long> {
+public interface AiInvocationRepository extends JpaRepository<AiInvocation, Long>,
+        JpaSpecificationExecutor<AiInvocation> {
 
     /** 某条录音的全部 AI 调用，按时间正序（复筛在前、挖掘在后） */
     List<AiInvocation> findByRecordingIdOrderByIdAsc(Long recordingId);
+
+    // ---------------- AI 对话记录页面（Batch 6） ----------------
+
+    /** 筛选下拉：出现过的阶段 */
+    @Query("select distinct i.stage from AiInvocation i where i.stage is not null order by i.stage")
+    List<String> findDistinctStages();
+
+    /** 筛选下拉：供应商（id + 展示名） */
+    @Query("select distinct i.providerId, i.providerLabel from AiInvocation i "
+            + "where i.providerId is not null order by i.providerId")
+    List<Object[]> findDistinctProviders();
+
+    /** 筛选下拉：模型 */
+    @Query("select distinct i.model from AiInvocation i where i.model is not null order by i.model")
+    List<String> findDistinctModels();
 
     /*
      * 配额与成本统计（Batch 3a）：只统计成功调用 —— 失败调用没有 usage，也没有费用。

@@ -6,18 +6,24 @@ import com.echolint.config.ScreenModelProperties;
 import com.echolint.dfa.DfaHit;
 import com.echolint.domain.ViolationType;
 import com.echolint.service.AiScreenResult.CorpusExample;
+import com.echolint.service.rag.RagContext;
+import com.echolint.service.rag.RagReference;
+import com.echolint.service.rag.RagRetrievalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * AI 语义复筛：在 DFA 命中的基础上，结合 few-shot 语料判断是否构成真实违规。
  *
- * <p>具体用哪个模型由 {@link ScreenModelService} 在运行时决定（OpenAI / DeepSeek / 自建网关均可），
+ * <p>具体用哪个模型由 {@link ScreenModelService} 在运行时决定（DeepSeek / 阿里云百炼 / 自建网关均可），
  * 本类只负责组装提示词、分块调用与解析结论。</p>
  *
  * <p>Batch 2b-2 的两条硬约束：</p>
@@ -46,6 +52,7 @@ public class SemanticScreeningService {
     private final AiModelCaller aiModelCaller;
     private final AiQuotaService quotaService;
     private final ScreeningPromptSupport promptSupport;
+    private final RagRetrievalService ragRetrievalService;
 
     /**
      * @param recordingId  用于 AI 调用留痕
@@ -54,6 +61,15 @@ public class SemanticScreeningService {
      */
     public AiScreenResult screen(Long recordingId, String transcript, String segmentsJson,
                                  List<DfaHit> hits, List<CorpusExample> examples) {
+        return screenWithTrace(recordingId, transcript, segmentsJson, hits, examples).result();
+    }
+
+    /**
+     * 复筛并返回 RAG 检索轨迹：未开启 RAG 时 trace.status=disabled；检索失败时 status=degraded，
+     * 但不影响复筛结论本身（已有的降级路径不变）。
+     */
+    public ScreeningOutcome screenWithTrace(Long recordingId, String transcript, String segmentsJson,
+                                            List<DfaHit> hits, List<CorpusExample> examples) {
         // 先取模型（A/B 分流；不校验密钥）并组装请求体，再校验密钥：
         // 这样即便因缺密钥失败，留痕里也能看到「本该发出去什么」，排查时和看报错同样重要
         final ScreenModelService.ScreeningModel selection = screenModelService.activeForScreening();
@@ -78,19 +94,24 @@ public class SemanticScreeningService {
         }
 
         List<ChunkResult> results = new ArrayList<>(chunks.size());
+        List<RagContext> ragContexts = new ArrayList<>(chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
+            // 知识库检索按分块进行：长录音不同段落的相关 SOP 可能不同
+            RagContext context = ragRetrievalService.knowledgeContext(chunks.get(i), recordingId);
+            ragContexts.add(context);
             results.add(screenChunk(recordingId, model, screenVariant, chunks.get(i), hits, examples,
-                    i + 1, chunks.size()));
+                    context.references(), i + 1, chunks.size()));
         }
-        return aggregate(model, screenVariant, results, chunks.size());
+        return new ScreeningOutcome(aggregate(model, screenVariant, results, chunks.size()),
+                buildTrace(ragContexts));
     }
 
     /** 单块调用：请求/回复逐块留痕，任何异常都向上抛（由流水线降级转人工） */
     private ChunkResult screenChunk(Long recordingId, ScreenModelService.ActiveModel model, String screenVariant,
                                     String chunk, List<DfaHit> hits, List<CorpusExample> examples,
-                                    int index, int total) {
-        String requestJson = promptSupport.buildRequestBody(model, chunk, hits, examples, index, total,
-                screenModelProperties.getTemperature());
+                                    List<RagReference> references, int index, int total) {
+        String requestJson = promptSupport.buildRequestBody(model, chunk, hits, examples, references,
+                index, total, screenModelProperties.getTemperature());
         long start = System.currentTimeMillis();
         try {
             screenModelService.requireUsable(model);
@@ -252,5 +273,47 @@ public class SemanticScreeningService {
         } catch (Exception e) {
             return plain;
         }
+    }
+
+    // ------------------------------------------------------------------ RAG 轨迹
+
+    /**
+     * 汇总各分块的检索轨迹：任一分块降级即整体 degraded；取并集（按 chunkId 去重，最多 10 条），
+     * 便于 aiResultJson / 日志回溯「这次复筛参考了哪些知识」。
+     */
+    private RagTrace buildTrace(List<RagContext> contexts) {
+        boolean enabled = contexts.stream().anyMatch(RagContext::enabled);
+        if (!enabled) {
+            return new RagTrace(false, RagContext.STATUS_DISABLED, List.of(), null);
+        }
+        boolean degraded = contexts.stream()
+                .anyMatch(c -> RagContext.STATUS_DEGRADED.equals(c.status()));
+        String error = contexts.stream().map(RagContext::error).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+        boolean hasRefs = contexts.stream().anyMatch(RagContext::hasReferences);
+        String status = degraded ? RagContext.STATUS_DEGRADED
+                : (hasRefs ? RagContext.STATUS_OK : RagContext.STATUS_EMPTY);
+        Map<Long, RagReference> unique = new LinkedHashMap<>();
+        for (RagContext context : contexts) {
+            for (RagReference reference : context.references()) {
+                unique.putIfAbsent(reference.chunkId(), reference);
+            }
+        }
+        List<RagReferenceView> views = unique.values().stream().limit(10)
+                .map(r -> new RagReferenceView(r.chunkId(), r.title(), r.score()))
+                .toList();
+        return new RagTrace(true, status, views, error);
+    }
+
+    /** 复筛结果 + RAG 检索轨迹 */
+    public record ScreeningOutcome(AiScreenResult result, RagTrace trace) {
+    }
+
+    /** 检索轨迹（只存摘要，完整检索上下文已包含在 ai_invocations.request_json 的提示词里） */
+    public record RagTrace(boolean enabled, String status, List<RagReferenceView> references, String error) {
+    }
+
+    /** 引用摘要（标题 + 相似度），供前端/审计展示 */
+    public record RagReferenceView(long chunkId, String title, double score) {
     }
 }

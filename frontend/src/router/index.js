@@ -64,6 +64,12 @@ const routes = [
     meta: { title: '任务队列', titleKey: 'nav.tasks', roles: ['ADMIN'] }
   },
   {
+    // AI 对话记录（提示词/原始回复/用量留痕）：仅管理员
+    path: '/ai-chat',
+    component: () => import('../views/AiChat.vue'),
+    meta: { title: 'AI 对话记录', titleKey: 'nav.aiChat', roles: ['ADMIN'] }
+  },
+  {
     // 开放 API 密钥管理：仅管理员
     path: '/api-keys',
     component: () => import('../views/ApiKeys.vue'),

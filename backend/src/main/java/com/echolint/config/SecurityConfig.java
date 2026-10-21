@@ -114,8 +114,12 @@ public class SecurityConfig {
                         // AI 供应商管理（Batch 3a）：列表只回掩码，仍属敏感配置，仅 ADMIN 可读
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/settings/providers/**").hasRole("ADMIN")
+                        // RAG 设置（Batch 6）：只有 ADMIN 能查看/修改 embedding 与索引状态
+                        .requestMatchers(HttpMethod.GET, "/api/settings/rag").hasRole("ADMIN")
                         // AI 成本看板（Batch 3a）仅 ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/stats/ai-usage").hasRole("ADMIN")
+                        // AI 对话记录（Batch 6）：包含完整提示词与转写内容，仅 ADMIN
+                        .requestMatchers("/api/ai-invocations", "/api/ai-invocations/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/settings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/settings/**").hasRole("ADMIN")
                         // 供应商删除仅 ADMIN（POST/PUT 规则不覆盖 DELETE）

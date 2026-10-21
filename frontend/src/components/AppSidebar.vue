@@ -38,18 +38,8 @@
       </template>
     </nav>
 
-    <!-- 底部流程提示 -->
+    <!-- 底部折叠按钮 -->
     <div class="sidebar-foot">
-      <div v-show="showLabels" class="flow">
-        <div class="flow-title">{{ t('side.flowTitle') }}</div>
-        <ol class="flow-steps">
-          <li>{{ t('side.flowTranscribe') }}</li>
-          <li>{{ t('side.flowDfa') }}</li>
-          <li>{{ t('side.flowAi') }}</li>
-          <li>{{ t('side.flowReview') }}</li>
-          <li>{{ t('side.flowFeedback') }}</li>
-        </ol>
-      </div>
       <el-tooltip :content="t('a11y.toggleSidebar')" placement="right">
         <button
           class="collapse-btn"
@@ -93,6 +83,7 @@ const groups = computed(() => {
     systemItems.push(
       { path: '/costs', labelKey: 'nav.costs', icon: 'Money' },
       { path: '/tasks', labelKey: 'nav.tasks', icon: 'Operation' },
+      { path: '/ai-chat', labelKey: 'nav.aiChat', icon: 'ChatDotRound' },
       { path: '/api-keys', labelKey: 'nav.apiKeys', icon: 'Key' },
       { path: '/users', labelKey: 'nav.users', icon: 'User' },
       { path: '/audit', labelKey: 'nav.audit', icon: 'List' }
@@ -128,14 +119,17 @@ const badgeCount = computed(() => props.badgeCount)
 
 <style scoped>
 .sidebar {
-  width: 232px;
+  width: 236px;
   flex: none;
   display: flex;
   flex-direction: column;
   background: var(--surface-sidebar);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--ink-600);
+  border-right: 1px solid var(--border);
+  box-shadow: 8px 0 24px rgba(15, 23, 42, 0.035);
   transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
+  z-index: 2;
 }
 .sidebar.collapsed {
   width: 68px;
@@ -151,7 +145,7 @@ const badgeCount = computed(() => props.badgeCount)
   z-index: 70;
   transform: translateX(-100%);
   visibility: hidden;
-  box-shadow: 0 18px 46px rgba(2, 6, 23, 0.38);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s;
 }
 .sidebar.overlay.open {
@@ -173,96 +167,146 @@ const badgeCount = computed(() => props.badgeCount)
   gap: 0;
 }
 
-/* 品牌区 */
+/* ---------- 品牌区：浅色卡片式分区 ---------- */
 .brand {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   height: 60px;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 255, 0.72));
+}
+.brand::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(59, 110, 246, 0.35), rgba(59, 110, 246, 0));
+  pointer-events: none;
 }
 .brand-mark {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   flex: none;
-  border-radius: 9px;
+  border-radius: 11px;
   display: grid;
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 4px 12px rgba(59, 110, 246, 0.4);
+  box-shadow: 0 6px 14px rgba(59, 110, 246, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .brand-text {
   min-width: 0;
 }
 .brand-name {
-  color: #fff;
-  font-size: 14.5px;
-  font-weight: 600;
+  color: var(--ink-900);
+  font-size: 15px;
+  font-weight: 650;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 .brand-sub {
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.42);
-  letter-spacing: 0.08em;
+  color: #8493ab;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-/* 导航 */
+/* ---------- 导航 ---------- */
 .nav {
   flex: 1;
-  padding: 12px 10px;
+  padding: 10px 12px 8px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #d7dfec transparent;
+}
+.nav::-webkit-scrollbar {
+  width: 6px;
 }
 .nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
+  background: #d7dfec;
+  border-radius: 3px;
+}
+.nav::-webkit-scrollbar-thumb:hover {
+  background: #c1cddf;
+}
+.nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 .nav-group {
-  padding: 14px 10px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.34);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 10px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  color: #8b99af;
+  text-transform: uppercase;
   white-space: nowrap;
+}
+.nav-group::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #e2e9f4, rgba(226, 233, 244, 0));
 }
 .nav-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 38px;
-  padding: 0 11px;
-  border-radius: 9px;
-  color: rgba(255, 255, 255, 0.74);
+  height: 40px;
+  margin: 2px 0;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #4a5872;
   font-size: 13.5px;
-  transition: background 0.16s ease, color 0.16s ease;
+  font-weight: 500;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease;
   white-space: nowrap;
 }
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: #eef3ff;
+  border-color: #e3ebff;
+  color: var(--brand-700);
+}
+.nav-icon {
+  flex: none;
+  color: #8592a8;
+  transition: color 0.16s ease;
+}
+.nav-item:hover .nav-icon {
+  color: var(--brand-500);
 }
 .nav-item.active {
-  background: linear-gradient(90deg, rgba(59, 110, 246, 0.9), rgba(59, 110, 246, 0.62));
-  color: #fff;
-  box-shadow: 0 6px 16px rgba(59, 110, 246, 0.32);
+  background: linear-gradient(100deg, #e9f0ff 0%, #f5f8ff 100%);
+  border-color: #d8e4ff;
+  color: var(--brand-700);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(59, 110, 246, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.nav-item.active .nav-icon {
+  color: var(--brand-600);
 }
 .nav-item.active::before {
   content: "";
   position: absolute;
-  left: -10px;
-  top: 9px;
-  bottom: 9px;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: #fff;
-}
-.nav-icon {
-  flex: none;
+  background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
+  box-shadow: 0 0 8px rgba(59, 110, 246, 0.35);
 }
 .nav-label {
   flex: 1;
@@ -280,6 +324,7 @@ const badgeCount = computed(() => props.badgeCount)
   font-weight: 600;
   display: grid;
   place-items: center;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.32);
 }
 .nav-badge.dotOnly {
   position: absolute;
@@ -291,42 +336,28 @@ const badgeCount = computed(() => props.badgeCount)
   font-size: 0;
 }
 
-/* 底部 */
+/* ---------- 底部折叠按钮 ---------- */
 .sidebar-foot {
-  padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-.flow {
-  margin-bottom: 10px;
-}
-.flow-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.34);
-  margin-bottom: 8px;
-}
-.flow-steps {
-  margin: 0;
-  padding-left: 16px;
-  font-size: 11.5px;
-  line-height: 1.9;
-  color: rgba(255, 255, 255, 0.5);
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(239, 244, 252, 0.9));
 }
 .collapse-btn {
   width: 100%;
-  height: 30px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.7);
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: #6b7a91;
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background 0.16s ease, color 0.16s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 .collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: var(--brand-50);
+  border-color: #cddcff;
+  color: var(--brand-600);
 }
 </style>

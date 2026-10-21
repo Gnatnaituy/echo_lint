@@ -191,14 +191,28 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background:
+    radial-gradient(900px 300px at 100% 0%, rgba(59, 110, 246, 0.05) 0%, rgba(59, 110, 246, 0) 62%),
+    var(--surface-sunken);
 }
+/* 内容区：浅色渐变 + 内高光 + 柔和投影，做成浮在背景上的圆角画布，
+   与浅色侧栏形成同一套层次语言（白 → 淡蓝白 → 淡蓝灰）。 */
 .shell-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 18px 22px 32px;
+  margin: 14px 18px 18px 16px;
+  padding: 22px 24px 34px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 18px;
   background:
-    radial-gradient(1200px 400px at 15% -10%, #eef3ff 0%, rgba(244, 246, 251, 0) 60%),
-    var(--surface-sunken);
+    radial-gradient(1200px 380px at 8% -12%, rgba(59, 110, 246, 0.09) 0%, rgba(59, 110, 246, 0) 55%),
+    radial-gradient(900px 300px at 105% -5%, rgba(107, 142, 249, 0.07) 0%, rgba(107, 142, 249, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fbfcff 48%, #f3f7fd 100%);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 14px 34px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   outline: none;
 }
 
@@ -234,7 +248,9 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .shell-content {
-    padding: 14px 12px 26px;
+    margin: 10px 10px 12px;
+    padding: 14px 12px 24px;
+    border-radius: 14px;
   }
 }
 </style>

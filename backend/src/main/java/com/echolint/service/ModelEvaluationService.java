@@ -155,7 +155,7 @@ public class ModelEvaluationService {
      * 均衡抽样：按目标样本数一半取 VIOLATION、一半取 COMPLIANT（最新的优先）；
      * 某一类不足时用另一类补齐，语料总量不足则返回全部可用样本。
      */
-    List<CorpusEntry> loadBalancedSamples(int sampleSize) {
+    public List<CorpusEntry> loadBalancedSamples(int sampleSize) {
         List<CorpusEntry> violations = corpusRepository.findByLabelOrderByIdDesc(
                 CorpusLabel.VIOLATION, PageRequest.of(0, sampleSize));
         List<CorpusEntry> compliant = corpusRepository.findByLabelOrderByIdDesc(

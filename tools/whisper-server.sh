@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 启动本机 whisper.cpp 转写服务，并把端点伪装成 OpenAI 兼容的
+# 启动本机 whisper.cpp 转写服务，并把端点伪装成兼容的
 # POST /v1/audio/transcriptions，从而让 EchoLint 后端零代码改道到本地。
 #
 # 依赖：
@@ -22,7 +22,7 @@ THREADS="${WHISPER_THREADS:-8}"          # M1 Pro: 8 个性能核
 LANG="${WHISPER_LANG:-auto}"             # auto = 中英混合自动识别
 TMP_DIR="${WHISPER_TMP_DIR:-/tmp/whisper-tmp}"
 
-# 关键：把默认的 /inference 改成 OpenAI 的路径，后端无需任何改动
+# 关键：把默认的 /inference 改成兼容的 /v1/audio/transcriptions 路径，后端无需任何改动
 INFERENCE_PATH="/v1/audio/transcriptions"
 
 die() { echo "错误: $*" >&2; exit 1; }

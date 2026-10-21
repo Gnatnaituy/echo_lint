@@ -78,6 +78,7 @@ export default {
   'nav.settings': '系统设置',
   'nav.costs': '成本看板',
   'nav.tasks': '任务队列',
+  'nav.aiChat': 'AI 对话记录',
   'nav.apiKeys': 'API 密钥',
   'nav.users': '用户管理',
   'nav.audit': '操作审计',
@@ -85,12 +86,6 @@ export default {
   'nav.login': '登录',
 
   // 侧栏流水线提示
-  'side.flowTitle': '稽核流水线',
-  'side.flowTranscribe': 'Whisper 转写',
-  'side.flowDfa': 'DFA 初筛',
-  'side.flowAi': 'AI 语义复筛',
-  'side.flowReview': '人工复检',
-  'side.flowFeedback': '语料回馈',
 
   // 登录页
   'login.title': '登录稽核平台',

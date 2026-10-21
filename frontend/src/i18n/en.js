@@ -76,6 +76,7 @@ export default {
   'nav.settings': 'Settings',
   'nav.costs': 'AI Costs',
   'nav.tasks': 'Task Queue',
+  'nav.aiChat': 'AI Conversations',
   'nav.apiKeys': 'API Keys',
   'nav.users': 'Users',
   'nav.audit': 'Audit Log',
@@ -83,12 +84,6 @@ export default {
   'nav.login': 'Sign in',
 
   // Sidebar pipeline hint
-  'side.flowTitle': 'Pipeline',
-  'side.flowTranscribe': 'Whisper transcription',
-  'side.flowDfa': 'DFA screening',
-  'side.flowAi': 'AI screening',
-  'side.flowReview': 'Manual review',
-  'side.flowFeedback': 'Feedback loop',
 
   // Login page
   'login.title': 'Sign in to EchoLint',

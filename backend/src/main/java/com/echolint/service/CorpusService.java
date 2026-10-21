@@ -6,6 +6,7 @@ import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.service.AiScreenResult.CorpusExample;
+import com.echolint.service.rag.RagIndexService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ import java.util.Locale;
 public class CorpusService {
 
     private final CorpusEntryRepository repository;
+    private final RagIndexService ragIndexService;
 
     /**
      * 复筛 few-shot：从已标注语料中取各 label 最新的若干条
@@ -62,7 +64,9 @@ public class CorpusService {
         entry.setViolationType(violationType);
         entry.setReason(StringUtils.hasText(reason) ? reason : null);
         entry.setRecordingId(recording.getId());
-        return repository.save(entry);
+        CorpusEntry saved = repository.save(entry);
+        ragIndexService.enqueueCorpus(saved.getId());
+        return saved;
     }
 
     public CorpusEntry appendManual(String transcript, CorpusLabel label, String violationType, String reason) {
@@ -72,7 +76,9 @@ public class CorpusService {
         entry.setViolationType(violationType);
         entry.setReason(reason);
         entry.setSource("MANUAL");
-        return repository.save(entry);
+        CorpusEntry saved = repository.save(entry);
+        ragIndexService.enqueueCorpus(saved.getId());
+        return saved;
     }
 
     public Page<CorpusEntry> query(CorpusLabel label, String keyword, Pageable pageable) {

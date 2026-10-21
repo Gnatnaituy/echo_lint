@@ -600,7 +600,7 @@
               <el-collapse-item v-for="inv in aiInvocations" :key="inv.id" :name="inv.id">
                 <template #title>
                   <div class="ai-inv-title">
-                    <span class="chip" :class="inv.stage === 'MINING' ? 'info' : 'brand'">
+                    <span class="chip" :class="inv.stage === 'MINING' || inv.stage === 'EMBED_QUERY' ? 'info' : 'brand'">
                       {{ stageLabel(inv.stage) }}
                     </span>
                     <span class="mono ai-inv-model">{{ inv.providerLabel }} · {{ inv.model }}</span>
@@ -1040,12 +1040,16 @@ const STAGE_NAMES = {
   DFA: 'DFA 初筛',
   AI: 'AI 复筛',
   REVIEW: '人工复检',
-  MINING: '词典挖掘'
+  MINING: '词典挖掘',
+  RAG: '知识库检索'
 }
 const stageName = (s) => STAGE_NAMES[s] || s
 
 /* ---------- AI 调用留痕 ---------- */
-const stageLabel = (s) => (s === 'MINING' ? '敏感词挖掘' : '语义复筛')
+const stageLabel = (s) => (s === 'MINING' ? '敏感词挖掘'
+  : s === 'EMBED_QUERY' ? '检索向量化'
+  : s === 'EMBED_INDEX' ? '索引向量化'
+  : '语义复筛')
 
 /** 从留痕的请求体里取出 messages，供分栏展示 */
 function messagesOf(inv) {
