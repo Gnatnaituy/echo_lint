@@ -129,4 +129,16 @@ class RecordingSpecificationsTest {
         verify(path).in(anyCollection());
         verify(cb, never()).isNull(any(Expression.class));
     }
+
+    @Test
+    void unassignedOnlyMatchesRowsWithoutAssigneeAndSkipsAssigneeEquality() {
+        RecordingFilter filter = RecordingFilter.of(null, null, "alice", null,
+                null, null, null, null, null, true);
+
+        evaluate(filter);
+
+        verify(root).get("assignedTo");
+        verify(cb).isNull(any(Expression.class));
+        verify(cb, never()).equal(any(), any());
+    }
 }

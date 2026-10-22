@@ -57,6 +57,7 @@ public class RecordingController {
     public Page<RecordingSummary> list(@RequestParam(required = false) String statuses,
                                        @RequestParam(required = false) String keyword,
                                        @RequestParam(required = false) String assignedTo,
+                                       @RequestParam(required = false) Boolean unassigned,
                                        @RequestParam(required = false) String priority,
                                        @RequestParam(required = false) String agentName,
                                        @RequestParam(required = false) String teamName,
@@ -66,7 +67,7 @@ public class RecordingController {
                                        @RequestParam(defaultValue = "0") int page,
                                        @RequestParam(defaultValue = "10") int size) {
         RecordingFilter filter = RecordingFilter.of(statuses, keyword, assignedTo, priority,
-                agentName, teamName, direction, from, to);
+                agentName, teamName, direction, from, to, Boolean.TRUE.equals(unassigned));
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));

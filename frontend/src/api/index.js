@@ -268,13 +268,15 @@ export const api = {
       typeof onUploadProgress === 'function' ? { onUploadProgress } : undefined
     )
   },
-  listRecordings({ statuses, keyword, assignedTo, priority, agentName, teamName, direction, from, to, page, size } = {}) {
+  listRecordings({ statuses, keyword, assignedTo, unassigned, priority, agentName, teamName, direction, from, to, page, size } = {}) {
     // 列表项透传后端 Summary 字段（含 sampled：DFA 未命中抽样标记），前端不做裁剪
     return http.get('/recordings', {
       params: {
         statuses: statuses?.join(',') || undefined,
         keyword: param(keyword),
         assignedTo: param(assignedTo),
+        // 复检队列「未指派」筛选：后端按 assignedTo is null 过滤
+        unassigned: unassigned || undefined,
         priority: param(priority),
         agentName: param(agentName),
         teamName: param(teamName),

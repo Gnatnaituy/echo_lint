@@ -836,6 +836,14 @@
 - **pgloader 不支持 MySQL 8.4 认证**：QMynd 报 `MYSQL-UNSUPPORTED-AUTHENTICATION`，改用
   `tools/migrate_mysql_to_pg.py`（pymysql + psycopg2，281 行秒级搬完并做行数校验）。
 
+### 2026-10-22 收尾补丁：复检队列分页
+
+- 「人工复检 → 待复检」队列由「一次拉 100 条 + 前端筛选」改为**服务端分页**（10 条/页）：
+  `GET /api/recordings` 新增 `unassigned` 参数（`assignedTo is null`），关键词/优先级/指派筛选全部下推服务端；
+  队列底部显示「共 N 条」+ 翻页；复核完本页最后一条自动回退上一页；深链 `/review?id=N` 在目标不在当前页时按 id 拉详情。
+- 测试：后端 **537** 项、前端 **135** 项（新增 `reviewQueue` 单测）全部通过；部署后接口冒烟通过
+  （分页第 0/1 页、未指派 2 条、只看我的 1 条、关键词、优先级、组合筛选）。
+
 ### 上线后仍未处理（沿用旧状态，非本次部署范围）
 
 - **转写未配置**：服务器无 whisper 服务，`WHISPER_BASE_URL` 指向不存在的 host.docker.internal:9900，

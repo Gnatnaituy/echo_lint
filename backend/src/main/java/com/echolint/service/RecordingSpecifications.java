@@ -42,7 +42,10 @@ public final class RecordingSpecifications {
                         cb.like(cb.lower(root.get("fileName")), kw)));
             }
             String assignedTo = filter.assignedTo();
-            if (assignedTo != null) {
+            if (filter.unassignedOnly()) {
+                // 复检队列「未指派」：assignedTo 为空即未认领/未指派
+                ps.add(cb.isNull(root.get("assignedTo")));
+            } else if (assignedTo != null) {
                 ps.add(cb.equal(cb.lower(root.get("assignedTo")), assignedTo.toLowerCase(Locale.ROOT)));
             }
             ReviewPriority priority = filter.priority();
