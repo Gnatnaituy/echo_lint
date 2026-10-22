@@ -24,7 +24,7 @@
       :badge-count="pendingReview"
       :overlay="isNarrow"
       :open="drawerOpen"
-      @toggle="collapsed = !collapsed"
+      @toggle="onToggleSidebar"
       @navigate="closeDrawer"
     />
     <div class="shell-main">
@@ -98,14 +98,31 @@ watch(
 
 /* ---------- 窄屏抽屉：断点 / 焦点 / ESC ---------- */
 
+/** 小于该宽度时自动折叠侧栏：给列表/表格让出 168px 横向空间 */
+const AUTO_COLLAPSE_BREAKPOINT = 1280
+/** 是否由「自动折叠」造成的折叠态：用户手动切换后不再被自动逻辑覆盖 */
+const autoCollapsed = ref(false)
+
 function syncLayout() {
   const narrow = isNarrowWidth(window.innerWidth)
   isNarrow.value = narrow
-  if (!narrow) {
-    drawerOpen.value = false
-  } else if (window.innerWidth < 1180) {
+  if (narrow) return
+  drawerOpen.value = false
+  const shouldCollapse = window.innerWidth < AUTO_COLLAPSE_BREAKPOINT
+  if (shouldCollapse && !collapsed.value) {
     collapsed.value = true
+    autoCollapsed.value = true
+  } else if (!shouldCollapse && autoCollapsed.value) {
+    // 回到宽屏后恢复用户原本的展开态
+    collapsed.value = false
+    autoCollapsed.value = false
   }
+}
+
+/** 手动折叠/展开：以用户选择为准，不再自动覆盖 */
+function onToggleSidebar() {
+  collapsed.value = !collapsed.value
+  autoCollapsed.value = false
 }
 
 async function openDrawer() {

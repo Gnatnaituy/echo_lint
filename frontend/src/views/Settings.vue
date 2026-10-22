@@ -155,98 +155,112 @@
         </div>
 
         <template v-else>
-          <el-table :data="providers" size="small">
-            <el-table-column label="供应商" min-width="190">
-              <template #default="{ row }">
-                <div class="provider-cell">
-                  <div class="provider-name">
-                    <span class="strong">{{ row.label || row.key || '未命名' }}</span>
-                    <span v-if="providerIsActive(row)" class="chip brand">当前</span>
-                    <span v-if="row.builtIn" class="chip info">内置</span>
+          <!-- 表格贴齐卡片左右边缘：首列文字与 panel-head 标题在 18px 基线上对齐（避免 18+18 双重缩进） -->
+          <div ref="providerTableWrap" class="table-bleed">
+            <el-table :data="providers" size="small">
+              <el-table-column label="供应商" min-width="180">
+                <template #default="{ row }">
+                  <div class="provider-cell">
+                    <div class="provider-name">
+                      <span class="strong">{{ row.label || row.key || '未命名' }}</span>
+                      <span v-if="providerIsActive(row)" class="chip brand">当前</span>
+                      <span v-if="row.builtIn" class="chip info">内置</span>
+                    </div>
+                    <div class="mono tiny dim">{{ row.key || '—' }}</div>
                   </div>
-                  <div class="mono tiny dim">{{ row.key || '—' }}</div>
-                </div>
-              </template>
-            </el-table-column>
+                </template>
+              </el-table-column>
 
-            <el-table-column label="接入地址" min-width="230">
-              <template #default="{ row }">
-                <div class="provider-cell">
-                  <div class="mono tiny ellipsis" :title="row.baseUrl">{{ row.baseUrl || '—' }}</div>
-                  <div class="mono tiny dim ellipsis" :title="row.chatPath">
-                    {{ row.chatPath || '默认 chatPath' }}
+              <el-table-column label="接入地址" min-width="190">
+                <template #default="{ row }">
+                  <div class="provider-cell">
+                    <div class="mono tiny ellipsis" :title="row.baseUrl">{{ row.baseUrl || '—' }}</div>
+                    <div class="mono tiny dim ellipsis" :title="row.chatPath">
+                      {{ row.chatPath || '默认 chatPath' }}
+                    </div>
                   </div>
-                </div>
-              </template>
-            </el-table-column>
+                </template>
+              </el-table-column>
 
-            <el-table-column label="默认模型" min-width="150">
-              <template #default="{ row }">
-                <div class="mono tiny">{{ row.defaultModel || '—' }}</div>
-                <div class="tiny dim">{{ row.models.length }} 个候选模型</div>
-              </template>
-            </el-table-column>
+              <el-table-column label="默认模型" min-width="142">
+                <template #default="{ row }">
+                  <div class="mono tiny ellipsis" :title="row.defaultModel">{{ row.defaultModel || '—' }}</div>
+                  <div class="tiny dim">{{ row.models.length }} 个候选模型</div>
+                </template>
+              </el-table-column>
 
-            <el-table-column label="价格 / 1K tokens" width="164" align="right">
-              <template #default="{ row }">
-                <div class="price-cell">
-                  <span><span class="tiny dim">入</span> <span class="mono">{{ formatPricePer1k(row.inputPricePer1k) }}</span></span>
-                  <span><span class="tiny dim">出</span> <span class="mono">{{ formatPricePer1k(row.outputPricePer1k) }}</span></span>
-                </div>
-              </template>
-            </el-table-column>
+              <el-table-column v-if="!compactProviderTable" label="价格 / 1K" width="126" align="right">
+                <template #header>
+                  <span title="单位 USD / 1K tokens；入 = 输入价格，出 = 输出价格">价格 / 1K</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="price-cell">
+                    <span class="price-row">
+                      <span class="price-label">入</span>
+                      <span class="mono">{{ formatPricePer1k(row.inputPricePer1k) }}</span>
+                    </span>
+                    <span class="price-row">
+                      <span class="price-label">出</span>
+                      <span class="mono">{{ formatPricePer1k(row.outputPricePer1k) }}</span>
+                    </span>
+                  </div>
+                </template>
+              </el-table-column>
 
-            <el-table-column label="密钥" width="128">
-              <template #default="{ row }">
-                <span class="chip mono" :class="providerKeyChip(row).type">{{ providerKeyChip(row).label }}</span>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="状态" width="86" align="center">
-              <template #default="{ row }">
-                <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
-                  {{ row.enabled === false ? '停用' : row.enabled === true ? '启用' : '未知' }}
-                </span>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="操作" width="178" align="right">
-              <template #default="{ row }">
-                <el-button size="small" link type="primary" @click="openProviderTest(row)">测试</el-button>
-                <el-button size="small" link type="primary" @click="openProviderEdit(row)">编辑</el-button>
-                <el-tooltip
-                  v-if="!row.builtIn"
-                  :disabled="!providerIsActive(row)"
-                  content="当前生效供应商不可删除，请先切换模型"
-                  placement="top"
-                >
-                  <span class="delete-wrap">
-                    <el-popconfirm
-                      title="删除后该供应商配置与密钥将被移除（不可恢复），确认删除？"
-                      width="270"
-                      @confirm="removeProvider(row)"
-                    >
-                      <template #reference>
-                        <el-button size="small" link type="danger" :disabled="providerIsActive(row)">
-                          删除
-                        </el-button>
-                      </template>
-                    </el-popconfirm>
+              <el-table-column label="密钥" width="108">
+                <template #default="{ row }">
+                  <span class="chip mono key-chip" :class="providerKeyChip(row).type">
+                    {{ providerKeyChip(row).label }}
                   </span>
-                </el-tooltip>
-              </template>
-            </el-table-column>
+                </template>
+              </el-table-column>
 
-            <template #empty>
-              <div class="empty-block">
-                <el-icon :size="34" class="empty-icon"><Cpu /></el-icon>
-                <div class="empty-title">暂无供应商</div>
-                <div class="tiny dim">
-                  内置供应商会在后端首次启动时自动落库；也可点击右上角「新增供应商」接入自定义网关
+              <el-table-column label="状态" width="82" align="right">
+                <template #default="{ row }">
+                  <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
+                    {{ row.enabled === false ? '停用' : row.enabled === true ? '启用' : '未知' }}
+                  </span>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="操作" width="138" align="right">
+                <template #default="{ row }">
+                  <el-button size="small" link type="primary" @click="openProviderTest(row)">测试</el-button>
+                  <el-button size="small" link type="primary" @click="openProviderEdit(row)">编辑</el-button>
+                  <el-tooltip
+                    v-if="!row.builtIn"
+                    :disabled="!providerIsActive(row)"
+                    content="当前生效供应商不可删除，请先切换模型"
+                    placement="top"
+                  >
+                    <span class="delete-wrap">
+                      <el-popconfirm
+                        title="删除后该供应商配置与密钥将被移除（不可恢复），确认删除？"
+                        width="270"
+                        @confirm="removeProvider(row)"
+                      >
+                        <template #reference>
+                          <el-button size="small" link type="danger" :disabled="providerIsActive(row)">
+                            删除
+                          </el-button>
+                        </template>
+                      </el-popconfirm>
+                    </span>
+                  </el-tooltip>
+                </template>
+              </el-table-column>
+
+              <template #empty>
+                <div class="empty-block">
+                  <el-icon :size="34" class="empty-icon"><Cpu /></el-icon>
+                  <div class="empty-title">暂无供应商</div>
+                  <div class="tiny dim">
+                    内置供应商会在后端首次启动时自动落库；也可点击右上角「新增供应商」接入自定义网关
+                  </div>
                 </div>
-              </div>
-            </template>
-          </el-table>
+              </template>
+            </el-table>
+          </div>
 
           <div class="hint tiny dim">
             内置供应商可编辑接入信息、价格与密钥，但不可删除；自定义供应商可增删。
@@ -423,97 +437,101 @@
             <div class="block-title">按标注类型</div>
             <span class="tiny dim">按语料标注（违规 / 合规）统计</span>
           </div>
-          <el-table :data="evaluation.byLabel" size="small">
-            <el-table-column label="标注类型" min-width="140">
-              <template #default="{ row }">
-                <span class="chip" :class="evaluationLabelMeta(row.label).type">
-                  {{ evaluationLabelMeta(row.label).label }}
-                </span>
+          <div class="table-bleed">
+            <el-table :data="evaluation.byLabel" size="small">
+              <el-table-column label="标注类型" min-width="140">
+                <template #default="{ row }">
+                  <span class="chip" :class="evaluationLabelMeta(row.label).type">
+                    {{ evaluationLabelMeta(row.label).label }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="样本数" width="110" align="right">
+                <template #default="{ row }">
+                  <span class="num">{{ row.total }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="正确" width="110" align="right">
+                <template #default="{ row }">
+                  <span class="num">{{ row.correct }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="准确率" width="130" align="right">
+                <template #default="{ row }">
+                  <span class="num">{{ formatRatioPercent(labelAccuracy(row)) }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <div class="empty-block">
+                  <div class="empty-title">暂无分类统计</div>
+                  <div class="tiny dim">后端返回 byLabel 后展示</div>
+                </div>
               </template>
-            </el-table-column>
-            <el-table-column label="样本数" width="110" align="right">
-              <template #default="{ row }">
-                <span class="num">{{ row.total }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="正确" width="110" align="right">
-              <template #default="{ row }">
-                <span class="num">{{ row.correct }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="准确率" width="130" align="right">
-              <template #default="{ row }">
-                <span class="num">{{ formatRatioPercent(labelAccuracy(row)) }}</span>
-              </template>
-            </el-table-column>
-            <template #empty>
-              <div class="empty-block">
-                <div class="empty-title">暂无分类统计</div>
-                <div class="tiny dim">后端返回 byLabel 后展示</div>
-              </div>
-            </template>
           </el-table>
+          </div>
 
           <div class="eval-section-head">
             <div class="block-title">逐条结果</div>
             <span class="tiny dim">共 {{ evaluation.results.length }} 条，失败行标注 error</span>
           </div>
-          <el-table :data="evaluation.results" size="small" max-height="420">
-            <el-table-column label="语料 ID" width="110">
-              <template #default="{ row }">
-                <span class="mono">{{ row.corpusId || '—' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="期望" width="100" align="center">
-              <template #default="{ row }">
-                <span class="chip" :class="evaluationLabelMeta(row.expected).type">
-                  {{ evaluationLabelMeta(row.expected).label }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="预测" width="100" align="center">
-              <template #default="{ row }">
-                <span v-if="row.error" class="chip danger">失败</span>
-                <span v-else class="chip" :class="evaluationLabelMeta(row.predicted).type">
-                  {{ evaluationLabelMeta(row.predicted).label }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="置信度" width="100" align="right">
-              <template #default="{ row }">
-                <span class="num">{{ row.confidence == null ? '—' : formatRatioPercent(row.confidence) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="理由" min-width="280">
-              <template #default="{ row }">
-                <el-tooltip
-                  v-if="row.error || row.reason"
-                  :content="row.error || row.reason"
-                  placement="top"
-                  :show-after="300"
-                  :popper-style="{ maxWidth: '520px', wordBreak: 'break-all' }"
-                >
-                  <span class="eval-reason" :class="{ err: !!row.error }">
-                    {{ row.error || row.reason }}
+          <div class="table-bleed">
+            <el-table :data="evaluation.results" size="small" max-height="420">
+              <el-table-column label="语料 ID" width="110">
+                <template #default="{ row }">
+                  <span class="mono">{{ row.corpusId || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="期望" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="chip" :class="evaluationLabelMeta(row.expected).type">
+                    {{ evaluationLabelMeta(row.expected).label }}
                   </span>
-                </el-tooltip>
-                <span v-else class="dim">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="预测" width="100" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.error" class="chip danger">失败</span>
+                  <span v-else class="chip" :class="evaluationLabelMeta(row.predicted).type">
+                    {{ evaluationLabelMeta(row.predicted).label }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="置信度" width="100" align="right">
+                <template #default="{ row }">
+                  <span class="num">{{ row.confidence == null ? '—' : formatRatioPercent(row.confidence) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="理由" min-width="280">
+                <template #default="{ row }">
+                  <el-tooltip
+                    v-if="row.error || row.reason"
+                    :content="row.error || row.reason"
+                    placement="top"
+                    :show-after="300"
+                    :popper-style="{ maxWidth: '520px', wordBreak: 'break-all' }"
+                  >
+                    <span class="eval-reason" :class="{ err: !!row.error }">
+                      {{ row.error || row.reason }}
+                    </span>
+                  </el-tooltip>
+                  <span v-else class="dim">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="88" align="center">
+                <template #default="{ row }">
+                  <span class="chip" :class="row.error ? 'danger' : 'ok'">
+                    {{ row.error ? '失败' : '成功' }}
+                  </span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <div class="empty-block">
+                  <div class="empty-title">暂无逐条结果</div>
+                  <div class="tiny dim">后端返回 results 后展示期望 / 预测 / 置信度 / 理由</div>
+                </div>
               </template>
-            </el-table-column>
-            <el-table-column label="状态" width="88" align="center">
-              <template #default="{ row }">
-                <span class="chip" :class="row.error ? 'danger' : 'ok'">
-                  {{ row.error ? '失败' : '成功' }}
-                </span>
-              </template>
-            </el-table-column>
-            <template #empty>
-              <div class="empty-block">
-                <div class="empty-title">暂无逐条结果</div>
-                <div class="tiny dim">后端返回 results 后展示期望 / 预测 / 置信度 / 理由</div>
-              </div>
-            </template>
           </el-table>
+          </div>
         </template>
 
         <!-- 空态 -->
@@ -841,68 +859,70 @@
               <div class="block-title">逐条对比</div>
               <span class="tiny dim">共 {{ ragEvaluation.cases.length }} 条</span>
             </div>
-            <el-table :data="ragEvaluation.cases" size="small" max-height="380">
-              <el-table-column label="ID" width="76">
-                <template #default="{ row }">
-                  <span class="mono">{{ row.id ?? '—' }}</span>
+            <div class="table-bleed">
+              <el-table :data="ragEvaluation.cases" size="small" max-height="380">
+                <el-table-column label="ID" width="76">
+                  <template #default="{ row }">
+                    <span class="mono">{{ row.id ?? '—' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="标注" width="96" align="center">
+                  <template #default="{ row }">
+                    <span class="chip" :class="evaluationLabelMeta(row.label).type">
+                      {{ evaluationLabelMeta(row.label).label }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="基线预测" width="96" align="center">
+                  <template #default="{ row }">
+                    <span class="chip" :class="evaluationLabelMeta(row.baselinePrediction).type">
+                      {{ evaluationLabelMeta(row.baselinePrediction).label }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="RAG 预测" width="96" align="center">
+                  <template #default="{ row }">
+                    <span class="chip" :class="evaluationLabelMeta(row.ragPrediction).type">
+                      {{ evaluationLabelMeta(row.ragPrediction).label }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="置信度（基线 → RAG）" width="166" align="right">
+                  <template #default="{ row }">
+                    <span class="num tiny">
+                      {{ formatRatioPercent(row.baselineConfidence) }} →
+                      {{ formatRatioPercent(row.ragConfidence) }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="引用" min-width="150">
+                  <template #default="{ row }">
+                    <span v-if="row.refs.length" class="tiny">{{ row.refs.join('、') }}</span>
+                    <span v-else class="dim">—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="错误" min-width="140">
+                  <template #default="{ row }">
+                    <el-tooltip
+                      v-if="row.error"
+                      :content="row.error"
+                      placement="top"
+                      :show-after="200"
+                      :popper-style="{ maxWidth: '460px', wordBreak: 'break-all' }"
+                    >
+                      <span class="eval-reason err">{{ row.error }}</span>
+                    </el-tooltip>
+                    <span v-else class="dim">—</span>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <div class="empty-block">
+                    <div class="empty-title">暂无逐条结果</div>
+                    <div class="tiny dim">后端返回 cases 后展示基线 / RAG 预测与引用</div>
+                  </div>
                 </template>
-              </el-table-column>
-              <el-table-column label="标注" width="96" align="center">
-                <template #default="{ row }">
-                  <span class="chip" :class="evaluationLabelMeta(row.label).type">
-                    {{ evaluationLabelMeta(row.label).label }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="基线预测" width="96" align="center">
-                <template #default="{ row }">
-                  <span class="chip" :class="evaluationLabelMeta(row.baselinePrediction).type">
-                    {{ evaluationLabelMeta(row.baselinePrediction).label }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="RAG 预测" width="96" align="center">
-                <template #default="{ row }">
-                  <span class="chip" :class="evaluationLabelMeta(row.ragPrediction).type">
-                    {{ evaluationLabelMeta(row.ragPrediction).label }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="置信度（基线 → RAG）" width="166" align="right">
-                <template #default="{ row }">
-                  <span class="num tiny">
-                    {{ formatRatioPercent(row.baselineConfidence) }} →
-                    {{ formatRatioPercent(row.ragConfidence) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="引用" min-width="150">
-                <template #default="{ row }">
-                  <span v-if="row.refs.length" class="tiny">{{ row.refs.join('、') }}</span>
-                  <span v-else class="dim">—</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="错误" min-width="140">
-                <template #default="{ row }">
-                  <el-tooltip
-                    v-if="row.error"
-                    :content="row.error"
-                    placement="top"
-                    :show-after="200"
-                    :popper-style="{ maxWidth: '460px', wordBreak: 'break-all' }"
-                  >
-                    <span class="eval-reason err">{{ row.error }}</span>
-                  </el-tooltip>
-                  <span v-else class="dim">—</span>
-                </template>
-              </el-table-column>
-              <template #empty>
-                <div class="empty-block">
-                  <div class="empty-title">暂无逐条结果</div>
-                  <div class="tiny dim">后端返回 cases 后展示基线 / RAG 预测与引用</div>
-                </div>
-              </template>
-            </el-table>
+              </el-table>
+            </div>
           </template>
           <div v-else-if="!ragEvaluating && !ragEvaluationError" class="eval-empty tiny dim">
             还没有 RAG 评测结果：设置样本数（5~20）后点击「评测 RAG 效果」。
@@ -1239,6 +1259,7 @@ import auth from '../auth'
 import { formatTime, notifyEventMeta } from '../constants'
 import { formatSamplingRate } from '../utils/notifications'
 import { formatPricePer1k, isProviderEnabled } from '../utils/providers'
+import { useElementWidth } from '../utils/elementWidth'
 import {
   evaluationLabelMeta,
   formatAbPercent,
@@ -1267,6 +1288,12 @@ const notifyTestResult = ref(null)
 
 // AI 供应商注册表（仅 ADMIN）：内置项由后端配置落库，自定义项可增删改
 const providers = ref([])
+/* 供应商表窄屏收起「价格 / 1K」，避免固定操作列压住密钥/状态。
+   阈值取 990：1280 笔记本（表格约 958px）下价格让位给「接入地址 / 默认模型」，
+   这两列才是选供应商时真正要读的信息。 */
+const providerTableWrap = ref(null)
+const providerTableWidth = useElementWidth(providerTableWrap)
+const compactProviderTable = computed(() => providerTableWidth.value > 0 && providerTableWidth.value < 990)
 const providersLoading = ref(false)
 const providersError = ref('')
 const providerDialogVisible = ref(false)
@@ -2046,7 +2073,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 15px 17px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
@@ -2096,6 +2123,17 @@ onMounted(() => {
   font-weight: 600;
   color: var(--brand-600);
 }
+/* 手机：当前模型卡一行放不下（左侧信息被压到 87px，模型名与状态逐字换行），
+   让「测试连通性」按钮换到下一行 */
+@media (max-width: 720px) {
+  .active-card {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .active-model {
+    white-space: nowrap;
+  }
+}
 .active-status {
   display: flex;
   align-items: center;
@@ -2112,7 +2150,7 @@ onMounted(() => {
   display: flex;
   gap: 10px;
   margin-top: 12px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   border-radius: var(--r-md);
   font-size: 12.5px;
   line-height: 1.7;
@@ -2143,7 +2181,7 @@ onMounted(() => {
 /* 供应商卡片 */
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
   gap: 12px;
 }
 .provider-card {
@@ -2228,8 +2266,8 @@ onMounted(() => {
   gap: 10px;
 }
 .hint {
-  margin-top: 11px;
-  line-height: 1.75;
+  margin-top: 12px;
+  line-height: 1.7;
 }
 
 /* 生效范围 */
@@ -2364,6 +2402,17 @@ onMounted(() => {
   gap: 10px;
   flex-wrap: wrap;
 }
+/* 嵌套在 .panel-body 中的表格：左右各吃掉 body 的 18px 内边距，
+   让表格贴到卡片边缘、首列文字与 panel-head 标题同处 18px 基线。
+   单元格自身内边距仍由全局 .el-table .cell（18px）提供，不叠加。 */
+.table-bleed {
+  margin-left: calc(-1 * var(--panel-pad-x, 18px));
+  margin-right: calc(-1 * var(--panel-pad-x, 18px));
+}
+.table-bleed :deep(.el-table .cell) {
+  padding-left: var(--table-pad-x, 18px);
+  padding-right: var(--table-pad-x, 18px);
+}
 .provider-cell {
   min-width: 0;
 }
@@ -2373,13 +2422,36 @@ onMounted(() => {
   gap: 6px;
   flex-wrap: wrap;
 }
+/* 名称行的状态胶囊更紧凑，保证 1280 下「当前 + 内置」不换行 */
+.provider-name .chip {
+  padding: 0 7px;
+}
 .price-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  column-gap: 6px;
+  row-gap: 1px;
   font-size: 12px;
   line-height: 1.5;
+  white-space: nowrap;
+}
+.price-row {
+  display: contents;
+  font-variant-numeric: tabular-nums;
+}
+.price-cell .mono {
+  text-align: right;
+}
+.price-label {
+  justify-self: end;
+  font-size: 11.5px;
+  color: var(--el-text-color-placeholder);
+}
+.key-chip {
+  padding: 0 7px;
+  font-size: 11.5px;
+  letter-spacing: 0;
 }
 .ellipsis {
   overflow: hidden;
@@ -2427,7 +2499,7 @@ onMounted(() => {
 }
 .test-target {
   margin-bottom: 14px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--ink-50);
@@ -2443,7 +2515,7 @@ onMounted(() => {
 :global(.provider-dialog .el-dialog__body) {
   max-height: 64vh;
   overflow-y: auto;
-  padding-top: 8px;
+  padding: 20px;
 }
 @media (max-width: 760px) {
   .price-fields {
@@ -2513,6 +2585,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* 主操作统一贴右：与 A/B 评测行、检索参数保存按钮右缘对齐 */
+  margin-left: auto;
   padding-bottom: 1px;
 }
 .eval-running {
@@ -2520,7 +2594,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   margin-top: 12px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   border-radius: var(--r-md);
   background: var(--brand-50);
   color: var(--brand-700);
@@ -2538,7 +2612,7 @@ onMounted(() => {
   align-items: center;
   gap: 11px;
   margin-top: 12px;
-  padding: 11px 13px;
+  padding: 12px 14px;
   border-radius: var(--r-md);
   background: var(--danger-soft);
   color: #a32424;
@@ -2617,7 +2691,7 @@ onMounted(() => {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin: 18px 0 8px;
+  margin: 18px 0 10px;
 }
 .eval-reason {
   display: inline-block;
@@ -2649,7 +2723,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 13px 15px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
@@ -2669,7 +2743,7 @@ onMounted(() => {
 }
 .rag-section-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;

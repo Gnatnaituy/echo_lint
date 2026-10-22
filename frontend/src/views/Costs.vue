@@ -20,8 +20,10 @@
             class="date-range"
             @change="load"
           />
-          <el-button type="primary" :icon="Search" :loading="loading" @click="load">查询</el-button>
-          <el-button link @click="resetFilters">重置</el-button>
+          <div class="filter-actions">
+            <el-button type="primary" :icon="Search" :loading="loading" @click="load">查询</el-button>
+            <el-button link @click="resetFilters">重置</el-button>
+          </div>
         </div>
         <div class="hint tiny dim">
           数据来自语义复筛与敏感词挖掘的真实调用（含失败重试）；单价在调用发生时快照，
@@ -57,7 +59,7 @@
         label="预估成本"
         :value="stats ? formatUsd(stats.costUsd) : '—'"
         icon="Money"
-        tone="danger"
+        tone="brand"
         sub="按调用时单价快照估算"
       />
     </div>
@@ -125,7 +127,7 @@
           <span class="tiny dim">成本从高到低</span>
         </div>
         <el-table v-loading="loading" :data="byProviderRows" size="small">
-          <el-table-column label="供应商" min-width="170">
+          <el-table-column label="供应商" min-width="148">
             <template #default="{ row }">
               <div class="cell-name">
                 <span class="strong ellipsis" :title="row.label">{{ row.label || '—' }}</span>
@@ -133,23 +135,24 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="请求" width="84" align="right">
+          <el-table-column label="请求" width="64" align="right">
             <template #default="{ row }">
               <span class="num">{{ formatInt(row.requests) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Tokens（入 / 出）" width="150" align="right">
+          <el-table-column label="Tokens 入/出" width="140" align="right">
             <template #default="{ row }">
               <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="成本" width="116" align="right">
+          <el-table-column label="成本" width="100" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ formatUsd(row.costUsd) }}</span>
             </template>
           </el-table-column>
           <template #empty>
             <div class="empty-block">
+              <el-icon :size="30" class="empty-icon"><Box /></el-icon>
               <div class="empty-title">{{ error ? '统计暂不可用' : '暂无供应商用量' }}</div>
               <div class="tiny dim">{{ error ? '请点击上方「重试」重新加载' : '启用并调用供应商后这里会按供应商汇总' }}</div>
             </div>
@@ -163,7 +166,7 @@
           <span class="tiny dim">成本从高到低</span>
         </div>
         <el-table v-loading="loading" :data="byModelRows" size="small">
-          <el-table-column label="模型" min-width="180">
+          <el-table-column label="模型" min-width="156">
             <template #default="{ row }">
               <div class="cell-name">
                 <span class="mono ellipsis" :title="row.model">{{ row.model || '—' }}</span>
@@ -171,23 +174,24 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="请求" width="84" align="right">
+          <el-table-column label="请求" width="64" align="right">
             <template #default="{ row }">
               <span class="num">{{ formatInt(row.requests) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Tokens（入 / 出）" width="150" align="right">
+          <el-table-column label="Tokens 入/出" width="140" align="right">
             <template #default="{ row }">
               <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="成本" width="116" align="right">
+          <el-table-column label="成本" width="100" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ formatUsd(row.costUsd) }}</span>
             </template>
           </el-table-column>
           <template #empty>
             <div class="empty-block">
+              <el-icon :size="30" class="empty-icon"><Cpu /></el-icon>
               <div class="empty-title">{{ error ? '统计暂不可用' : '暂无模型用量' }}</div>
               <div class="tiny dim">{{ error ? '请点击上方「重试」重新加载' : '模型产生调用后这里会按模型汇总' }}</div>
             </div>
@@ -256,17 +260,21 @@ const byDayRows = computed(() => (error.value ? [] : stats.value?.byDay || []))
 const byProviderRows = computed(() => (error.value ? [] : stats.value?.byProvider || []))
 const byModelRows = computed(() => (error.value ? [] : stats.value?.byModel || []))
 
-/** 千分位整数：NaN / 负数兜底 0 */
+/** 千分位整数：null / 缺失显示占位，0 照常显示 0 */
 function formatInt(value) {
+  if (value === null || value === undefined || value === '') return '—'
   const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) return '0'
+  if (!Number.isFinite(num)) return '—'
+  if (num === 0) return '0'
   return String(Math.round(num)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-/** 成本展示：小额（< $0.01）保留 6 位小数，其余 4 位 */
+/** 成本展示：0 直接显示 $0；小额（< $0.01）保留 6 位小数，其余 4 位；null 用占位 */
 function formatUsd(value) {
+  if (value === null || value === undefined || value === '') return '—'
   const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) return '$0.0000'
+  if (!Number.isFinite(num)) return '—'
+  if (num <= 0) return '$0'
   return `$${num.toFixed(num < 0.01 ? 6 : 4)}`
 }
 
@@ -307,8 +315,20 @@ onMounted(load)
   gap: 10px;
   flex-wrap: wrap;
 }
-.date-range {
+/* .el-input__wrapper 默认 flex-grow:1，日期框不再抢宽（根节点无 scoped 属性，用 :deep） */
+.filter-row :deep(.date-range) {
+  flex: none;
   width: 300px;
+}
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin-left: auto;
+}
+.filter-actions .el-button + .el-button {
+  margin-left: 0;
 }
 .hint {
   margin-top: 10px;
@@ -316,16 +336,18 @@ onMounted(load)
   line-height: 1.7;
 }
 
-/* 汇总卡 */
+/* 汇总卡：1280 / 1440 都是一行 4 张，窄屏再自然换行 */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
   gap: 14px;
   border-radius: var(--r-lg);
 }
-@media (max-width: 1360px) {
+/* 手机：2 列 KPI，避免 4 张卡竖排成一长串 */
+@media (max-width: 720px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
@@ -335,7 +357,7 @@ onMounted(load)
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
-@media (max-width: 1360px) {
+@media (max-width: 1200px) {
   .two-col {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -343,6 +365,7 @@ onMounted(load)
 .cell-name {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
   line-height: 1.5;
 }
@@ -350,6 +373,26 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 表格空态：圆形图标底座，避免空白区域过于生硬 */
+.empty-block .empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-300);
+  background: var(--ink-50);
+  border: 1px dashed var(--border-strong);
+  margin-bottom: 8px;
+}
+.empty-block .empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+  margin-bottom: 4px;
 }
 
 /* 错误态（与报表页一致） */

@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="920" viewBox="0 0 1700 920">
+<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L9,4.5 L0,9 Z" fill="#64748b"/></marker></defs>
+<rect width="1700" height="920" fill="#f4f7fc"/>
+<text x="55" y="52" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="25" fill="#0f172a" font-weight="800" text-anchor="start">EchoLint · 核心业务流程与 RAG 数据流</text>
+<text x="55" y="79" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11.5" fill="#64748b" font-weight="400" text-anchor="start">主流水线：上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈；下方为 RAG 索引（写）与检索（读）链路</text>
+<rect x="50" y="102" width="1600" height="262" rx="14" fill="#f7faff" stroke="#dbe6ff"/>
+<text x="68" y="128" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="13.5" fill="#2f58c5" font-weight="800" text-anchor="start">主流水线</text>
+<rect x="65" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="64" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="76" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">① 上传 / 校验</text>
+<text x="76" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">RecordingService</text>
+<text x="76" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">SHA-256 去重 / 魔数</text>
+<rect x="293" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="292" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="304" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">② 任务入队</text>
+<text x="304" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">PipelineTaskService</text>
+<text x="304" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">pipeline_tasks 持久队列</text>
+<text x="304" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">退避重试 / 死信</text>
+<rect x="521" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="520" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="532" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">③ 语音转写</text>
+<text x="532" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">AudioTranscriptionService</text>
+<text x="532" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">ffmpeg 分轨 + whisper.cpp</text>
+<text x="532" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">失败 → FAILED / 重试</text>
+<rect x="749" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="748" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="760" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">④ DFA 初筛</text>
+<text x="760" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">DfaService</text>
+<text x="760" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">Aho-Corasick 词典</text>
+<text x="760" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">命中 / 未命中 / 抽样</text>
+<rect x="977" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="976" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="988" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">⑤ AI 语义复筛</text>
+<text x="988" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">SemanticScreeningService</text>
+<text x="988" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">RAG + few-shot + DeepSeek</text>
+<text x="988" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">严格 JSON / 置信度</text>
+<rect x="1205" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="1204" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="1216" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">⑥ 人工复检</text>
+<text x="1216" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">ReviewService</text>
+<text x="1216" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">单人 / 双人审批</text>
+<text x="1216" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">确认违规 / 误报</text>
+<rect x="1433" y="152" width="214" height="108" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="1432" y="150" width="214" height="108" rx="9" fill="#ffffff" stroke="#d6e2f8"/>
+<text x="1444" y="171" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">⑦ 归档 / 回馈</text>
+<text x="1444" y="191" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">CorpusService + WordMiningService</text>
+<text x="1444" y="205" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">语料 few-shot 增长</text>
+<text x="1444" y="219" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.1" fill="#475569" font-weight="400" text-anchor="start">新敏感词待审核</text>
+<path d="M 278 204 L 290 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 506 204 L 518 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 734 204 L 746 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 962 204 L 974 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 1190 204 L 1202 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 1418 204 L 1430 204" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="748" y="276" width="214" height="48" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="758" y="295" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="8.8" fill="#16a34a" font-weight="600" text-anchor="start">未命中 → 自动 COMPLIANT</text>
+<rect x="976" y="276" width="214" height="48" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="986" y="295" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="8.8" fill="#b45309" font-weight="600" text-anchor="start">合规 → COMPLIANT</text>
+<text x="986" y="310" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="8.8" fill="#b45309" font-weight="600" text-anchor="start">违规 / 降级 → NEEDS_REVIEW</text>
+<rect x="1204" y="276" width="214" height="48" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="1214" y="295" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="8.8" fill="#2f58c5" font-weight="600" text-anchor="start">确认违规 → 语料 + 词挖掘</text>
+<text x="1214" y="310" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="8.8" fill="#2f58c5" font-weight="600" text-anchor="start">误报 → 语料</text>
+<path d="M 855 258 L 855 276" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<path d="M 1083 258 L 1083 276" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<path d="M 1311 258 L 1311 276" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<rect x="50" y="392" width="760" height="490" rx="14" fill="#ffffff" stroke="#cfe0ff"/>
+<text x="68" y="418" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="13.5" fill="#2f58c5" font-weight="800" text-anchor="start">RAG 写链路（索引）</text>
+<rect x="75" y="440" width="330" height="74" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="74" y="438" width="330" height="74" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="86" y="459" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">知识库条目 / 文档导入</text>
+<text x="86" y="479" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">KnowledgeEntry / KnowledgeRagController</text>
+<text x="86" y="495" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">PDF / DOCX / TXT / MD</text>
+<rect x="75" y="538" width="330" height="66" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="74" y="536" width="330" height="66" rx="9" fill="#ffffff" stroke="#dbe2ec"/>
+<text x="86" y="557" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">解析 / 分块</text>
+<text x="86" y="577" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">PDFBox / POI → TextChunker</text>
+<text x="86" y="593" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">600 字 / 80 重叠</text>
+<rect x="75" y="628" width="330" height="66" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="74" y="626" width="330" height="66" rx="9" fill="#ecfdf5" stroke="#bbf7d0"/>
+<text x="86" y="647" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#166534" font-weight="700" text-anchor="start">Embedding（阿里云百炼）</text>
+<text x="86" y="667" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">RagEmbeddingClient · 1024 维</text>
+<text x="86" y="683" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">qwen3.7-text-embedding</text>
+<rect x="75" y="718" width="330" height="88" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="74" y="716" width="330" height="88" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="86" y="737" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">knowledge_chunks</text>
+<text x="86" y="757" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">pgvector · HNSW vector(1024)</text>
+<text x="86" y="773" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">余弦距离 · 每块一行</text>
+<text x="86" y="789" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">RagIndexService 异步写入</text>
+<path d="M 239 512 L 239 536" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 239 602 L 239 626" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 239 692 L 239 716" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="441" y="440" width="330" height="74" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="440" y="438" width="330" height="74" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="452" y="459" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">人工复核语料</text>
+<text x="452" y="479" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">CorpusEntry（ReviewService 回馈）</text>
+<text x="452" y="495" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">label = VIOLATION / COMPLIANT</text>
+<rect x="441" y="538" width="330" height="66" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="440" y="536" width="330" height="66" rx="9" fill="#ecfdf5" stroke="#bbf7d0"/>
+<text x="452" y="557" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#166534" font-weight="700" text-anchor="start">Embedding（few-shot）</text>
+<text x="452" y="577" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">RagEmbeddingClient</text>
+<text x="452" y="593" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">截断至 6000 字符</text>
+<rect x="441" y="628" width="330" height="66" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="440" y="626" width="330" height="66" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="452" y="647" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">corpus_entries</text>
+<text x="452" y="667" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">embedding_text</text>
+<text x="452" y="683" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">语义 few-shot 召回</text>
+<path d="M 605 512 L 605 536" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 605 602 L 605 626" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="840" y="392" width="810" height="490" rx="14" fill="#ffffff" stroke="#cfe0ff"/>
+<text x="858" y="418" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="13.5" fill="#2f58c5" font-weight="800" text-anchor="start">RAG 读链路（复筛）</text>
+<rect x="863" y="440" width="760" height="74" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="862" y="438" width="760" height="74" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="874" y="459" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">待审文本分块</text>
+<text x="874" y="479" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">SemanticScreeningService.splitChunks</text>
+<text x="874" y="495" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">单块 ≤ 12000 字符 · 最多 6 块</text>
+<text x="874" y="511" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">每块独立判定，任一违规 = 整体违规</text>
+<rect x="863" y="530" width="760" height="62" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="862" y="528" width="760" height="62" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="874" y="549" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">Query embedding</text>
+<text x="874" y="569" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">RagEmbeddingClient（阿里云 1024 维）</text>
+<text x="874" y="585" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">query = 分块文本（截断 4000 字符）</text>
+<rect x="863" y="608" width="760" height="62" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="862" y="606" width="760" height="62" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="874" y="627" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">pgvector 余弦检索</text>
+<text x="874" y="647" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">RagRetrievalService.knowledgeContext</text>
+<text x="874" y="663" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">1 - cosine distance · top-k=4 · min-score=0.25</text>
+<rect x="863" y="686" width="760" height="62" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="862" y="684" width="760" height="62" rx="9" fill="#f8fbff" stroke="#dbe6ff"/>
+<text x="874" y="705" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">Prompt 组装</text>
+<text x="874" y="725" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">ScreeningPromptSupport.buildUserPrompt</text>
+<text x="874" y="741" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">知识库参考 + few-shot 案例 + DFA 命中词 + 待审块</text>
+<rect x="863" y="764" width="760" height="62" rx="9" fill="#0f172a" opacity="0.03"/>
+<rect x="862" y="762" width="760" height="62" rx="9" fill="#f5f3ff" stroke="#ddd6fe"/>
+<text x="874" y="783" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="11" fill="#0f172a" font-weight="700" text-anchor="start">DeepSeek 复筛</text>
+<text x="874" y="803" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">严格 JSON 解析：violation / type / confidence</text>
+<text x="874" y="819" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.4" fill="#475569" font-weight="400" text-anchor="start">低于阈值或调用失败 → degraded → 人工复检</text>
+<path d="M 1242 514 L 1242 526" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 1242 592 L 1242 604" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 1242 670 L 1242 682" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M 1242 748 L 1242 760" fill="none" stroke="#3b6ef6" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="862" y="858" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.2" fill="#64748b" font-weight="400" text-anchor="start">知识库检索失败 / embedding 不可用 → 空上下文降级，不阻塞复筛；完整提示词与回复写入 ai_invocations。</text>
+<text x="74" y="858" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.2" fill="#64748b" font-weight="400" text-anchor="start">索引/查询 embedding 同样写入 ai_invocations（EMBED_INDEX / EMBED_QUERY），token 与成本可聚合。</text>
+<text x="55" y="900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif" font-size="9.5" fill="#94a3b8" font-weight="400" text-anchor="start">说明：主流水线中 ⑤ 依赖右侧 RAG 读链路，⑦ 依赖左侧 RAG 写链路；所有 AI 调用均可追溯。</text>
+</svg>

@@ -55,11 +55,11 @@ public interface AiInvocationRepository extends JpaRepository<AiInvocation, Long
             + "and i.createdAt >= :from and i.createdAt < :to")
     Long sumCostMicrosBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    /** 按自然日聚合（MySQL DATE()；行：java.sql.Date, count, inputTokens, outputTokens, costMicros） */
+    /** 按自然日聚合（PostgreSQL DATE()；success 为 boolean，不能用 = 1；行：java.sql.Date, count, inputTokens, outputTokens, costMicros） */
     @Query(value = "SELECT DATE(created_at) AS d, COUNT(*) AS c, "
             + "COALESCE(SUM(input_tokens), 0) AS i, COALESCE(SUM(output_tokens), 0) AS o, "
             + "COALESCE(SUM(cost_micros), 0) AS m "
-            + "FROM ai_invocations WHERE success = 1 AND created_at >= :from AND created_at < :to "
+            + "FROM ai_invocations WHERE success = true AND created_at >= :from AND created_at < :to "
             + "GROUP BY DATE(created_at) ORDER BY d", nativeQuery = true)
     List<Object[]> aggregateByDayBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 

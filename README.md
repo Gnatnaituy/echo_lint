@@ -38,6 +38,8 @@
 | 前端 | Vue 3 + Vite + Element Plus + vue-router + axios |
 | 部署 | docker-compose（PostgreSQL/pgvector + 后端 + Nginx 前端） |
 
+系统分层、核心流水线与 RAG 数据流见 **[docs/architecture.md](docs/architecture.md)**。
+
 ## 目录结构
 
 ```
@@ -60,6 +62,7 @@ echolint/
 ├── tools/whisper-server.sh       # 本机 whisper.cpp 转写服务（伪装成兼容转写端点）
 ├── docs/screenshots/             # 界面截图
 ├── docs/postgres-migration.md    # MySQL → PostgreSQL 迁移、校验与回滚手册
+├── docs/architecture.md          # 系统架构图、核心流程与代码地图
 ├── docs/rag-integration.md       # RAG 检索增强：架构/配置/API/索引/降级/评测
 ├── docker-compose.yml            # 一键部署
 └── .env.example                  # 环境变量样例（数据库 / AI / RAG）

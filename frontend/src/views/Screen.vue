@@ -57,13 +57,16 @@
 
       <!-- 趋势 + 违规类型分布 -->
       <div class="mid-row">
-        <section class="scr-panel">
+        <section class="scr-panel trend-panel">
           <div class="panel-title">{{ t('screen.trend7d') }}</div>
           <TrendChart v-if="trend.length" :data="trend" :height="250" />
-          <div v-else class="scr-empty">{{ t('screen.empty') }}</div>
+          <div v-else class="scr-empty">
+            <div class="empty-icon"><el-icon :size="26"><TrendCharts /></el-icon></div>
+            <div class="empty-text">{{ t('screen.empty') }}</div>
+          </div>
         </section>
 
-        <section class="scr-panel">
+        <section class="scr-panel dist-panel">
           <div class="panel-title">{{ t('screen.violationDist') }}</div>
           <div v-if="violationRows.length" class="dist-list">
             <div v-for="row in violationRows" :key="row.key" class="dist-row">
@@ -76,13 +79,16 @@
               </div>
             </div>
           </div>
-          <div v-else class="scr-empty">{{ t('screen.empty') }}</div>
+          <div v-else class="scr-empty">
+            <div class="empty-icon"><el-icon :size="26"><PieChart /></el-icon></div>
+            <div class="empty-text">{{ t('screen.empty') }}</div>
+          </div>
         </section>
       </div>
 
       <!-- Top 坐席 / 团队 -->
       <div class="bottom-row">
-        <section class="scr-panel">
+        <section class="scr-panel rank-panel">
           <div class="panel-title">{{ t('screen.topAgents') }}</div>
           <div v-if="agentRows.length" class="rank-list">
             <div v-for="(row, i) in agentRows" :key="`a-${row.name}`" class="rank-row">
@@ -92,10 +98,13 @@
               <span class="rank-count num">{{ formatCount(row.count) }}</span>
             </div>
           </div>
-          <div v-else class="scr-empty">{{ t('screen.empty') }}</div>
+          <div v-else class="scr-empty">
+            <div class="empty-icon"><el-icon :size="24"><User /></el-icon></div>
+            <div class="empty-text">{{ t('screen.empty') }}</div>
+          </div>
         </section>
 
-        <section class="scr-panel">
+        <section class="scr-panel rank-panel">
           <div class="panel-title">{{ t('screen.topTeams') }}</div>
           <div v-if="teamRows.length" class="rank-list">
             <div v-for="(row, i) in teamRows" :key="`t-${row.name}`" class="rank-row">
@@ -105,7 +114,10 @@
               <span class="rank-count num">{{ formatCount(row.count) }}</span>
             </div>
           </div>
-          <div v-else class="scr-empty">{{ t('screen.empty') }}</div>
+          <div v-else class="scr-empty">
+            <div class="empty-icon"><el-icon :size="24"><OfficeBuilding /></el-icon></div>
+            <div class="empty-text">{{ t('screen.empty') }}</div>
+          </div>
         </section>
       </div>
     </main>
@@ -275,6 +287,9 @@ onUnmounted(() => {
 
 /* 头部 */
 .screen-head {
+  position: relative;
+  z-index: 3;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -313,7 +328,9 @@ onUnmounted(() => {
 .head-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: clamp(12px, 1.2vw, 22px);
+  flex-wrap: wrap;
 }
 .clock {
   display: flex;
@@ -336,8 +353,8 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
-  padding: 0 13px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid rgba(34, 197, 94, 0.4);
   background: rgba(22, 163, 74, 0.14);
@@ -380,13 +397,25 @@ onUnmounted(() => {
   background: rgba(59, 110, 246, 0.28);
 }
 
-/* 主体 */
+/* 主体：行高随视口自适应，避免大屏底部留白 */
 .screen-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: clamp(12px, 1.1vw, 20px);
+}
+.kpi-row {
+  flex: none;
+}
+.mid-row {
+  flex: 1.6 1 0;
+  min-height: 0;
+  align-items: stretch;
+}
+.bottom-row {
+  flex: 1 1 0;
+  min-height: 0;
 }
 .screen-error {
   display: flex;
@@ -448,13 +477,17 @@ onUnmounted(() => {
 
 /* 面板 */
 .scr-panel {
+  display: flex;
+  flex-direction: column;
   padding: clamp(14px, 1.1vw, 22px);
   border-radius: 16px;
   border: 1px solid rgba(122, 162, 255, 0.18);
   background: linear-gradient(180deg, rgba(23, 33, 60, 0.78) 0%, rgba(11, 18, 34, 0.7) 100%);
   min-width: 0;
+  min-height: 0;
 }
 .panel-title {
+  flex: none;
   font-size: clamp(13px, 0.95vw, 17px);
   font-weight: 600;
   color: #e7eeff;
@@ -481,21 +514,67 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(12px, 1.1vw, 20px);
 }
+/* 空状态：图标 + 文案，垂直居中，与深色面板保持同一层级 */
 .scr-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 132px;
+  padding: 8px 0;
+  color: rgba(196, 210, 240, 0.5);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.empty-icon {
+  width: clamp(46px, 3.4vw, 58px);
+  height: clamp(46px, 3.4vw, 58px);
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  min-height: 120px;
-  color: rgba(196, 210, 240, 0.45);
-  font-size: 13px;
+  color: rgba(122, 162, 255, 0.8);
+  background: radial-gradient(circle, rgba(59, 110, 246, 0.18) 0%, rgba(59, 110, 246, 0.02) 72%);
+  border: 1px dashed rgba(122, 162, 255, 0.32);
+}
+.empty-text {
+  color: rgba(196, 210, 240, 0.46);
 }
 
 /* 趋势图容器：覆盖 TrendChart 的浅色文字，适配深色大屏 */
 .mid-row :deep(.chart) {
   color: rgba(219, 230, 255, 0.8);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-.mid-row :deep(.chart .total),
-.mid-row :deep(.chart .peak) {
-  color: rgba(196, 210, 240, 0.72);
+.mid-row :deep(.chart .chart-head) {
+  flex: none;
+}
+.mid-row :deep(.chart .peak),
+.mid-row :deep(.chart .total) {
+  color: rgba(196, 210, 240, 0.66);
+}
+/* 峰值与合计里的数字：深色大屏上使用亮色，避免不可见 */
+.mid-row :deep(.chart .peak b) {
+  color: #f2f6ff;
+}
+.mid-row :deep(.chart .total b) {
+  color: rgba(231, 238, 255, 0.92);
+}
+.mid-row :deep(.chart .plot) {
+  flex: 1;
+  min-height: 0;
+}
+/* 图表高度由面板剩余空间决定：viewBox 不变，svg 纵向拉伸 */
+.mid-row :deep(.chart .svg) {
+  height: 100% !important;
+  min-height: 160px;
+}
+.mid-row :deep(.chart .xaxis) {
+  flex: none;
 }
 .mid-row :deep(.chart .grid) {
   stroke: rgba(148, 163, 184, 0.22);
@@ -503,11 +582,28 @@ onUnmounted(() => {
 .mid-row :deep(.chart .line) {
   stroke: #7aa2ff;
 }
+.mid-row :deep(.chart .guide) {
+  stroke: rgba(122, 162, 255, 0.55);
+}
+.mid-row :deep(.chart .hover-dot) {
+  background: #0b1224;
+  border-color: #7aa2ff;
+  box-shadow: 0 2px 10px rgba(59, 110, 246, 0.55);
+}
+.mid-row :deep(.chart .x-label) {
+  color: rgba(196, 210, 240, 0.55);
+}
+.mid-row :deep(.chart .x-label.on) {
+  color: #9db7fb;
+}
 
 /* 违规类型分布 */
 .dist-list {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: clamp(9px, 0.9vh, 16px);
   margin-top: 16px;
 }
@@ -544,8 +640,11 @@ onUnmounted(() => {
 
 /* Top 排名 */
 .rank-list {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: clamp(9px, 0.9vh, 15px);
   margin-top: 16px;
 }
@@ -602,6 +701,10 @@ onUnmounted(() => {
   .mid-row,
   .bottom-row {
     grid-template-columns: minmax(0, 1fr);
+    flex: none;
+  }
+  .mid-row :deep(.chart .svg) {
+    height: 250px !important;
   }
 }
 </style>

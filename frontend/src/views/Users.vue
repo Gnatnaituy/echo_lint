@@ -24,8 +24,8 @@
         </div>
       </div>
       <div class="hint tiny dim">
-        角色：<b>管理员</b> 拥有全部权限；<b>复核员</b> 可上传、认领与提交复核结论；<b>只读</b> 仅可查看。
-        禁用账号不会删除历史数据与审计记录，可随时重新启用；密码以 BCrypt 存储，最少 8 位。
+        <div>角色：<b>管理员</b> 拥有全部权限；<b>复核员</b> 可上传、认领与提交复核结论；<b>只读</b> 仅可查看。</div>
+        <div>禁用账号不会删除历史数据与审计记录，可随时重新启用；密码以 BCrypt 存储，最少 8 位。</div>
       </div>
     </section>
 
@@ -37,7 +37,7 @@
         <el-button link type="primary" size="small" @click="load">重试</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="pagedRows">
+      <el-table v-loading="loading" :data="pagedRows" :row-class-name="rowClass">
         <el-table-column label="用户名" min-width="190">
           <template #default="{ row }">
             <div class="user-cell">
@@ -63,7 +63,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <span class="chip" :class="row.enabled ? 'ok' : 'info'">
+            <span class="chip" :class="row.enabled ? 'ok' : 'off'">
               {{ row.enabled ? '启用' : '已禁用' }}
             </span>
           </template>
@@ -75,25 +75,27 @@
         </el-table-column>
         <el-table-column label="操作" width="150" align="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-popconfirm
-              v-if="row.enabled && !isSelf(row)"
-              title="禁用后该账号将无法登录，确认禁用？"
-              width="240"
-              @confirm="disable(row)"
-            >
-              <template #reference>
-                <el-button size="small" link type="danger">禁用</el-button>
-              </template>
-            </el-popconfirm>
-            <el-button
-              v-else-if="!row.enabled"
-              size="small"
-              link
-              type="success"
-              @click="enable(row)"
-            >启用</el-button>
-            <span v-else class="tiny dim">当前账号</span>
+            <div class="op-cell">
+              <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-popconfirm
+                v-if="row.enabled && !isSelf(row)"
+                title="禁用后该账号将无法登录，确认禁用？"
+                width="240"
+                @confirm="disable(row)"
+              >
+                <template #reference>
+                  <el-button size="small" link type="danger">禁用</el-button>
+                </template>
+              </el-popconfirm>
+              <el-button
+                v-else-if="!row.enabled"
+                size="small"
+                link
+                type="success"
+                @click="enable(row)"
+              >启用</el-button>
+              <span v-else class="tiny dim">当前账号</span>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -227,6 +229,9 @@ function initial(row) {
 }
 function isSelf(row) {
   return !!row?.username && row.username === auth.username
+}
+function rowClass({ row }) {
+  return row?.enabled === false ? 'row-off' : ''
 }
 
 async function load() {
@@ -367,6 +372,10 @@ onMounted(load)
 </script>
 
 <style scoped>
+/* 卡片裁切到圆角：表格/分页栏不再从圆角处露出直角 */
+.panel {
+  overflow: hidden;
+}
 .toolbar {
   display: flex;
   align-items: center;
@@ -379,11 +388,25 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .search {
   width: 240px;
 }
+/* 手机：固定 240px 搜索框会把「新建用户」按钮推出卡片外 */
+@media (max-width: 900px) {
+  .actions {
+    width: 100%;
+  }
+  .search {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
 .hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   padding: 0 18px 14px;
   line-height: 1.7;
 }
@@ -392,6 +415,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 32px;
   min-width: 0;
 }
 .avatar {
@@ -409,6 +433,27 @@ onMounted(load)
 .avatar.off {
   background: var(--ink-300);
 }
+.chip.off {
+  background: var(--ink-100);
+  color: var(--el-text-color-secondary);
+}
+/* 禁用账号整行降权，状态胶囊与置灰头像保持一致 */
+.panel :deep(.el-table__row.row-off) .user-cell {
+  opacity: 0.7;
+}
+.panel :deep(.el-table__row.row-off) .strong {
+  color: var(--el-text-color-secondary);
+}
+/* 操作列贴右对齐，链路按钮间距固定，右侧留白由全局 18px cell padding 提供 */
+.op-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.op-cell :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
 .min-w-0 {
   min-width: 0;
 }
@@ -425,10 +470,17 @@ onMounted(load)
   font-weight: 600;
   color: var(--ink-600);
 }
+/* 分页栏：上边框与卡片底部对齐，左右 18px 内边距与卡片头/表格一致 */
 .pager {
   display: flex;
   justify-content: flex-end;
   padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: #fcfdff;
+}
+/* 最后一行不做底边线，避免与分页栏上边框叠成双线 */
+.panel :deep(.el-table__body tr:last-child td.el-table__cell) {
+  border-bottom: none;
 }
 .role-field {
   width: 100%;

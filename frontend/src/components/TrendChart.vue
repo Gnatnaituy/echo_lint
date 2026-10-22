@@ -168,7 +168,8 @@ const tooltipStyle = computed(() => {
   color: var(--el-text-color-secondary);
 }
 .peak b {
-  color: var(--ink-700);
+  /* 允许深色大屏通过 CSS 变量覆盖，避免深底上数字不可见 */
+  color: var(--trend-peak-ink, var(--ink-700));
   margin-left: 2px;
 }
 

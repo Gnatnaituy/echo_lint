@@ -3,12 +3,19 @@
     <!-- 工具栏 -->
     <section class="panel">
       <div class="toolbar">
-        <div class="row-wrap">
-          <div class="section-title">知识库 / SOP</div>
-          <span class="chip info">共 {{ total }} 条</span>
-          <span v-if="!canWrite" class="chip">只读</span>
+        <div class="toolbar-head">
+          <div class="row-wrap">
+            <div class="section-title">知识库 / SOP</div>
+            <span class="chip info">共 {{ total }} 条</span>
+            <span v-if="!canWrite" class="chip">只读</span>
+          </div>
+          <div class="toolbar-actions">
+            <el-button v-if="canWrite" :icon="Aim" @click="openSearchPreview">检索预览</el-button>
+            <el-button v-if="canWrite" :icon="Upload" @click="openImportDialog">导入文档</el-button>
+            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新建条目</el-button>
+          </div>
         </div>
-        <div class="actions">
+        <div class="toolbar-filters">
           <el-input
             v-model="keyword"
             placeholder="搜索标题 / 正文"
@@ -42,9 +49,6 @@
           </el-select>
           <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">查询</el-button>
           <el-button link @click="resetFilters">重置</el-button>
-          <el-button v-if="canWrite" :icon="Aim" @click="openSearchPreview">检索预览</el-button>
-          <el-button v-if="canWrite" :icon="Upload" @click="openImportDialog">导入文档</el-button>
-          <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新建条目</el-button>
         </div>
       </div>
       <div class="hint tiny dim">
@@ -55,7 +59,7 @@
     </section>
 
     <!-- 列表 -->
-    <section class="panel">
+    <section ref="tableWrap" class="panel">
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
@@ -63,48 +67,48 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" @row-click="openDetail">
-        <el-table-column label="标题" min-width="260">
+        <el-table-column label="标题" min-width="168">
           <template #default="{ row }">
             <div class="min-w-0">
               <div class="strong ellipsis" :title="row.title">{{ row.title || '未命名条目' }}</div>
               <div class="tiny dim mono">#{{ row.id ?? '—' }}</div>
               <div
                 v-if="row.sourceFilename"
-                class="tiny dim ellipsis source-file"
+                class="tiny dim source-file"
                 :title="row.sourceFilename"
               >
                 <el-icon :size="12"><Document /></el-icon>
-                {{ row.sourceFilename }}
+                <span class="source-name">{{ row.sourceFilename }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="分类" width="130">
+        <el-table-column label="分类" width="104">
           <template #default="{ row }">
             <span v-if="row.category" class="chip info">{{ row.category }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="违规类型" width="130">
+        <el-table-column label="违规类型" width="104">
           <template #default="{ row }">
             <span v-if="row.violationType" class="chip warn">{{ violationLabel(row.violationType) }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="标签" min-width="190">
+        <el-table-column v-if="!compactColumns" label="标签" min-width="92">
           <template #default="{ row }">
-            <div v-if="row.tags.length" class="tag-cell">
-              <span v-for="t in row.tags.slice(0, 3)" :key="t" class="chip">{{ t }}</span>
-              <span v-if="row.tags.length > 3" class="tiny dim">+{{ row.tags.length - 3 }}</span>
+            <div v-if="row.tags.length" class="tag-cell" :title="row.tags.join('、')">
+              <span v-for="t in row.tags.slice(0, 2)" :key="t" class="chip">{{ t }}</span>
+              <span v-if="row.tags.length > 2" class="tiny dim">+{{ row.tags.length - 2 }}</span>
             </div>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column label="状态" width="78" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
               {{ row.enabled === false ? '停用' : row.enabled === true ? '启用' : '未知' }}
@@ -112,7 +116,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="索引状态" width="112" align="center">
+        <el-table-column label="索引状态" width="88" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <el-tooltip
               v-if="isFailedIndex(row)"
@@ -134,41 +138,43 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="更新时间" width="170">
+        <el-table-column label="更新时间" width="120">
           <template #default="{ row }">
-            <span v-if="row.updatedAt" class="num dim" :title="formatRelative(row.updatedAt)">
-              {{ formatTime(row.updatedAt) }}
+            <span v-if="row.updatedAt" class="num dim" :title="formatTime(row.updatedAt)">
+              {{ formatTimeShort(row.updatedAt) }}
             </span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="212" align="right">
+        <el-table-column label="操作" width="196" align="right" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
-            <el-button v-if="canWrite" size="small" link type="primary" @click.stop="openEdit(row)">
-              编辑
-            </el-button>
-            <el-button
-              v-if="canWrite"
-              size="small"
-              link
-              type="primary"
-              :loading="reindexingId === row.id"
-              @click.stop="reindexRow(row)"
-            >
-              重建索引
-            </el-button>
-            <el-popconfirm
-              v-if="canWrite"
-              title="删除后不可恢复，确认删除该知识库条目？"
-              width="250"
-              @confirm="remove(row)"
-            >
-              <template #reference>
-                <el-button size="small" link type="danger" @click.stop>删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="op-cell">
+              <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
+              <el-button v-if="canWrite" size="small" link type="primary" @click.stop="openEdit(row)">
+                编辑
+              </el-button>
+              <el-button
+                v-if="canWrite"
+                size="small"
+                link
+                type="primary"
+                :loading="reindexingId === row.id"
+                @click.stop="reindexRow(row)"
+              >
+                重建索引
+              </el-button>
+              <el-popconfirm
+                v-if="canWrite"
+                title="删除后不可恢复，确认删除该知识库条目？"
+                width="250"
+                @confirm="remove(row)"
+              >
+                <template #reference>
+                  <el-button size="small" link type="danger" @click.stop>删除</el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
 
@@ -237,7 +243,7 @@
           更新：{{ formatTime(detail.updatedAt) }}
         </div>
 
-        <div class="block-title mt-14">索引信息</div>
+        <div class="block-title mt-18">索引信息</div>
         <div class="index-grid">
           <div class="index-item">
             <span class="tiny dim">索引状态</span>
@@ -279,7 +285,7 @@
           <span>{{ detail.indexError }}</span>
         </div>
 
-        <div class="block-title mt-14">正文</div>
+        <div class="block-title mt-18">正文</div>
         <pre class="kb-content">{{ detail.content || '（暂无正文）' }}</pre>
       </div>
     </el-drawer>
@@ -500,12 +506,19 @@ import { ElMessage } from 'element-plus'
 import { Aim, Close, Plus, Search, Upload } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
-import { formatRelative, formatTime, VIOLATION_TYPES } from '../constants'
+import { formatTime, formatTimeShort, VIOLATION_TYPES } from '../constants'
 import {
   KNOWLEDGE_CATEGORIES,
   knowledgeTagsPayload
 } from '../utils/knowledge'
 import { formatFileSize, indexStatusMeta, isIndexInProgress } from '../utils/rag'
+import { useElementWidth } from '../utils/elementWidth'
+
+/* 列表列宽自适应：内容区放不下「标签」列时先收起它（标签在详情抽屉仍可见），
+   让 1024/1280 下表格不被固定操作列压住「更新时间」。 */
+const tableWrap = ref(null)
+const tableWidth = useElementWidth(tableWrap)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 880)
 
 // 写操作仅 ADMIN / REVIEWER；VIEWER 只读（后端独立鉴权）
 const canWrite = computed(() => auth.hasRole('ADMIN', 'REVIEWER'))
@@ -884,15 +897,27 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 工具栏：首行「标题 + 主操作」，次行「筛选条件」，窄屏自然折行 */
 .toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 12px;
+}
+.toolbar-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 14px 18px 10px;
 }
-.actions {
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar-filters {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -926,10 +951,26 @@ onUnmounted(() => {
   gap: 5px;
   flex-wrap: wrap;
 }
+/* 操作列：链接按钮用 gap 控制间距，避免 column 宽度吃紧后折行 */
+.op-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+/* 窄列（状态 / 索引状态）用 12px 内边距，避免胶囊在 18px 内边距下被 ellipsis 截出「…」 */
+:deep(.col-tight .cell) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.op-cell :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 12px 18px 14px;
 }
 .empty-icon {
   color: var(--ink-300);
@@ -938,9 +979,9 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* 详情抽屉 */
+/* 详情抽屉：内边距交给全局 .el-drawer__body，避免双重留白 */
 .detail {
-  padding: 20px 22px;
+  padding: 0;
 }
 .detail-head {
   display: flex;
@@ -979,8 +1020,15 @@ onUnmounted(() => {
   margin-top: 10px;
   line-height: 1.7;
 }
-.mt-14 {
-  margin-top: 16px;
+/* 抽屉内的分组标题（与 Recordings / Audit 保持一致） */
+.block-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-bottom: 10px;
+}
+.mt-18 {
+  margin-top: 18px;
 }
 .kb-content {
   margin: 0;
@@ -1002,7 +1050,7 @@ onUnmounted(() => {
 :global(.knowledge-dialog .el-dialog__body) {
   max-height: 68vh;
   overflow-y: auto;
-  padding-top: 8px;
+  padding: 20px;
 }
 
 .error-banner {
@@ -1023,7 +1071,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   margin-top: 2px;
+}
+.source-file .el-icon {
+  flex: none;
+}
+.source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .index-grid {
   display: grid;

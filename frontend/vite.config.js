@@ -9,8 +9,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: apiTarget, changeOrigin: true },
-      '/uploads': { target: apiTarget, changeOrigin: true }
+      // 必须带结尾斜杠：Vite 默认按 startsWith 匹配，'/api' 会把 SPA 路由
+      // /api-keys 也代理到后端（开发环境整页变 JSON 404）。
+      '/api/': { target: apiTarget, changeOrigin: true },
+      '/uploads/': { target: apiTarget, changeOrigin: true }
     }
   },
   build: {

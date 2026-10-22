@@ -1,8 +1,8 @@
 <template>
   <div class="page stack">
-    <!-- 顶部：队列概览 + 视图切换 + 队列筛选 -->
+    <!-- 顶部：队列概览 + 视图切换 + 队列筛选（两行：操作行 / 说明行） -->
     <section class="panel topbar">
-      <div class="row">
+      <div class="topbar-main">
         <div class="seg">
           <button class="seg-item" :class="{ on: tab === 'pending' }" @click="switchTab('pending')">
             待复检
@@ -13,12 +13,10 @@
             <span class="seg-count">{{ historyTotal }}</span>
           </button>
         </div>
-        <span class="spacer"></span>
         <div v-if="tab === 'pending'" class="queue-filters">
           <el-select
             v-model="priorityFilter"
             placeholder="全部优先级"
-            size="small"
             clearable
             class="prio-select"
             @change="loadPending"
@@ -39,8 +37,11 @@
               @click="assignFilter = opt.key"
             >{{ opt.label }}</button>
           </div>
-          <span class="tiny dim queue-logic">初筛 ∩ 复筛均判违规才进入复检队列</span>
         </div>
+      </div>
+      <div v-if="tab === 'pending'" class="topbar-hint">
+        <el-icon :size="13"><InfoFilled /></el-icon>
+        <span class="queue-logic">初筛 ∩ 复筛均判违规才进入复检队列</span>
       </div>
     </section>
 
@@ -50,7 +51,7 @@
       <aside class="panel queue">
         <div class="queue-head">
           <div class="section-title">复检队列</div>
-          <el-input v-model="queueKeyword" size="small" placeholder="筛选文件/类型" clearable class="queue-search">
+          <el-input v-model="queueKeyword" placeholder="筛选文件/类型" clearable class="queue-search">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </div>
@@ -124,16 +125,15 @@
             <div class="work-actions">
               <el-button
                 v-if="canClaim"
-                size="small"
                 type="primary"
                 :icon="Flag"
                 :loading="claiming"
                 @click="claimCurrent"
               >认领</el-button>
-              <el-button v-if="canAssign" size="small" :icon="User" @click="assignVisible = true">
+              <el-button v-if="canAssign" :icon="User" @click="assignVisible = true">
                 指派
               </el-button>
-              <el-button size="small" :icon="Right" @click="autoNext">
+              <el-button :icon="Right" @click="autoNext">
                 下一条<template v-if="remaining > 0">（剩 {{ remaining }}）</template>
               </el-button>
             </div>
@@ -166,16 +166,13 @@
 
           <template v-else>
             <div class="player-row">
-              <audio
+              <AudioPlayer
                 v-if="current.filePath"
-                ref="audioRef"
-                class="audio"
-                controls
-                preload="metadata"
+                ref="playerRef"
                 :src="audioSrc"
-                @timeupdate="onTimeUpdate"
-                @seeked="onTimeUpdate"
-              ></audio>
+                :fallback-duration="current.durationSeconds || totalDuration"
+                @time-update="onTimeUpdate"
+              />
               <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
 
               <!-- 分声道试听：双轨录音可单独听坐席 / 客户 -->
@@ -190,11 +187,6 @@
                   <span v-if="opt.badge" class="ch-badge sm" :class="opt.key === 'R' ? 'r' : 'l'">{{ opt.badge }}</span>
                   {{ opt.label }}
                 </button>
-              </div>
-
-              <div class="player-meta mono">
-                <span>{{ formatClock(currentTime) }}</span>
-                <span class="dim">/ {{ formatClock(current.durationSeconds || totalDuration) }}</span>
               </div>
             </div>
 
@@ -267,6 +259,10 @@
                       AI 复筛：{{ aiResult?.violation ? '判定违规' : '判定正常' }}
                     </span>
                     <span v-if="aiResult?.violationTypeLabel" class="chip warn">{{ aiResult.violationTypeLabel }}</span>
+                    <span class="conf">
+                      <span class="tiny dim">置信度</span>
+                      <b class="num">{{ aiResult?.confidence != null ? Math.round(aiResult.confidence * 100) + '%' : '—' }}</b>
+                    </span>
                   </div>
                   <div class="conf-track">
                     <div
@@ -274,10 +270,6 @@
                       :class="aiResult?.violation ? 'bad' : 'ok'"
                       :style="{ width: (aiResult?.confidence || 0) * 100 + '%' }"
                     ></div>
-                  </div>
-                  <div class="conf-line">
-                    <span class="tiny dim">置信度</span>
-                    <b class="num">{{ aiResult?.confidence != null ? Math.round(aiResult.confidence * 100) + '%' : '—' }}</b>
                   </div>
                   <div class="verdict-reason">{{ aiResult?.reason || '（无复筛理由）' }}</div>
                   <div v-if="aiResult?.screenModel" class="verdict-model tiny">
@@ -476,7 +468,7 @@
 
     <!-- 已复检 -->
     <section v-show="tab === 'history'" class="panel">
-      <el-table :data="historyRows" v-loading="historyLoading">
+      <el-table :data="historyRows" v-loading="historyLoading" scrollbar-always-on>
         <el-table-column label="录音" min-width="240">
           <template #default="{ row }">
             <div class="file-cell">
@@ -573,6 +565,7 @@ import { Search, Right, Close, Flag, User } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import AssignDialog from '../components/AssignDialog.vue'
+import AudioPlayer from '../components/AudioPlayer.vue'
 import PriorityTag from '../components/PriorityTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
@@ -624,7 +617,7 @@ const historyVisible = ref(false)
 const historyDetail = ref(null)
 
 // 音画联动
-const audioRef = ref(null)
+const playerRef = ref(null)
 const currentTime = ref(0)
 const follow = ref(true)
 const transcriptMode = ref('segment')
@@ -750,25 +743,19 @@ const totalDuration = computed(() => {
   return last?.end ?? 0
 })
 
-function onTimeUpdate(e) {
-  currentTime.value = e?.target?.currentTime || 0
+function onTimeUpdate(time) {
+  currentTime.value = Number(time) || 0
 }
 
 /** 点击句子 → 跳转到对应音频时间点并播放 */
 function seekTo(time) {
   if (time == null) return
-  const el = audioRef.value
   currentTime.value = time
-  if (!el) {
+  if (!current.value?.filePath) {
     ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
     return
   }
-  try {
-    el.currentTime = time
-  } catch {
-    // 元数据未就绪时忽略，等 loadedmetadata 后可再次点击
-  }
-  el.play?.()?.catch?.(() => {})
+  playerRef.value?.seekTo(time)
 }
 
 function parseJson(raw, fallback) {
@@ -1005,11 +992,26 @@ watch(
 
 <style scoped>
 .topbar {
-  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 18px;
 }
-.topbar .row {
+.topbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  row-gap: 8px;
+  row-gap: 10px;
+}
+.topbar-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
 
 /* 分段控件 */
@@ -1017,14 +1019,14 @@ watch(
   display: inline-flex;
   background: var(--ink-100);
   border-radius: 10px;
-  padding: 3px;
+  padding: 2px;
   gap: 3px;
 }
 .seg-item {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
+  height: 28px;
   padding: 0 14px;
   border: none;
   border-radius: 8px;
@@ -1065,7 +1067,10 @@ watch(
   gap: 16px;
   align-items: start;
 }
-@media (max-width: 1320px) {
+/* 1024 等窄桌面仍保持「队列 + 详情」并排（队列固定 320px），
+   详情列变窄时由 .work-grid 断点把右侧结论块换行，而不是整页堆叠出大片空白；
+   只有真正的小屏（<820，侧栏已切抽屉）才上下堆叠。 */
+@media (max-width: 820px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1082,18 +1087,18 @@ watch(
   max-height: calc(100vh - 190px);
 }
 .queue-head {
-  padding: 13px 14px 11px;
+  padding: 15px 18px 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 .queue-search {
   width: 100%;
 }
 .queue-list {
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 9px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1104,7 +1109,7 @@ watch(
   align-items: center;
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 9px 8px;
   border-radius: var(--r-sm);
   border: 1px solid transparent;
   background: #fff;
@@ -1163,7 +1168,7 @@ watch(
 }
 /* 工作区主体 */
 .work {
-  padding: 16px 18px 20px;
+  padding: 18px;
   min-height: 420px;
 }
 .work-head {
@@ -1173,51 +1178,59 @@ watch(
   gap: 12px;
 }
 .work-name {
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink-800);
   max-width: 620px;
+  line-height: 1.45;
 }
 .work-chips {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 .work-actions {
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* 窄屏：文件名 + 操作按钮挤在一行会把标题压成 0 宽、chips 竖排，
+   改成上下两段，操作按钮左对齐换行 */
+@media (max-width: 900px) {
+  .work-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .work-actions {
+    justify-content: flex-start;
+  }
 }
 .player-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin: 14px 0 4px;
+  gap: 12px;
+  row-gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0 0;
 }
-.audio {
-  flex: 1;
+.player-row .audio-player {
+  flex: 1 1 300px;
   min-width: 0;
-  height: 38px;
 }
 .no-audio {
   flex: 1;
-  height: 38px;
+  height: 40px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 14px;
   border: 1px dashed var(--border);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   background: var(--ink-50);
-}
-.player-meta {
-  flex: none;
-  font-size: 12px;
-  color: var(--brand-600);
-  display: inline-flex;
-  gap: 5px;
-  align-items: baseline;
-}
-.player-meta .dim {
-  font-size: 11px;
 }
 
 /* 分声道试听切换 */
@@ -1315,15 +1328,21 @@ watch(
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
   gap: 18px;
-  margin-top: 12px;
+  margin-top: 16px;
 }
-@media (max-width: 1180px) {
+/* 详情列窄于 ~740px 时，逐句对照与 AI 结论改为上下排列，避免两栏都过窄 */
+@media (max-width: 1380px) {
   .work-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 .work-col {
   min-width: 0;
+}
+.work-col.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .transcript-scroll {
   max-height: 470px;
@@ -1345,7 +1364,7 @@ watch(
 .verdict {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 12px 14px;
+  padding: 16px;
 }
 .verdict.bad {
   background: linear-gradient(180deg, #fff6f6, #fffdfd);
@@ -1360,6 +1379,16 @@ watch(
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.conf {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-left: auto;
+}
+.conf b {
+  font-size: 13px;
+  color: var(--ink-700);
 }
 .verdict-badge {
   display: inline-flex;
@@ -1378,7 +1407,7 @@ watch(
   height: 6px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.07);
-  margin: 10px 0 5px;
+  margin: 12px 0 10px;
   overflow: hidden;
 }
 .conf-fill {
@@ -1391,15 +1420,6 @@ watch(
 }
 .conf-fill.ok {
   background: linear-gradient(90deg, #4ade80, #16a34a);
-}
-.conf-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.conf-line b {
-  color: var(--ink-700);
 }
 .verdict-reason {
   font-size: 12.5px;
@@ -1440,6 +1460,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  row-gap: 4px;
   flex-wrap: wrap;
   color: var(--ink-600);
 }
@@ -1486,10 +1507,10 @@ watch(
 
 /* 结论表单 */
 .form {
-  margin-top: 16px;
+  margin-top: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 13px 14px 15px;
+  padding: 16px;
 }
 .verdict-choice {
   display: grid;
@@ -1650,7 +1671,7 @@ watch(
   flex-wrap: wrap;
 }
 .prio-select {
-  width: 132px;
+  width: 128px;
 }
 .assign-filter {
   display: inline-flex;
@@ -1660,13 +1681,13 @@ watch(
   gap: 3px;
 }
 .af-btn {
-  height: 24px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 12px;
   border: none;
   border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -1682,7 +1703,7 @@ watch(
   box-shadow: var(--sh-xs);
 }
 .queue-logic {
-  white-space: nowrap;
+  min-width: 0;
 }
 .queue-meta {
   flex-wrap: wrap;
@@ -1744,10 +1765,10 @@ watch(
 
 /* 复核进度 / 复核历史 */
 .workflow {
-  margin-top: 16px;
+  margin-top: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 13px 14px 6px;
+  padding: 16px 16px 10px;
 }
 .no-mb {
   margin-bottom: 0;
@@ -1813,8 +1834,8 @@ watch(
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin-top: 16px;
-  padding: 13px 14px;
+  margin-top: 0;
+  padding: 14px 16px;
   border-radius: var(--r-md);
   background: var(--ink-50);
   border: 1px dashed var(--border-strong);

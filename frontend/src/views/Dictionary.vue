@@ -36,20 +36,22 @@
 
     <!-- 检测工具 + 使用说明 -->
     <div class="two-col">
-      <section class="panel">
+      <section class="panel dfa-panel">
         <div class="panel-head">
           <div class="section-title">DFA 检测工具</div>
           <span class="tiny dim">使用当前启用词典实时匹配</span>
         </div>
         <div class="panel-body">
           <template v-if="canWrite">
-            <el-input
-              v-model="testText"
-              type="textarea"
-              :rows="3"
-              placeholder="粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!"
-            />
-            <div class="row mt-10">
+            <div class="dfa-field">
+              <el-input
+                v-model="testText"
+                type="textarea"
+                :rows="3"
+                placeholder="粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!"
+              />
+            </div>
+            <div class="dfa-actions">
               <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">检测</el-button>
               <el-button v-if="tested" link @click="clearTest">清空</el-button>
               <span v-if="tested && testHits.length" class="chip danger">命中 {{ testHits.length }} 处</span>
@@ -68,7 +70,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel rules-panel">
         <div class="panel-head">
           <div class="section-title">匹配规则与维护说明</div>
         </div>
@@ -166,10 +168,10 @@
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column v-if="canWrite" type="selection" width="44" align="center" />
-        <el-table-column label="敏感词" min-width="180">
+        <el-table-column v-if="canWrite" type="selection" width="48" align="center" />
+        <el-table-column label="敏感词" min-width="164">
           <template #default="{ row }">
-            <div class="word-cell">
+            <div class="word-cell" :title="row.word">
               <span class="word mono">{{ row.word }}</span>
               <span
                 v-if="row.source === 'MINED' && !row.enabled"
@@ -179,7 +181,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="违规类型" width="120" align="center">
+        <el-table-column label="违规类型" width="124" align="center">
           <template #default="{ row }">
             <span v-if="row.category && VIOLATION_TYPES[row.category]" class="chip warn">
               {{ VIOLATION_TYPES[row.category] }}
@@ -187,7 +189,7 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="严重度" width="96" align="center">
+        <el-table-column label="严重度" width="88" align="center">
           <template #default="{ row }">
             <span class="chip" :class="SEVERITY_CLASS[row.severity]">
               <span class="dot" :style="{ background: SEVERITY_DOT[row.severity] }"></span>
@@ -195,24 +197,25 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="112" align="center">
+        <el-table-column label="来源" width="120" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.source === 'MINED' ? 'warn' : 'brand'">
               {{ SOURCE_META[row.source]?.label || row.source }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="命中次数" width="140">
+        <el-table-column v-if="!compactColumns" label="命中次数" width="120">
           <template #default="{ row }">
             <div class="hits">
               <span class="num hits-value" :class="{ dim: !row.hitCount }">{{ row.hitCount }}</span>
-              <span class="hits-track">
-                <span v-if="row.hitCount > 0" class="hits-fill" :style="{ width: hitBarWidth(row.hitCount) }"></span>
+              <!-- 命中为 0 时不画空轨道：一条灰线容易被误读成“加载中/占位” -->
+              <span v-if="row.hitCount > 0" class="hits-track">
+                <span class="hits-fill" :style="{ width: hitBarWidth(row.hitCount) }"></span>
               </span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="启用" width="84" align="center">
+        <el-table-column label="启用" width="76" align="center">
           <template #default="{ row }">
             <el-switch v-if="canWrite" :model-value="row.enabled" @change="(v) => toggle(row, v)" />
             <span v-else class="chip" :class="row.enabled ? 'ok' : 'info'">
@@ -220,19 +223,23 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" width="150">
+        <el-table-column label="更新时间" width="120">
           <template #default="{ row }">
-            <span class="num dim">{{ formatTimeShort(row.updatedAt || row.createdAt) }}</span>
+            <span class="num dim" :title="formatTime(row.updatedAt || row.createdAt)">
+              {{ formatTimeShort(row.updatedAt || row.createdAt) }}
+            </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="canWrite" label="操作" width="110" align="right">
+        <el-table-column v-if="canWrite" label="操作" width="104" align="right" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-popconfirm title="确认删除该词？" @confirm="remove(row)">
-              <template #reference>
-                <el-button size="small" link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="op-cell">
+              <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-popconfirm title="确认删除该词？" @confirm="remove(row)">
+                <template #reference>
+                  <el-button size="small" link type="danger">删除</el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -368,8 +375,9 @@ import api from '../api'
 import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
-import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTimeShort } from '../constants'
+import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTime, formatTimeShort } from '../constants'
 import { saveBlob } from '../utils/download'
+import { useElementWidth } from '../utils/elementWidth'
 
 const route = useRoute()
 
@@ -398,6 +406,9 @@ const form = ref({ word: '', category: 'INSULT', severity: 'MEDIUM', enabled: tr
 
 // 表格多选 + 批量启停（仅 ADMIN）
 const tableRef = ref(null)
+/* 窄屏收起「命中次数」，避免固定操作列压住「更新时间」 */
+const tableWidth = useElementWidth(tableRef)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 930)
 const selectedRows = ref([])
 const bulkLoading = ref('')
 
@@ -696,28 +707,74 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
+/* 手机：三列会把标题/说明挤成多行，改成两列 */
+@media (max-width: 720px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+/* 检测工具 + 说明：同一行内等高，工具卡 textarea 吸收剩余高度 */
 .two-col {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 16px;
+  align-items: stretch;
 }
-@media (max-width: 1280px) {
+.two-col > .panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.two-col > .panel > .panel-body {
+  flex: 1;
+  min-height: 0;
+}
+.dfa-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dfa-field {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 98px;
+}
+.dfa-field :deep(.el-textarea) {
+  display: flex;
+  flex: 1;
+}
+.dfa-field :deep(.el-textarea__inner) {
+  height: 100%;
+  min-height: 98px;
+  resize: none;
+}
+.dfa-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: none;
+}
+/* 1280 笔记本宽度下 DFA 工具与规则说明仍并排；低于 1200 再堆叠 */
+@media (max-width: 1200px) {
   .two-col {
     grid-template-columns: minmax(0, 1fr);
   }
+  .dfa-field,
+  .dfa-field :deep(.el-textarea__inner) {
+    min-height: 86px;
+  }
 }
 
-.mt-10 {
-  margin-top: 10px;
-}
 .ml-8 {
   margin-left: 8px;
 }
 
 .preview {
-  margin-top: 14px;
   border-top: 1px dashed var(--border);
   padding-top: 12px;
 }
@@ -750,6 +807,8 @@ onMounted(() => {
   padding: 1px 5px;
   font-size: 11.5px;
   color: var(--brand-700);
+  /* 内联代码不折行：避免「F U / C K」这种词中间断行打断阅读 */
+  white-space: nowrap;
 }
 
 /* 工具栏 */
@@ -793,6 +852,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .search {
   width: 210px;
@@ -802,6 +862,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .word {
   font-size: 13px;
@@ -811,12 +872,18 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 2px 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hits {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .hits-value {
   font-size: 12.5px;
@@ -826,6 +893,7 @@ onMounted(() => {
 }
 .hits-track {
   flex: 1;
+  min-width: 0;
   height: 6px;
   border-radius: 999px;
   background: var(--ink-100);
@@ -838,10 +906,22 @@ onMounted(() => {
   background: linear-gradient(90deg, #f59e0b, #ef4444);
 }
 
+/* 操作列：链接按钮统一 gap，避免 18px 内边距下折行 */
+.op-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+.op-cell :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 12px 18px 14px;
 }
 
 .norm-hint {
@@ -924,6 +1004,7 @@ onMounted(() => {
   background: var(--brand-50);
   border-radius: 4px;
   padding: 0 4px;
+  white-space: nowrap;
 }
 .import-uploader {
   width: 100%;

@@ -3,7 +3,7 @@
     <!-- 工具栏 -->
     <section class="panel">
       <div class="toolbar">
-        <div class="filters">
+        <div class="filters" role="group" aria-label="状态筛选">
           <button
             v-for="f in filters"
             :key="f.key"
@@ -107,98 +107,104 @@
             :value="opt.value"
           />
         </el-select>
-        <el-button v-if="hasMetaFilters" link type="primary" @click="resetMetaFilters">
-          清除条件
-        </el-button>
+        <el-button
+          v-if="hasMetaFilters"
+          class="meta-clear"
+          link
+          type="primary"
+          @click="resetMetaFilters"
+        >清除条件</el-button>
       </div>
       <div class="hint">
         <template v-if="canWrite">
-          上传时可填写坐席、团队、通话时间、方向与业务线，列表与报表可按这些维度筛选；上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛，初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
-          <br />
-          若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
+          <p class="hint-line">
+            上传时可填写坐席、团队、通话时间、方向与业务线，列表与报表可按这些维度筛选；上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛，初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
+          </p>
+          <p class="hint-line">
+            若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
+          </p>
         </template>
-        <template v-else>
+        <p v-else class="hint-line">
           只读账号可查看录音、转写与 AI 判定详情；上传、删除、认领与指派等写操作不可用。
-        </template>
+        </p>
       </div>
     </section>
 
     <!-- 列表 -->
-    <section class="panel">
+    <section ref="tableWrap" class="panel">
       <el-table
         v-loading="loading"
         :data="rows"
         :row-class-name="() => 'row-clickable'"
+        scrollbar-always-on
         @row-click="openDetail"
       >
-        <el-table-column label="录音" min-width="240">
+        <el-table-column label="录音" min-width="188">
           <template #default="{ row }">
             <div class="file-cell">
-              <div class="file-icon"><el-icon><Microphone /></el-icon></div>
+              <div
+                class="file-icon"
+                :class="{ sampled: isSampled(row) }"
+                :title="isSampled(row) ? 'DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检' : undefined"
+              >
+                <el-icon><Microphone /></el-icon>
+                <span v-if="isSampled(row)" class="sample-dot" aria-hidden="true"></span>
+              </div>
               <div class="file-meta">
-                <div class="file-name ellipsis">{{ row.fileName }}</div>
+                <div class="file-name ellipsis" :title="row.fileName">{{ row.fileName }}</div>
                 <div class="file-sub">
                   <span class="mono">#{{ row.id }}</span>
                   <span class="sep">·</span>
                   <span class="num">{{ formatDuration(row.durationSeconds) }}</span>
                   <span class="sep">·</span>
                   <span class="num">{{ formatTimeShort(row.uploadTime) }}</span>
-                  <span v-if="row.channelCount === 2" class="chip brand ch-tag">双声道</span>
-                  <span
-                    v-if="isSampled(row)"
-                    class="chip warn ch-tag"
-                    title="DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检"
-                  >抽样</span>
                 </div>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="坐席" width="100">
+        <el-table-column label="坐席 / 团队" width="100">
           <template #default="{ row }">
-            <div v-if="row.agentName" class="cell-ellipsis" :title="row.agentName">
-              {{ row.agentName }}
+            <div class="agent-cell">
+              <div class="agent-line">
+                <span v-if="row.agentName" class="cell-ellipsis" :title="row.agentName">{{ row.agentName }}</span>
+                <span v-else class="dim">—</span>
+              </div>
+              <div class="agent-line sub">
+                <span v-if="row.teamName" class="cell-ellipsis" :title="row.teamName">{{ row.teamName }}</span>
+                <span v-else class="dim">—</span>
+              </div>
             </div>
-            <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="团队" width="108">
-          <template #default="{ row }">
-            <div v-if="row.teamName" class="cell-ellipsis" :title="row.teamName">
-              {{ row.teamName }}
-            </div>
-            <span v-else class="dim">—</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="通话时间" width="172">
+        <el-table-column label="通话时间" width="102">
           <template #default="{ row }">
             <div class="call-cell">
-              <span v-if="row.callTime" class="num" :title="formatTime(row.callTime)">
+              <span v-if="row.callTime" class="num call-time" :title="formatTime(row.callTime)">
                 {{ formatTimeShort(row.callTime) }}
               </span>
               <span v-else class="dim">—</span>
               <span
                 v-if="row.direction && DIRECTION_META[row.direction] && row.direction !== 'UNKNOWN'"
-                class="chip"
+                class="chip dir-chip"
                 :class="DIRECTION_META[row.direction].type"
               >{{ DIRECTION_META[row.direction].label }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="DFA 命中" width="104" align="center">
+        <el-table-column label="DFA 命中" width="86" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
-            <span v-if="row.hitCount" class="chip danger">
-              <el-icon :size="11"><WarningFilled /></el-icon>{{ row.hitCount }} 处
+            <span v-if="row.hitCount" class="chip danger hit-chip">
+              <el-icon :size="10"><WarningFilled /></el-icon>{{ row.hitCount }} 处
             </span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="AI 复筛结论" width="132" align="center">
+        <el-table-column label="AI 复筛结论" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span v-if="row.aiViolationTypeLabel" class="chip warn">{{ row.aiViolationTypeLabel }}</span>
             <span v-else-if="row.aiViolation === true" class="chip danger">违规</span>
@@ -208,109 +214,116 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="优先级" width="92" align="center">
+        <el-table-column v-if="!compactColumns" label="优先级" width="84" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
-            <PriorityTag :priority="row.priority" />
+            <PriorityTag :priority="row.priority" class="prio-cell" />
           </template>
         </el-table-column>
 
-        <el-table-column label="指派" width="112" align="center">
+        <el-table-column v-if="!narrowColumns" label="指派" width="80" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span
               v-if="row.assignedTo"
-              class="chip"
+              class="chip assignee-chip"
               :class="{ brand: row.assignedTo === auth.username }"
+              :title="row.assignedTo"
             >{{ row.assignedTo === auth.username ? '我' : row.assignedTo }}</span>
             <span v-else class="dim">未指派</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="150" align="center">
+        <el-table-column label="状态 / 复检人" width="122" align="center">
           <template #default="{ row }">
             <div class="status-cell">
-              <StatusTag :status="row.status" />
+              <div class="status-line">
+                <StatusTag :status="row.status" />
+                <el-tooltip
+                  v-if="isStale(row)"
+                  content="停留超过 2 分钟未变更，疑似中断；可用「重新处理」手动推进"
+                  placement="top"
+                >
+                  <el-icon class="stale-icon" :size="13"><WarningFilled /></el-icon>
+                </el-tooltip>
+              </div>
               <el-tooltip
-                v-if="isStale(row)"
-                content="停留超过 2 分钟未变更，疑似中断；可用「重新处理」手动推进"
+                v-if="row.reviewer"
+                :content="`${row.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行'} · ${formatTime(row.reviewTime)}`"
                 placement="top"
               >
-                <span class="chip warn">疑似卡住</span>
+                <span class="reviewer-line">复检 · {{ row.reviewer }}</span>
               </el-tooltip>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="复检人" width="112" align="center">
+        <el-table-column label="操作" width="152" align="right" fixed="right">
           <template #default="{ row }">
-            <el-tooltip
-              v-if="row.reviewer"
-              :content="`${row.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行'} · ${formatTime(row.reviewTime)}`"
-              placement="top"
-            >
-              <span class="chip">{{ row.reviewer }}</span>
-            </el-tooltip>
-            <span v-else class="dim">—</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="300" align="right" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
-            <el-button
-              v-if="row.status === 'NEEDS_REVIEW'"
-              size="small"
-              link
-              type="danger"
-              @click.stop="$router.push(`/review?id=${row.id}`)"
-            >去复检</el-button>
-            <el-button
-              v-if="canClaimRow(row)"
-              size="small"
-              link
-              type="primary"
-              @click.stop="claim(row)"
-            >认领</el-button>
-            <el-button
-              v-if="isAdmin && row.status === 'NEEDS_REVIEW'"
-              size="small"
-              link
-              type="primary"
-              @click.stop="openAssign(row)"
-            >指派</el-button>
-            <el-popconfirm
-              v-if="isAdmin && isFinalReviewStatus(row.status)"
-              title="重开为待人工复检？将清空最终结论并保留复核历史。"
-              width="260"
-              @confirm="reopen(row)"
-            >
-              <template #reference>
-                <el-button size="small" link type="warning" @click.stop>重开</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="canWrite && reprocessInfo(row)"
-              :title="reprocessInfo(row).confirm"
-              width="260"
-              @confirm="reprocess(row)"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  link
-                  :type="reprocessInfo(row).tone"
-                  @click.stop
-                >{{ reprocessInfo(row).label }}</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="canWrite"
-              title="确认删除该录音（含文件与日志）？"
-              @confirm="remove(row)"
-            >
-              <template #reference>
-                <el-button size="small" link type="danger" @click.stop>删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="row-actions">
+              <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">详情</el-button>
+              <el-button
+                v-if="row.status === 'NEEDS_REVIEW'"
+                class="op-link"
+                link
+                type="danger"
+                @click.stop="$router.push(`/review?id=${row.id}`)"
+              >去复检</el-button>
+              <el-popover
+                v-if="canWrite"
+                trigger="click"
+                placement="bottom-end"
+                :width="168"
+                popper-class="rec-more-popper"
+              >
+                <template #reference>
+                  <button type="button" class="more-btn" @click.stop>
+                    更多
+                    <el-icon :size="11"><ArrowDown /></el-icon>
+                  </button>
+                </template>
+                <div class="more-list" @click.stop>
+                  <button v-if="canClaimRow(row)" class="more-item" @click.stop="claim(row)">认领</button>
+                  <button
+                    v-if="isAdmin && row.status === 'NEEDS_REVIEW'"
+                    class="more-item"
+                    @click.stop="openAssign(row)"
+                  >指派复核人</button>
+                  <el-popconfirm
+                    v-if="isAdmin && isFinalReviewStatus(row.status)"
+                    title="重开为待人工复检？将清空最终结论并保留复核历史。"
+                    width="260"
+                    @confirm="reopen(row)"
+                  >
+                    <template #reference>
+                      <button type="button" class="more-item warn" @click.stop>重开复检</button>
+                    </template>
+                  </el-popconfirm>
+                  <el-popconfirm
+                    v-if="canWrite && reprocessInfo(row)"
+                    :title="reprocessInfo(row).confirm"
+                    width="260"
+                    @confirm="reprocess(row)"
+                  >
+                    <template #reference>
+                      <button
+                        type="button"
+                        class="more-item"
+                        :class="`tone-${reprocessInfo(row).tone}`"
+                        @click.stop
+                      >{{ reprocessInfo(row).label }}</button>
+                    </template>
+                  </el-popconfirm>
+                  <el-popconfirm
+                    v-if="canWrite"
+                    title="确认删除该录音（含文件与日志）？"
+                    @confirm="remove(row)"
+                  >
+                    <template #reference>
+                      <button type="button" class="more-item danger" @click.stop>删除录音</button>
+                    </template>
+                  </el-popconfirm>
+                </div>
+              </el-popover>
+            </div>
           </template>
         </el-table-column>
 
@@ -421,16 +434,14 @@
 
           <!-- 录音播放 + 分声道试听 -->
           <div class="player-row">
-            <audio
+            <AudioPlayer
               v-if="audioUrl"
-              ref="audioRef"
-              class="audio"
-              controls
-              preload="metadata"
+              ref="playerRef"
               :src="audioSrc"
-              @timeupdate="onTimeUpdate"
-              @seeked="onTimeUpdate"
-            ></audio>
+              :fallback-duration="detail.durationSeconds || 0"
+              @time-update="onTimeUpdate"
+            />
+            <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
             <div v-if="channelFiles" class="channel-switch">
               <button
                 v-for="opt in channelOptions"
@@ -782,6 +793,7 @@ import { Search, Refresh, UploadFilled, Close } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import AssignDialog from '../components/AssignDialog.vue'
+import AudioPlayer from '../components/AudioPlayer.vue'
 import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
@@ -826,6 +838,29 @@ const keyword = ref('')
 const priorityFilter = ref('')
 const assignedFilter = ref('')
 const overview = ref(null)
+
+/* ---------- 列表列宽自适应 ----------
+ * 录音列表共 9 列，内容区窄于阈值时收起「优先级」列（该信息仍可在详情抽屉查看），
+ * 让表格在 1280/1024 笔记本宽度下尽量不横向滚动，避免固定操作列压住相邻列文字。
+ * 用 ResizeObserver 而不是窗口断点：侧栏折叠/展开会改变内容宽度但不改变窗口宽度。 */
+const tableWrap = ref(null)
+const compactColumns = ref(false)
+const narrowColumns = ref(false)
+/* 表宽阈值：<1024 收起「优先级」，<900 再收起「指派」（两者都能在详情抽屉查看） */
+const COMPACT_TABLE_WIDTH = 1024
+const NARROW_TABLE_WIDTH = 900
+let tableObserver = null
+
+function observeTableWidth() {
+  if (typeof ResizeObserver === 'undefined' || !tableWrap.value) return
+  tableObserver = new ResizeObserver(([entry]) => {
+    const width = entry?.contentRect?.width || 0
+    if (width <= 0) return
+    compactColumns.value = width < COMPACT_TABLE_WIDTH
+    narrowColumns.value = width < NARROW_TABLE_WIDTH
+  })
+  tableObserver.observe(tableWrap.value)
+}
 
 // 元数据筛选（与后端 GET /recordings 的 agentName/teamName/direction/from/to 参数一一对应）
 const callDateRange = ref([])
@@ -974,7 +1009,7 @@ const segments = computed(() => {
 const audioUrl = computed(() => (detail.value?.filePath ? `/uploads/${detail.value.filePath}` : ''))
 
 // 音画联动 + 分声道试听
-const audioRef = ref(null)
+const playerRef = ref(null)
 const currentTime = ref(0)
 const follow = ref(true)
 const transcriptMode = ref('segment')
@@ -1013,25 +1048,19 @@ function switchChannel(key) {
   currentTime.value = 0
 }
 
-function onTimeUpdate(e) {
-  currentTime.value = e?.target?.currentTime || 0
+function onTimeUpdate(time) {
+  currentTime.value = Number(time) || 0
 }
 
 /** 点击句子 → 跳转到对应音频时间点并播放 */
 function seekTo(time) {
   if (time == null) return
   currentTime.value = time
-  const el = audioRef.value
-  if (!el) {
+  if (!audioUrl.value) {
     ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
     return
   }
-  try {
-    el.currentTime = time
-  } catch {
-    // 元数据未就绪时忽略
-  }
-  el.play?.()?.catch?.(() => {})
+  playerRef.value?.seekTo(time)
 }
 
 const STAGE_NAMES = {
@@ -1386,6 +1415,7 @@ let timer = null
 const hasProcessing = () => rows.value.some((r) => PROCESSING_STATUSES.includes(r.status))
 
 onMounted(async () => {
+  observeTableWidth()
   // 支持从工作台/其他页面带条件跳转
   const qs = String(route.query.statuses || '')
   if (qs) statusFilter.value = qs.split(',')[0] === 'FAILED' ? 'FAILED' : qs.split(',')[0]
@@ -1401,30 +1431,33 @@ onMounted(async () => {
     }
   }, 3000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+  tableObserver?.disconnect()
+  tableObserver = null
+})
 </script>
 
 <style scoped>
 /* 工具栏 */
 .toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 14px 18px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 16px 18px 12px;
 }
 .filters {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 13px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
@@ -1452,10 +1485,16 @@ onUnmounted(() => clearInterval(timer))
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.actions :deep(.el-input__wrapper),
+.actions :deep(.el-select__wrapper) {
+  min-height: 32px;
 }
 .search {
-  width: 250px;
+  width: 252px;
 }
 .priority-select {
   width: 132px;
@@ -1470,23 +1509,39 @@ onUnmounted(() => clearInterval(timer))
 .meta-filters {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   padding: 0 18px 12px;
+}
+.meta-filters :deep(.el-input__wrapper),
+.meta-filters :deep(.el-select__wrapper) {
+  min-height: 32px;
 }
 .date-range {
   width: 300px;
 }
 .meta-input {
-  width: 132px;
+  width: 136px;
 }
 .direction-select {
-  width: 124px;
+  width: 128px;
+}
+.meta-clear {
+  margin-left: 2px;
+  font-size: 12.5px;
 }
 .hint {
-  padding: 0 18px 14px;
+  padding: 2px 18px 16px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  line-height: 1.75;
+}
+.hint-line {
+  margin: 0;
+  max-width: 980px;
+}
+.hint-line + .hint-line {
+  margin-top: 3px;
 }
 .accent {
   color: #c92c2c;
@@ -1497,26 +1552,168 @@ onUnmounted(() => clearInterval(timer))
 :deep(.row-clickable) {
   cursor: pointer;
 }
+/* 80–104px 的窄列（DFA 命中 / AI 结论 / 优先级 / 指派）用 12px 内边距，
+   避免全局 18px 把内容挤到折行；首列与其余列仍保持 18px 基线。 */
+:deep(.col-tight .cell) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
 .cell-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 坐席 / 团队：双行单元格 */
+.agent-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.5;
+}
+.agent-line {
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-700);
+}
+.agent-line.sub {
+  font-size: 11.5px;
+  color: var(--el-text-color-placeholder);
+}
+/* 通话时间 + 方向：两行排布，避免挤压 */
 .call-cell {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   min-width: 0;
   font-size: 12.5px;
 }
-.call-cell .chip {
-  flex: none;
+.call-time {
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.dir-chip {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+.hit-chip {
+  height: 20px;
+  padding: 0 7px;
+  gap: 3px;
+  font-size: 11.5px;
+}
+.prio-cell {
+  height: 20px;
+  padding: 0 7px;
+  gap: 4px;
+  font-size: 11.5px;
+}
+.assignee-chip {
+  max-width: 100%;
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11.5px;
 }
 .status-cell {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+}
+.status-line {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
+}
+.status-line :deep(.status-tag) {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+.stale-icon {
+  color: var(--warn);
+  flex: none;
+}
+.reviewer-line {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-text-color-placeholder);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 行内操作：紧凑链接 + 更多 */
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
+.op-link {
+  height: 22px;
+  padding: 0;
+  font-size: 12.5px;
+}
+.op-link + .op-link {
+  margin-left: 0;
+}
+.more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--brand-600);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.more-btn:hover {
+  color: var(--brand-700);
+}
+.more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+}
+.more-item {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--el-text-color-regular);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.more-item:hover {
+  background: var(--ink-50);
+  color: var(--brand-600);
+}
+.more-item.warn,
+.more-item.tone-warning {
+  color: #b06a06;
+}
+.more-item.tone-primary {
+  color: var(--brand-600);
+}
+.more-item.danger {
+  color: var(--danger);
 }
 .file-cell {
   display: flex;
@@ -1525,6 +1722,7 @@ onUnmounted(() => clearInterval(timer))
   min-width: 0;
 }
 .file-icon {
+  position: relative;
   width: 32px;
   height: 32px;
   flex: none;
@@ -1533,6 +1731,20 @@ onUnmounted(() => clearInterval(timer))
   place-items: center;
   background: var(--brand-50);
   color: var(--brand-600);
+}
+.file-icon.sampled {
+  box-shadow: 0 0 0 1.5px rgba(245, 158, 11, 0.45);
+}
+.sample-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #f59e0b;
+  border: 2px solid #fff;
 }
 .file-icon.lg {
   width: 38px;
@@ -1545,14 +1757,18 @@ onUnmounted(() => clearInterval(timer))
 .file-name {
   font-weight: 500;
   color: var(--ink-700);
+  line-height: 1.45;
 }
 .file-sub {
   font-size: 11.5px;
   color: var(--el-text-color-placeholder);
-  margin-top: 2px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sep {
-  margin: 0 5px;
+  margin: 0 4px;
 }
 .ellipsis {
   overflow: hidden;
@@ -1572,7 +1788,7 @@ onUnmounted(() => clearInterval(timer))
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 14px 18px 16px;
 }
 
 /* 抽屉 */
@@ -1612,14 +1828,20 @@ onUnmounted(() => clearInterval(timer))
   gap: 8px;
   flex: none;
 }
+/* 手机抽屉：标题 + 操作按钮同行会把文件名压成 0 宽、chips 竖排，
+   改成标题在上、操作按钮在下 */
+@media (max-width: 600px) {
+  .detail-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .detail-head-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 .min-w-0 {
   min-width: 0;
-}
-
-.audio {
-  width: 100%;
-  height: 38px;
-  border-radius: var(--r-md);
 }
 
 /* 播放器行 + 分声道试听 */
@@ -1627,10 +1849,21 @@ onUnmounted(() => clearInterval(timer))
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
-.player-row .audio {
-  flex: 1;
+.player-row .audio-player {
+  flex: 1 1 300px;
   min-width: 0;
+}
+.no-audio {
+  flex: 1;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--ink-50);
 }
 .channel-switch {
   flex: none;
@@ -1678,13 +1911,6 @@ onUnmounted(() => clearInterval(timer))
 .ch-badge.sm.r {
   background: #64748b;
 }
-.ch-tag {
-  margin-left: 6px;
-  height: 18px;
-  font-size: 11px;
-  padding: 0 7px;
-}
-
 .error-banner {
   display: flex;
   gap: 9px;
@@ -1967,6 +2193,24 @@ onUnmounted(() => clearInterval(timer))
   margin-top: -2px;
   padding-left: 82px;
   line-height: 1.6;
+}
+/* 手机：76px 标签列会把拖拽区压到 205px，改成一列（标签在上） */
+@media (max-width: 520px) {
+  .upload-form :deep(.el-form-item) {
+    display: block;
+  }
+  .upload-form :deep(.el-form-item__label) {
+    width: auto !important;
+    justify-content: flex-start;
+    padding: 0 0 4px;
+    line-height: 1.4;
+  }
+  .upload-form :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+  .upload-tip {
+    padding-left: 0;
+  }
 }
 
 /* 批量上传队列 */

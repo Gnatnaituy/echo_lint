@@ -28,8 +28,8 @@
         <el-button link type="primary" size="small" @click="load">重试</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="pagedRows">
-        <el-table-column label="名称" min-width="190">
+      <el-table ref="tableRef" v-loading="loading" :data="pagedRows">
+        <el-table-column label="名称" min-width="200">
           <template #default="{ row }">
             <div class="min-w-0">
               <div class="strong ellipsis" :title="row.name">{{ row.name || '未命名密钥' }}</div>
@@ -38,13 +38,15 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="密钥" min-width="200">
+        <el-table-column label="密钥" min-width="180">
           <template #default="{ row }">
-            <span class="chip mono">{{ maskedApiKey(row) }}</span>
+            <div class="key-cell">
+              <span class="chip mono key-chip" :title="maskedApiKey(row)">{{ maskedApiKey(row) }}</span>
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="96" align="center">
+        <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
               {{ row.enabled === false ? '已停用' : row.enabled === true ? '启用' : '未知' }}
@@ -52,14 +54,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="创建人" width="130">
+        <el-table-column v-if="!narrowColumns" label="创建人" width="132">
           <template #default="{ row }">
             <span v-if="row.createdBy" class="ellipsis" :title="row.createdBy">{{ row.createdBy }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="最近使用" width="170">
+        <el-table-column label="最近使用" width="176">
           <template #default="{ row }">
             <span v-if="row.lastUsedAt" class="num" :title="formatRelative(row.lastUsedAt)">
               {{ formatTime(row.lastUsedAt) }}
@@ -68,14 +70,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="创建时间" width="170">
+        <el-table-column v-if="!compactColumns" label="创建时间" width="176">
           <template #default="{ row }">
             <span v-if="row.createdAt" class="num dim">{{ formatTime(row.createdAt) }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="96" align="right">
+        <el-table-column label="操作" width="96" align="right" fixed="right">
           <template #default="{ row }">
             <el-popconfirm
               v-if="row.enabled !== false && row.id != null"
@@ -166,9 +168,8 @@
         <el-input
           :model-value="createdSecret.key || '（后端未返回明文密钥）'"
           readonly
-          type="textarea"
-          :rows="2"
-          class="mono"
+          class="secret-input"
+          :title="createdSecret.key || ''"
         />
         <el-button type="primary" :icon="CopyDocument" :disabled="!createdSecret.key" @click="copySecret">
           复制密钥
@@ -196,11 +197,19 @@ import api from '../api'
 import auth from '../auth'
 import { formatRelative, formatTime } from '../constants'
 import { maskedApiKey } from '../utils/apiKeys'
+import { useElementWidth } from '../utils/elementWidth'
 
 const canWrite = computed(() => auth.hasRole('ADMIN'))
 const pageSize = 10
 
 const rows = ref([])
+
+/* 表格列显隐按容器宽度：窄屏先收起「创建时间」，再窄收起「创建人」，
+   让 1024/1280 下不被固定「操作」列压住「最近使用」。 */
+const tableRef = ref(null)
+const tableWidth = useElementWidth(tableRef)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 1060)
+const narrowColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 900)
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
@@ -367,6 +376,15 @@ onMounted(load)
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 密钥列：等宽展示，超长时截断但不撑破单元格 */
+.key-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+.key-chip {
+  max-width: 100%;
+  overflow: hidden;
+}
 .pager {
   display: flex;
   justify-content: flex-end;
@@ -395,11 +413,16 @@ onMounted(load)
 }
 .secret-box {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 10px;
 }
-.secret-box :deep(.el-textarea) {
+.secret-box :deep(.el-input) {
   flex: 1;
+  min-width: 0;
+}
+.secret-box :deep(.el-input__inner) {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 .secret-alert {
   margin-top: 12px;
