@@ -21,6 +21,63 @@
 
 ---
 
+## 0. 实战补充（2026-10-22 生产切换，必读）
+
+> 本节是真实生产迁移（旧栈 `main@3d6dda9` MySQL 8.4 → 新栈 `main@9904bbc` PostgreSQL 17.11）
+> 的踩坑记录，修正了第 2 节「先启动一次新版后端让 schema 初始化」在**全新空库**上的缺陷。
+
+### 0.1 全新空库首次启动：V3 会失败，需要先关一次 Flyway
+
+`V3__rag_embedding_1024.sql` 里有对 `knowledge_entries` / `corpus_entries` 的 `UPDATE`，
+而 Flyway 在 Hibernate `ddl-auto: update` 之前执行；空库里这两张业务表还不存在，启动直接崩：
+
+    ERROR: relation "knowledge_entries" does not exist
+    Migration V3__rag_embedding_1024.sql failed
+
+绕过方式（**不要改已发布的 V3 文件**，否则已有库的 checksum 会不匹配）：
+
+1. 首次启动后端时关掉 Flyway（例如 `docker-compose.override.yml` 里给 backend 加
+   `SPRING_FLYWAY_ENABLED: "false"`），让 Hibernate 先把业务表建出来；
+2. 停后端、删掉该 override；
+3. 正常启动：Flyway 把非空 schema 登记为基线 V1，再依次应用 V2、V3，全部 success。
+
+> 若目标库是从 MySQL 迁过来的「已有表」环境，或此前已跑过 Flyway，则不受此影响。
+
+### 0.2 pgloader 连不上 MySQL 8.4（caching_sha2_password）
+
+pgloader 3.6.7 的 QMynd 客户端不支持 MySQL 8.x 默认认证插件，连接直接报：
+
+    Failed to connect to mysql at "127.0.0.1" (port 3306) as user "echolint":
+    Condition QMYND:MYSQL-UNSUPPORTED-AUTHENTICATION was signalled
+
+MySQL 8.4 默认禁用 `mysql_native_password`，不建议为迁移去改服务器认证配置。
+改用仓库自带脚本（pymysql 读 + psycopg2 参数化写）：
+
+```bash
+# dry-run：只打印表/列映射与源行数，不写库
+python3 tools/migrate_mysql_to_pg.py \
+  --env-file /opt/echolint/.env --mysql-port 3306 --pg-port 5433
+
+# 正式执行：清空目标业务表 → 搬数据 → setval 重置序列 → 逐表行数校验（不一致则回滚）
+python3 tools/migrate_mysql_to_pg.py \
+  --env-file /opt/echolint/.env --mysql-port 3306 --pg-port 5433 --apply
+```
+
+脚本要点：`bit(1)`/`tinyint(1)` → `boolean`；`datetime` 按墙上时间直写 `timestamp`（无时区换算）；
+只搬 MySQL 与 PG 的共有列，因此新版新增的 NOT NULL 列（`knowledge_entries.source_type` /
+`index_status` / `chunk_count`）需先给目标列加默认值（见 §0.3）；搬完按
+`pg_get_serial_sequence` 重置 identity 序列；最后逐表比对行数，不一致整事务回滚。
+
+### 0.3 迁移结果（本次生产）
+
+- 13 张表 / 281 行：`recordings 9`、`pipeline_logs 37`、`audit_logs 12`、`dictionary_words 191`、
+  `knowledge_entries 3`、`corpus_entries 8`、`ai_invocations 7`、`ai_providers 2`、
+  `pipeline_tasks 8`、`review_records 3`、`app_user 1`、`api_keys 0`、`app_settings 0`；
+- 逐行、逐微秒比对与旧库完全一致（应用启动后新写的 `audit_logs` 与内置 `aliyun` 供应商行除外）；
+- `uploads` 卷沿用旧卷，9 条录音详情页音频可播放；`APP_SECRET_KEY` 未变，旧 `ai_providers` 密文可正常解密。
+
+---
+
 ## 1. 迁移前检查
 
 ### 1.1 版本与插件
@@ -111,7 +168,10 @@ SELECT 'api_keys', COUNT(*) FROM api_keys;" | sort > /tmp/mysql-row-counts.txt
 
 ## 2. Schema 初始化顺序（先建 schema，再搬数据）
 
-顺序不能颠倒：**新版应用先在空 PG 上把表建好，pgloader 只负责灌数据。**
+顺序不能颠倒：**新版应用先在空 PG 上把表建好，迁移工具只负责灌数据。**
+
+> ⚠️ **全新空库**必须先按 §0.1 关闭一次 Flyway 让 Hibernate 建表，否则第 2 步启动后端会因
+> V3 找不到业务表而失败。已有表的环境直接按本步骤即可。
 
 ```bash
 # 0) 启动 PostgreSQL（只启动数据库，不启动后端）
@@ -165,6 +225,10 @@ brew install pgloader
 # Linux 服务器（Docker 方式）：用 host 网络访问宿主回环端口
 docker run --rm --network host -v /tmp:/tmp dimitri/pgloader:latest --version
 ```
+
+> ⚠️ **MySQL 8.4 默认 `caching_sha2_password`，pgloader 会直接连不上**（见 §0.2）。生产切换时
+> 改用 `tools/migrate_mysql_to_pg.py`；下面的 pgloader 步骤仅适用于认证插件为
+> `mysql_native_password` 的环境。
 
 **注意**：compose 把 MySQL 绑定在 `127.0.0.1:3307`、PG 绑定在 `127.0.0.1:5433`（只绑回环）。
 在 macOS 上，Docker 容器里的 pgloader 用 `host.docker.internal:3307` **连不上**只绑回环的端口；
@@ -508,14 +572,14 @@ curl http://localhost:8082/actuator/health
 
 | 项 | 结果 |
 |---|---|
-| 迁移日期 | -- |
-| MySQL 版本 / 行数快照 | -- |
-| PostgreSQL / pgvector 版本 | -- |
-| pgloader 版本与耗时 | -- |
-| 行数比对 | -- |
-| 时间字段比对 | -- |
-| 序列重置 | -- |
-| pgvector / HNSW 校验 | -- |
-| 应用冒烟 | -- |
-| 回滚演练 | -- |
-| 已知偏差 | -- |
+| 迁移日期 | 2026-10-22（服务器 `8.137.123.233`，停机窗口约 20 分钟） |
+| MySQL 版本 / 行数快照 | MySQL 8.4.11；13 张表 / 281 行（明细见 §0.3） |
+| PostgreSQL / pgvector 版本 | PostgreSQL 17.11 / pgvector 0.8.7 |
+| pgloader 版本与耗时 | pgloader 3.6.7 因 `caching_sha2_password` 不可用（§0.2）；改用 `tools/migrate_mysql_to_pg.py`，281 行秒级完成 |
+| 行数比对 | 13/13 张表一致；逐行逐微秒内容比对 281/281 行一致 |
+| 时间字段比对 | 一致（`timestamp` 无时区偏移，保留 Asia/Shanghai 墙上时间） |
+| 序列重置 | 已按 `pg_get_serial_sequence` 重置；重启后应用新增写入正常（审计日志 id 连续） |
+| pgvector / HNSW 校验 | `vector` 0.8.7；V3 HNSW `vector(1024)` 表达式索引已建；`knowledge_chunks` 为空（RAG 未启用） |
+| 应用冒烟 | 18/18 通过：登录/会话、录音列表 9、详情+音频 200、知识库 3、AI 留痕 7、审计、统计、RAG 设置、供应商列表 |
+| 回滚演练 | 未做完整回滚演练；回滚资产已备（mysqldump + rollback 镜像 tag + 旧 compose/.env） |
+| 已知偏差 | 新空库首启需先关一次 Flyway（§0.1）；pgloader 不可用改用脚本（§0.2）；Flyway 10.10 对 PG 17 仅版本告警 |

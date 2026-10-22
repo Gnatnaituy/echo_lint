@@ -640,7 +640,9 @@
 ## Batch 6 · PostgreSQL 迁移 + RAG（✅ 已完成）
 
 > 状态：RAG 后端、前端与管理接口已完成，真实端到端冒烟结果见文末「完成记录」；
-> **MySQL 旧数据的 pgloader 端到端迁移仍未执行**，上线前必须按迁移手册演练（本文不预填迁移结果）。
+> **MySQL → PostgreSQL 数据迁移已于 2026-10-22 生产切换时执行**（13 张表 / 281 行逐行校验一致，
+> 见文末「部署记录（2026-10-22）」）。pgloader 因 MySQL 8.4 `caching_sha2_password` 不可用，
+> 改用 `tools/migrate_mysql_to_pg.py`；手册中的 pgloader 步骤仍适用于旧认证插件环境。
 > 相关文档：`docs/rag-integration.md`（用户向：架构/配置/API/索引/降级/评测）、
 > `docs/rag-contract.md`（内部契约）、`docs/postgres-migration.md`（迁移/校验/回滚手册）。
 
@@ -789,8 +791,11 @@
 
 ### 已知偏差与限制
 
-- **pgloader 端到端迁移未执行**：迁移手册给出了完整步骤、校验与回滚清单，上线前必须演练；
-  本文不填写任何迁移耗时/行数比对结果。
+- **MySQL → PostgreSQL 迁移已执行（2026-10-22 生产切换）**：`tools/migrate_mysql_to_pg.py` 搬运
+  13 张表 / 281 行，逐行逐微秒比对一致；pgloader 因 MySQL 8.4 `caching_sha2_password` 不可用
+  （见 `docs/postgres-migration.md` §0.2）；回滚资产（旧库 dump、rollback 镜像、旧 compose/.env）已保留。
+- **全新空库首次启动需先关一次 Flyway**：V3 在 Hibernate 建表前更新业务表，空库会启动失败；
+  绕过步骤见 `docs/postgres-migration.md` §0.1（不改已发布的迁移文件，避免 checksum 不一致）。
 - **Flyway 10.10 对 PostgreSQL 17 仅版本告警**，迁移（V1/V2/V3）可正常执行，不影响功能。
 - **HNSW 维度写死在 V3（1024）**：更换 embedding 模型/维度需按 `docs/rag-integration.md` §5.4 清空向量、
   重建索引；新维度必须与 `APP_RAG_EMBEDDING_DIMENSIONS` 一致。
@@ -804,3 +809,38 @@
 - **管理端页面未做浏览器端到端验收**：前端 build 与单测通过，接口已实测，页面交互待前端最终确认。
 - **验收缺口**：RAG 关闭回归、embedding 降级、全量重建索引、文档导入失败分支目前由单测覆盖，
   未单独做端到端冒烟（见上方未勾选项）。
+
+---
+
+## 部署记录（2026-10-22，MySQL → PostgreSQL 正式切换）
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `9904bbc`（PostgreSQL/pgvector + RAG + 浅色分层界面） |
+| 部署时间 | 2026-10-22 23:00–23:20（Asia/Shanghai），停机约 20 分钟 |
+| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
+| 访问地址 | http://8.137.123.233/ （HTTP/80，nginx 1.31；前端 gzip + `/assets/` immutable 缓存） |
+| 后端 | 仅 `127.0.0.1:8082`；健康检查 `/actuator/health` = `{"status":"UP"}` |
+| 数据库 | PostgreSQL 17.11 + pgvector 0.8.7；容器 `echolint-postgres`，库/用户 `echolint`/`audit`，仅绑 `127.0.0.1:5433`，卷 `echolint_pg-data` |
+| 迁移数据 | 13 张表 / 281 行（录音 9、流水线日志 37、审计 12、词库 191、知识 3、语料 8、AI 留痕 7、供应商 2、任务 8、复核 3、管理员 1）；逐行逐微秒校验一致 |
+| 上传文件 | 沿用旧卷 `echolint_uploads`，9 条录音详情页音频 200 可播；新增 `echolint_knowledge-docs` 卷 |
+| 旧库备份 | `/opt/echolint/backups/echolint-mysql-20261022-230331.sql.gz`（16K，含 13 张表） |
+| 回滚点 | 镜像 `echolint-backend:rollback-20261022-230331`、`echolint-frontend:rollback-20261022-230331`；旧 compose/.env/DEPLOY.md 在 `backups/*.mysql-20261022-230331*` |
+| 验证 | 端到端冒烟 18/18：登录/登出、会话、录音列表 9、详情+音频、知识库 3、AI 留痕 7、审计、统计、RAG 设置、供应商列表；匿名 API/上传 401；重启后数据与 Flyway 历史不变；日志无 ERROR |
+
+### 本次部署暴露的问题（已在 `docs/postgres-migration.md` §0 记录）
+
+- **全新空库首次启动 Flyway V3 失败**：`V3__rag_embedding_1024.sql` 在 Hibernate 建表前 `UPDATE`
+  业务表 → `relation "knowledge_entries" does not exist`，应用启动即崩。处理：首次启动临时
+  `SPRING_FLYWAY_ENABLED=false` 建表，再恢复 Flyway 应用 V3（V1/V2/V3 全部 success）；未改动迁移文件。
+- **pgloader 不支持 MySQL 8.4 认证**：QMynd 报 `MYSQL-UNSUPPORTED-AUTHENTICATION`，改用
+  `tools/migrate_mysql_to_pg.py`（pymysql + psycopg2，281 行秒级搬完并做行数校验）。
+
+### 上线后仍未处理（沿用旧状态，非本次部署范围）
+
+- **转写未配置**：服务器无 whisper 服务，`WHISPER_BASE_URL` 指向不存在的 host.docker.internal:9900，
+  上传录音会转写失败（FAILED）；需自建 whisper.cpp 或配置兼容 ASR。
+- **RAG 未启用**：未配置 `DASHSCOPE_API_KEY`，`APP_RAG_ENABLED=false`；配密钥后可在设置页开启并全量重建索引。
+- **HTTPS/域名**：仍为 HTTP 明文公网 80。
+- **Flyway 10.10 对 PG 17 仅版本告警**（官方支持到 16），本次迁移正常执行，不影响功能。
+- **备份/监控**：仍为手工备份；建议 cron 每日 `pg_dump` + uploads 卷备份。
