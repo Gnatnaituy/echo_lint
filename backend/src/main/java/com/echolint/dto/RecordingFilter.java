@@ -17,6 +17,9 @@ import java.util.Locale;
  *
  * <p>时间过滤语义：优先 {@code callTime}，为空回退 {@code uploadTime}（JPQL coalesce）；
  * {@code from} 含起点，{@code to} 含当天/当刻；未传时分别退化为 1970 / 2999 的边界值。</p>
+ *
+ * <p>{@code unassignedOnly}：只查未指派复核人的录音（复检队列「未指派」筛选）；
+ * 与 {@code assignedTo} 互斥，前端只会传其一。</p>
  */
 public record RecordingFilter(
         List<RecordingStatus> statuses,
@@ -27,7 +30,8 @@ public record RecordingFilter(
         String teamName,
         CallDirection direction,
         LocalDateTime from,
-        LocalDateTime toExclusive) {
+        LocalDateTime toExclusive,
+        boolean unassignedOnly) {
 
     /**
      * 从请求参数解析过滤条件（非法枚举/时间格式返回 400）。
@@ -35,6 +39,15 @@ public record RecordingFilter(
     public static RecordingFilter of(String statuses, String keyword, String assignedTo, String priority,
                                      String agentName, String teamName, String direction,
                                      String from, String to) {
+        return of(statuses, keyword, assignedTo, priority, agentName, teamName, direction, from, to, false);
+    }
+
+    /**
+     * 带「未指派」条件的版本（复检队列用）：{@code unassignedOnly=true} 时忽略 {@code assignedTo}。
+     */
+    public static RecordingFilter of(String statuses, String keyword, String assignedTo, String priority,
+                                     String agentName, String teamName, String direction,
+                                     String from, String to, boolean unassignedOnly) {
         TimeRanges.Range range = TimeRanges.parseRange(from, to);
         return new RecordingFilter(
                 parseStatuses(statuses),
@@ -45,7 +58,8 @@ public record RecordingFilter(
                 trimToNull(teamName),
                 CallDirection.parseFilter(direction),
                 range.from(),
-                range.toExclusive());
+                range.toExclusive(),
+                unassignedOnly);
     }
 
     /** 仅按时间范围过滤（报表/统计等简单场景） */
@@ -56,7 +70,7 @@ public record RecordingFilter(
     /** 强制指定状态（如 violations.csv 只导 VIOLATION_CONFIRMED），保留其余条件 */
     public RecordingFilter withStatuses(List<RecordingStatus> forced) {
         return new RecordingFilter(forced, keyword, assignedTo, priority, agentName, teamName,
-                direction, from, toExclusive);
+                direction, from, toExclusive, unassignedOnly);
     }
 
     private static List<RecordingStatus> parseStatuses(String statuses) {

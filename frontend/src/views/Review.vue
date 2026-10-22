@@ -6,7 +6,7 @@
         <div class="seg">
           <button class="seg-item" :class="{ on: tab === 'pending' }" @click="switchTab('pending')">
             待复检
-            <span class="seg-count" :class="{ hot: pendingRows.length > 0 }">{{ pendingRows.length }}</span>
+            <span class="seg-count" :class="{ hot: pendingTotal > 0 }">{{ pendingTotal }}</span>
           </button>
           <button class="seg-item" :class="{ on: tab === 'history' }" @click="switchTab('history')">
             已复检
@@ -19,7 +19,7 @@
             placeholder="全部优先级"
             clearable
             class="prio-select"
-            @change="loadPending"
+            @change="applyQueueFilters"
           >
             <el-option
               v-for="opt in PRIORITY_OPTIONS"
@@ -34,7 +34,7 @@
               :key="opt.key"
               class="af-btn"
               :class="{ on: assignFilter === opt.key }"
-              @click="assignFilter = opt.key"
+              @click="setAssignFilter(opt.key)"
             >{{ opt.label }}</button>
           </div>
         </div>
@@ -51,20 +51,28 @@
       <aside class="panel queue">
         <div class="queue-head">
           <div class="section-title">复检队列</div>
-          <el-input v-model="queueKeyword" placeholder="筛选文件/类型" clearable class="queue-search">
+          <el-input
+            v-model="queueKeyword"
+            placeholder="筛选文件/转写"
+            clearable
+            class="queue-search"
+            title="输入后按回车筛选（文件名或转写文本）"
+            @keyup.enter="applyQueueFilters"
+            @clear="applyQueueFilters"
+          >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </div>
         <div class="queue-list">
           <button
-            v-for="(r, i) in filteredQueue"
+            v-for="(r, i) in pendingRows"
             :key="r.id"
             class="queue-item"
             :class="{ on: current?.id === r.id }"
             :title="queueTooltip(r)"
             @click="select(r)"
           >
-            <span class="queue-index num">{{ String(i + 1).padStart(2, '0') }}</span>
+            <span class="queue-index num">{{ queueIndex(i) }}</span>
             <span class="queue-body">
               <span class="queue-name ellipsis">{{ r.fileName }}</span>
               <span class="queue-meta">
@@ -87,11 +95,26 @@
             </span>
           </button>
 
-          <div v-if="!filteredQueue.length" class="empty-block">
+          <div v-if="!pendingRows.length" class="empty-block">
             <el-icon :size="32" class="empty-icon"><CircleCheckFilled /></el-icon>
-            <div class="empty-title">{{ pendingRows.length ? '没有匹配的录音' : '队列已清空' }}</div>
-            <div class="tiny dim">{{ pendingRows.length ? '试试其他关键词' : '当前没有待人工复检的录音' }}</div>
+            <div class="empty-title">{{ hasQueueFilter ? '没有匹配的录音' : '队列已清空' }}</div>
+            <div class="tiny dim">{{ hasQueueFilter ? '试试其他筛选条件' : '当前没有待人工复检的录音' }}</div>
           </div>
+        </div>
+
+        <!-- 队列分页：筛选与分页都由服务端完成，翻页结果与「共 N 条」一致 -->
+        <div v-if="pendingTotal" class="queue-foot">
+          <span class="queue-total num">共 {{ pendingTotal }} 条</span>
+          <el-pagination
+            size="small"
+            layout="prev, pager, next"
+            :pager-count="5"
+            :total="pendingTotal"
+            :page-size="pendingPageSize"
+            :current-page="pendingPage + 1"
+            :disabled="pendingLoading"
+            @current-change="changePendingPage"
+          />
         </div>
       </aside>
 
@@ -571,6 +594,15 @@ import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
 import { formatClock } from '../utils/segments'
 import {
+  QUEUE_PAGE_SIZE,
+  queueGlobalIndex,
+  queueHasFilter,
+  queuePageAfterRemoval,
+  queueQuery,
+  queueRemaining,
+  queueTotalPages
+} from '../utils/reviewQueue'
+import {
   formatDuration,
   formatTime,
   formatRelative,
@@ -599,6 +631,12 @@ const assignVisible = ref(false)
 const submittedPending = ref(null)
 const reviewHistory = ref([])
 const reviewHistoryLoading = ref(false)
+
+// 复检队列分页（服务端）：page 0 基；筛选变化回第一页
+const pendingPage = ref(0)
+const pendingPageSize = ref(QUEUE_PAGE_SIZE)
+const pendingTotal = ref(0)
+const pendingLoading = ref(false)
 
 const ASSIGN_FILTERS = [
   { key: '', label: '全部' },
@@ -654,23 +692,20 @@ function switchChannel(key) {
   currentTime.value = 0
 }
 
-const filteredQueue = computed(() => {
-  let list = pendingRows.value
-  if (assignFilter.value === 'mine') {
-    list = list.filter((r) => r.assignedTo && r.assignedTo === auth.username)
-  } else if (assignFilter.value === 'unassigned') {
-    list = list.filter((r) => !r.assignedTo)
-  }
-  const kw = queueKeyword.value.trim().toLowerCase()
-  if (!kw) return list
-  return list.filter(
-    (r) =>
-      r.fileName?.toLowerCase().includes(kw) ||
-      (r.aiViolationTypeLabel || '').toLowerCase().includes(kw)
-  )
-})
+/** 队列筛选是否生效：决定空态文案（没有匹配 vs 队列已清空） */
+const hasQueueFilter = computed(() =>
+  queueHasFilter({
+    keyword: queueKeyword.value,
+    priority: priorityFilter.value,
+    assignFilter: assignFilter.value
+  })
+)
 
-const remaining = computed(() => Math.max(0, pendingRows.value.length - 1))
+/** 队列序号：跨页连续（第 2 页第一条 = 11） */
+const queueIndex = (i) =>
+  String(queueGlobalIndex(pendingPage.value, pendingPageSize.value, i)).padStart(2, '0')
+
+const remaining = computed(() => queueRemaining(pendingTotal.value))
 
 /* ---------- 角色 / 复核工作流 ---------- */
 const canReview = computed(() => auth.hasRole('ADMIN', 'REVIEWER'))
@@ -766,25 +801,87 @@ function parseJson(raw, fallback) {
   }
 }
 
-async function loadPending() {
-  try {
-    const data = await api.listRecordings({
-      statuses: ['NEEDS_REVIEW'],
-      priority: priorityFilter.value || undefined,
-      page: 0,
-      size: 100
+async function fetchPendingPage() {
+  const data = await api.listRecordings(
+    queueQuery({
+      keyword: queueKeyword.value,
+      priority: priorityFilter.value,
+      assignFilter: assignFilter.value,
+      username: auth.username,
+      page: pendingPage.value,
+      size: pendingPageSize.value
     })
-    pendingRows.value = data.content || []
+  )
+  return { rows: data.content || [], total: data.totalElements || 0 }
+}
 
-    const stillThere = current.value && pendingRows.value.some((r) => r.id === current.value.id)
+async function loadPending() {
+  pendingLoading.value = true
+  try {
+    let { rows, total } = await fetchPendingPage()
+    // 复核完本页最后一条后本页会变空：回退一页重取，避免停在空页
+    if (!rows.length && pendingPage.value > 0) {
+      const pageAfter = queuePageAfterRemoval({
+        page: pendingPage.value,
+        pageSize: pendingPageSize.value,
+        totalAfter: total
+      })
+      if (pageAfter !== pendingPage.value) {
+        pendingPage.value = pageAfter
+        ;({ rows, total } = await fetchPendingPage())
+      }
+    }
+    pendingRows.value = rows
+    pendingTotal.value = total
+
+    const stillThere = current.value && rows.some((r) => r.id === current.value.id)
     if (!current.value || alreadyReviewed.value || !stillThere) {
       alreadyReviewed.value = false
-      const target = pendingRows.value.find((r) => r.id === Number(route.query.id)) || pendingRows.value[0] || null
+      const target = rows.find((r) => r.id === Number(route.query.id)) || rows[0] || null
       if (target) await select(target)
       else current.value = null
     }
   } catch {
     // 请求层已提示；保留当前队列避免工作区被清空
+  } finally {
+    pendingLoading.value = false
+  }
+}
+
+/** 关键词 / 优先级 / 指派筛选变化：回到第一页重新查询（筛选走服务端） */
+function applyQueueFilters() {
+  pendingPage.value = 0
+  loadPending()
+}
+
+function setAssignFilter(key) {
+  if (assignFilter.value === key) return
+  assignFilter.value = key
+  applyQueueFilters()
+}
+
+function changePendingPage(p) {
+  pendingPage.value = Math.max(0, Number(p) - 1)
+  loadPending()
+}
+
+/**
+ * 深链 /review?id=N：目标不在当前页时直接按 id 拉详情，
+ * 避免分页后「按 id 找不到就退回第一条」的误选。
+ */
+async function openFromRoute() {
+  const id = Number(route.query.id)
+  if (!id || current.value?.id === id) return
+  const inPage = pendingRows.value.find((r) => r.id === id)
+  if (inPage) {
+    await select(inPage)
+    return
+  }
+  try {
+    const detail = await api.recordingDetail(id)
+    if (detail?.status === 'NEEDS_REVIEW') await select(detail)
+  } catch {
+    // 详情拉取失败交给请求层提示，保留当前队列
   }
 }
 
@@ -937,10 +1034,20 @@ async function submit() {
 }
 
 function autoNext() {
-  const list = filteredQueue.value
-  const idx = list.findIndex((r) => r.id === current.value?.id)
-  const next = list[idx + 1] || list[0]
-  if (next && next.id !== current.value?.id) select(next)
+  const rows = pendingRows.value
+  const idx = rows.findIndex((r) => r.id === current.value?.id)
+  if (idx >= 0 && idx + 1 < rows.length) {
+    select(rows[idx + 1])
+    return
+  }
+  // 本页到底：还有下一页就翻页，否则回到本页第一条
+  if (pendingPage.value + 1 < queueTotalPages(pendingTotal.value, pendingPageSize.value)) {
+    pendingPage.value += 1
+    loadPending()
+    return
+  }
+  const first = rows.find((r) => r.id !== current.value?.id)
+  if (first) select(first)
   else loadPending()
 }
 
@@ -972,7 +1079,7 @@ function switchTab(name) {
 
 let timer = null
 onMounted(() => {
-  loadPending()
+  loadPending().then(openFromRoute)
   loadHistory()
   timer = setInterval(() => {
     if (tab.value === 'pending' && pendingRows.value.some((r) => PROCESSING_STATUSES.includes(r.status))) {
@@ -985,7 +1092,7 @@ onUnmounted(() => clearInterval(timer))
 watch(
   () => route.query.id,
   () => {
-    if (tab.value === 'pending') loadPending()
+    if (tab.value === 'pending') loadPending().then(openFromRoute)
   }
 )
 </script>
@@ -1102,6 +1209,30 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* 队列列表独立滚动，分页底栏固定可见 */
+  flex: 1;
+  min-height: 0;
+}
+/* 队列分页底栏：共 N 条 + 翻页 */
+.queue-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.queue-total {
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+.queue-foot :deep(.el-pagination) {
+  --el-pagination-button-width: 24px;
+  --el-pagination-button-height: 24px;
+  --el-pagination-font-size: 12px;
+  gap: 2px;
 }
 .queue-item {
   display: flex;

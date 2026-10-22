@@ -72,4 +72,16 @@ class RecordingFilterTest {
         assertEquals(LocalDateTime.of(2026, 10, 1, 0, 0), filter.from());
         assertEquals(LocalDateTime.of(2026, 10, 3, 0, 0), filter.toExclusive());
     }
+
+    @Test
+    void unassignedOnlyDefaultsOffAndIsKeptByWithStatuses() {
+        assertFalse(RecordingFilter.of(null, null, null, null, null, null, null, null, null).unassignedOnly());
+
+        RecordingFilter filter = RecordingFilter.of(null, null, "alice", null,
+                null, null, null, null, null, true);
+
+        assertTrue(filter.unassignedOnly());
+        assertEquals("alice", filter.assignedTo());
+        assertTrue(filter.withStatuses(List.of(RecordingStatus.NEEDS_REVIEW)).unassignedOnly());
+    }
 }
