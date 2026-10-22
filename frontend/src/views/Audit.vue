@@ -53,29 +53,29 @@
         :row-class-name="() => 'row-clickable'"
         @row-click="openDetail"
       >
-        <el-table-column label="时间" width="148">
+        <el-table-column label="时间" width="120">
           <template #default="{ row }">
             <span class="num" :title="formatTime(row.createdAt)">
               {{ formatSmartTime(row.createdAt) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作人" width="132">
+        <el-table-column label="操作人" width="112">
           <template #default="{ row }">
             <span class="mono">{{ row.actor || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="动作" width="164">
+        <el-table-column label="动作" width="156">
           <template #default="{ row }">
             <div class="action-cell">
               <span class="chip" :class="actionChip(row.action)">
                 {{ auditActionLabel(row.action) }}
               </span>
-              <span class="mono tiny dim">{{ row.action || '—' }}</span>
+              <span class="action-code mono" :title="row.action || ''">{{ row.action || '—' }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="对象" min-width="170">
+        <el-table-column label="对象" min-width="140">
           <template #default="{ row }">
             <span v-if="row.targetType || row.targetId">
               {{ row.targetType || '—' }}
@@ -84,12 +84,12 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="280" show-overflow-tooltip>
+        <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span :class="{ dim: !row.detail }">{{ row.detail || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="IP" width="144">
+        <el-table-column label="IP" width="112">
           <template #default="{ row }">
             <span class="mono tiny dim">{{ row.ip || '—' }}</span>
           </template>
@@ -135,7 +135,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="对象">
             <span>{{ detail.targetType || '—' }}</span>
-            <span v-if="detail.targetId != null" class="mono dim">#{{ detail.targetId }}</span>
+            <span v-if="detail.targetId != null" class="mono dim ml-8">#{{ detail.targetId }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="IP">
             <span class="mono">{{ detail.ip || '—' }}</span>
@@ -232,7 +232,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px 16px;
   flex-wrap: wrap;
   padding: 14px 18px 10px;
 }
@@ -241,6 +241,10 @@ onMounted(load)
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+.actions :deep(.el-input),
+.actions :deep(.el-select) {
+  flex: none;
 }
 .actor-search {
   width: 170px;
@@ -259,13 +263,19 @@ onMounted(load)
 .action-cell {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
 }
-.action-cell .mono {
+/* 英文 action code 弱化为小号 dim mono：保留可核对信息，不与中文标签抢视觉 */
+.action-code {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--ink-400);
 }
 .empty-icon {
   color: var(--ink-300);

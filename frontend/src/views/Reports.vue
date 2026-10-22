@@ -60,10 +60,12 @@
               :value="opt.value"
             />
           </el-select>
-          <el-button type="primary" :icon="Search" :loading="statsLoading" @click="loadStats">
-            查询
-          </el-button>
-          <el-button link @click="resetFilters">重置</el-button>
+          <div class="filter-actions">
+            <el-button type="primary" :icon="Search" :loading="statsLoading" @click="loadStats">
+              查询
+            </el-button>
+            <el-button link @click="resetFilters">重置</el-button>
+          </div>
         </div>
         <div class="hint tiny">
           汇总卡与明细表按<span class="strong">日期范围</span>统计（GET /stats/report）；坐席 / 团队 / 方向筛选作用于上方
@@ -150,6 +152,7 @@
           </el-table-column>
           <template #empty>
             <div class="empty-block">
+              <el-icon :size="30" class="empty-icon"><User /></el-icon>
               <div class="empty-title">{{ error ? '统计暂不可用' : '暂无坐席数据' }}</div>
               <div class="tiny dim">
                 {{ error ? '请点击上方「重试」重新加载' : '上传录音时填写「坐席」后即可按坐席统计' }}
@@ -184,6 +187,7 @@
           </el-table-column>
           <template #empty>
             <div class="empty-block">
+              <el-icon :size="30" class="empty-icon"><OfficeBuilding /></el-icon>
               <div class="empty-title">{{ error ? '统计暂不可用' : '暂无团队数据' }}</div>
               <div class="tiny dim">
                 {{ error ? '请点击上方「重试」重新加载' : '上传录音时填写「团队」后即可按团队统计' }}
@@ -223,6 +227,7 @@
         </el-table-column>
         <template #empty>
           <div class="empty-block">
+            <el-icon :size="30" class="empty-icon"><WarningFilled /></el-icon>
             <div class="empty-title">{{ error ? '统计暂不可用' : '暂无违规类型数据' }}</div>
             <div class="tiny dim">
               {{ error ? '请点击上方「重试」重新加载' : '人工复检确认违规后，这里会按违规类型汇总' }}
@@ -333,6 +338,10 @@ const rangeText = computed(() => {
   const from = toDateParam(dateRange.value?.[0])
   const to = toDateParam(dateRange.value?.[1])
   if (!from && !to) return '全部时间'
+  // 汇总卡副标题空间有限：同年份时省略年份，跨年时保留完整日期
+  if (from && to && from.slice(0, 4) === to.slice(0, 4)) {
+    return `${from.slice(5)} ~ ${to.slice(5)}`
+  }
   return `${from || '最早'} ~ ${to || '至今'}`
 })
 
@@ -449,14 +458,30 @@ onMounted(loadStats)
   gap: 10px;
   flex-wrap: wrap;
 }
-.date-range {
-  width: 300px;
+/* Element 的 .el-input__wrapper 默认 flex-grow:1，会把日期框拉宽把「重置」挤到下一行；
+   日期选择器根节点不带父级 scoped 属性，需用 :deep 指定 */
+.filter-row :deep(.date-range) {
+  flex: none;
+  width: 296px;
 }
 .filter-input {
-  width: 140px;
+  flex: none;
+  width: 136px;
 }
 .direction-select {
+  flex: none;
   width: 128px;
+}
+/* 查询 / 重置作为一组整体换行，并与右侧对齐 */
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin-left: auto;
+}
+.filter-actions .el-button + .el-button {
+  margin-left: 0;
 }
 .export-actions {
   display: flex;
@@ -464,27 +489,27 @@ onMounted(loadStats)
   gap: 8px;
   flex-wrap: wrap;
 }
+.export-actions .el-button + .el-button {
+  margin-left: 0;
+}
 .hint {
   margin-top: 10px;
   color: var(--el-text-color-secondary);
   line-height: 1.7;
 }
 
-/* 汇总卡 */
+/* 汇总卡：auto-fit 让 5 张卡在 1440 / 1280 都排满一行，不留下 3+2 的空位 */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
   gap: 14px;
   border-radius: var(--r-lg);
 }
-@media (max-width: 1500px) {
-  .kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 1000px) {
+/* 手机：2 列，避免 5 张卡竖排成一长串 */
+@media (max-width: 720px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
@@ -494,7 +519,8 @@ onMounted(loadStats)
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
-@media (max-width: 1360px) {
+/* 两栏在 1280 笔记本宽度仍可并排（各约 470px），低于 1200 再堆叠 */
+@media (max-width: 1200px) {
   .two-col {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -506,18 +532,19 @@ onMounted(loadStats)
   white-space: nowrap;
 }
 
-/* 占比条 */
+/* 占比条：更明显的 track / fill 对比，统一 8px 高与全圆角 */
 .bar {
-  height: 7px;
+  height: 8px;
   border-radius: 999px;
-  background: var(--ink-100);
+  background: #e7edf6;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
   overflow: hidden;
   min-width: 60px;
 }
 .bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-400), var(--brand-500));
+  background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .bar-fill.danger {
@@ -530,6 +557,31 @@ onMounted(loadStats)
 }
 .bar-row .bar {
   flex: 1;
+}
+.bar-row .num {
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+}
+
+/* 表格空态：圆形图标底座，避免空白区域过于生硬 */
+.empty-block .empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-300);
+  background: var(--ink-50);
+  border: 1px dashed var(--border-strong);
+  margin-bottom: 8px;
+}
+.empty-block .empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+  margin-bottom: 4px;
 }
 
 /* 错误态 */

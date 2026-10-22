@@ -8,63 +8,70 @@
           <span class="tiny dim">默认展示语义复筛对话；可切换阶段查看词挖掘 / embedding 调用</span>
         </div>
         <div class="actions">
-          <el-select
-            v-model="filters.stage"
-            placeholder="全部阶段"
-            clearable
-            class="stage-select"
-            @change="reload"
-          >
-            <el-option
-              v-for="option in stageOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-          <el-select
-            v-model="filters.providerId"
-            placeholder="全部供应商"
-            clearable
-            class="provider-select"
-            @change="reload"
-          >
-            <el-option
-              v-for="provider in facets.providers"
-              :key="provider.id"
-              :label="provider.label || provider.id"
-              :value="provider.id"
-            />
-          </el-select>
-          <el-select
-            v-model="filters.model"
-            placeholder="全部模型"
-            clearable
-            filterable
-            allow-create
-            class="model-select"
-            @change="reload"
-          >
-            <el-option v-for="model in facets.models" :key="model" :label="model" :value="model" />
-          </el-select>
-          <el-select
-            v-model="filters.success"
-            placeholder="全部状态"
-            clearable
-            class="success-select"
-            @change="reload"
-          >
-            <el-option label="成功" value="true" />
-            <el-option label="失败" value="false" />
-          </el-select>
-          <el-input
-            v-model="filters.recordingId"
-            placeholder="录音 ID"
-            clearable
-            class="id-input"
-            @keyup.enter="reload"
-            @clear="reload"
+          <el-button :icon="Refresh" circle aria-label="刷新" title="刷新" @click="reload" />
+          <el-button :icon="Search" @click="reload">查询</el-button>
+          <el-button link @click="reset">重置</el-button>
+        </div>
+      </div>
+      <div class="filters">
+        <el-select
+          v-model="filters.stage"
+          placeholder="全部阶段"
+          clearable
+          class="filter-select stage-select"
+          @change="reload"
+        >
+          <el-option
+            v-for="option in stageOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
           />
+        </el-select>
+        <el-select
+          v-model="filters.providerId"
+          placeholder="全部供应商"
+          clearable
+          class="filter-select provider-select"
+          @change="reload"
+        >
+          <el-option
+            v-for="provider in facets.providers"
+            :key="provider.id"
+            :label="provider.label || provider.id"
+            :value="provider.id"
+          />
+        </el-select>
+        <el-select
+          v-model="filters.model"
+          placeholder="全部模型"
+          clearable
+          filterable
+          allow-create
+          class="filter-select model-select"
+          @change="reload"
+        >
+          <el-option v-for="model in facets.models" :key="model" :label="model" :value="model" />
+        </el-select>
+        <el-select
+          v-model="filters.success"
+          placeholder="全部状态"
+          clearable
+          class="filter-select success-select"
+          @change="reload"
+        >
+          <el-option label="成功" value="true" />
+          <el-option label="失败" value="false" />
+        </el-select>
+        <el-input
+          v-model="filters.recordingId"
+          placeholder="录音 ID"
+          clearable
+          class="filter-select id-input"
+          @keyup.enter="reload"
+          @clear="reload"
+        />
+        <div class="date-filter">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
@@ -72,12 +79,8 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             unlink-panels
-            class="date-range"
             @change="reload"
           />
-          <el-button :icon="Refresh" circle aria-label="刷新" title="刷新" @click="reload" />
-          <el-button :icon="Search" @click="reload">查询</el-button>
-          <el-button link @click="reset">重置</el-button>
         </div>
       </div>
       <div class="hint tiny dim">按时间倒序分页；点击任意行查看完整对话与原始 JSON。</div>
@@ -92,26 +95,27 @@
       </div>
 
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="rows"
         :row-class-name="() => 'row-clickable'"
         @row-click="openDetail"
       >
-        <el-table-column label="时间" width="150">
+        <el-table-column label="时间" width="132">
           <template #default="{ row }">
             <span class="num" :title="formatTime(row.createdAt)">
               {{ formatSmartTime(row.createdAt) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="阶段" width="126">
+        <el-table-column label="阶段" width="112">
           <template #default="{ row }">
             <span class="chip" :class="aiStageMeta(row.stage).type">
               {{ aiStageMeta(row.stage).label }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="录音" width="86">
+        <el-table-column label="录音" width="76">
           <template #default="{ row }">
             <el-button
               v-if="row.recordingId"
@@ -125,7 +129,7 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="供应商 / 模型" min-width="200">
+        <el-table-column label="供应商 / 模型" min-width="168">
           <template #default="{ row }">
             <div class="model-cell">
               <span class="model-provider">{{ row.providerLabel || row.providerId || '—' }}</span>
@@ -135,34 +139,34 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="90">
+        <el-table-column label="状态" width="84">
           <template #default="{ row }">
             <span class="chip" :class="aiStatusMeta(row).type">{{ aiStatusMeta(row).label }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="耗时" width="88" align="right">
+        <el-table-column v-if="!compactColumns" label="耗时" width="92" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatLatency(row.latencyMs) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Tokens 入/出" width="126" align="right">
+        <el-table-column label="Tokens 入/出" width="112" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatTokens(row) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="成本" width="104" align="right">
+        <el-table-column label="成本" width="116" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatCostUsd(row.costMicros) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="请求/回复" width="112" align="right">
+        <el-table-column v-if="!compactColumns" label="请求/回复" width="96" align="right">
           <template #default="{ row }">
             <span class="num tiny dim">
               {{ formatChars(row.requestChars) }} / {{ formatChars(row.responseChars) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="76" fixed="right">
+        <el-table-column label="操作" width="72" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="openDetail(row)">查看</el-button>
           </template>
@@ -212,7 +216,7 @@
         <span>{{ detailError }}</span>
       </div>
       <template v-else-if="detail">
-        <el-descriptions :column="2" border size="small" class="detail-desc">
+        <el-descriptions :column="compactColumns ? 1 : 2" border size="small" class="detail-desc">
           <el-descriptions-item label="时间">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="阶段">
             <span class="chip" :class="aiStageMeta(detail.stage).type">
@@ -294,6 +298,7 @@ import { ElMessage } from 'element-plus'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import { formatSmartTime, formatTime } from '../constants'
+import { useElementWidth } from '../utils/elementWidth'
 import {
   aiStageMeta,
   aiStatusMeta,
@@ -327,6 +332,10 @@ const stageOptions = computed(() => {
 })
 
 const rows = ref([])
+/* 窄屏收起「耗时」「请求/回复」（详情抽屉里仍可查），保证固定操作列不压住成本/Tokens */
+const tableRef = ref(null)
+const tableWidth = useElementWidth(tableRef)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 1060)
 const total = ref(0)
 const page = ref(0)
 const pageSize = 15
@@ -436,7 +445,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px 16px;
   flex-wrap: wrap;
   padding: 14px 18px 10px;
 }
@@ -444,7 +453,30 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
+}
+/* 筛选项统一 32px 高、10px 间距，窄屏自然换行 */
+.filters {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 18px 4px;
+}
+.filters > * {
+  flex: none;
+}
+/* el-date-picker 不透传 class，用外层容器约束日期区间宽度 */
+.date-filter {
+  width: 300px;
+  flex: none;
+}
+.date-filter :deep(.el-date-editor) {
+  width: 100%;
+  flex: none;
+}
+.filter-select {
+  height: 32px;
 }
 .stage-select {
   width: 132px;
@@ -453,24 +485,25 @@ onMounted(() => {
   width: 150px;
 }
 .model-select {
-  width: 180px;
+  width: 172px;
 }
 .success-select {
   width: 112px;
 }
 .id-input {
-  width: 104px;
-}
-.date-range {
-  width: 238px;
+  width: 110px;
 }
 .hint {
-  padding: 0 18px 14px;
+  padding: 6px 18px 14px;
   line-height: 1.7;
 }
 
 :deep(.row-clickable) {
   cursor: pointer;
+}
+/* 数值列不换行：耗时 / Tokens / 成本 / 请求回复 保持单行右对齐 */
+:deep(.el-table .num) {
+  white-space: nowrap;
 }
 .model-cell {
   display: flex;
@@ -616,18 +649,17 @@ onMounted(() => {
   .toolbar {
     padding: 12px 14px 8px;
   }
-  .actions {
-    width: 100%;
+  .filters {
+    padding: 0 14px 4px;
   }
   .stage-select,
   .provider-select,
   .model-select,
   .success-select,
-  .id-input,
-  .date-range {
-    width: calc(50% - 4px);
+  .id-input {
+    width: calc(50% - 5px);
   }
-  .date-range {
+  .date-filter {
     width: 100%;
   }
 }

@@ -51,6 +51,11 @@
   --r-lg: 14px;
   --r-xl: 18px;
 
+  /* 间距节奏：卡片、表格与页面共用，保证左右基线一致 */
+  --panel-pad-x: 18px;
+  --panel-pad-y: 16px;
+  --table-pad-x: 18px;
+
   /* 阴影 */
   --sh-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
   --sh-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
@@ -230,7 +235,13 @@ a {
 }
 
 .dim {
-  color: var(--el-text-color-placeholder);
+  /* 说明/次要信息用比 placeholder 深一档的灰，11.5~12px 小字在白色卡片上才够对比 */
+  color: #6b7a90;
+}
+
+/* 卡片内说明文字：比纯 placeholder 再深一档，长段中文更易读 */
+.hint.dim {
+  color: #6b7a90;
 }
 
 .tiny {
@@ -241,18 +252,26 @@ a {
   font-weight: 600;
 }
 
-/* 分区标题 */
+/* 分区标题：左侧色条用绝对定位放在内边距里，
+   让标题文字与下方表格首列文字落在同一条 18px 基线上（不再多缩进 11px）。 */
 .section-title {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
   color: var(--ink-700);
+  /* 标题永远单行：窄屏下宁可让右侧按钮换到第二行，也不要出现「报表与导 / 出」 */
+  white-space: nowrap;
 }
 
 .section-title::before {
   content: "";
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 3px;
   height: 14px;
   border-radius: 2px;
@@ -264,7 +283,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px rgba(15, 23, 42, 0.035);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035), 0 10px 26px rgba(15, 23, 42, 0.03);
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
@@ -273,12 +292,15 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 18px;
+  padding: 15px var(--panel-pad-x);
   border-bottom: 1px solid var(--border);
+  /* 窄屏放不下时让右侧操作整体换行，而不是把标题挤断 */
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .panel-body {
-  padding: 16px 18px;
+  padding: var(--panel-pad-y) var(--panel-pad-x);
 }
 
 /* 标签/胶囊 */
@@ -290,6 +312,7 @@ a {
   padding: 0 9px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 500;
   line-height: 1;
   background: var(--ink-100);
   color: var(--el-text-color-regular);
@@ -339,9 +362,12 @@ a {
 
 /* 空状态 */
 .empty-block {
-  padding: 44px 0;
+  padding: 48px 0;
   text-align: center;
   color: var(--el-text-color-secondary);
+}
+.empty-block .empty-title {
+  font-size: 13.5px;
 }
 
 /* ==========================  Element Plus 精修  ========================== */
@@ -357,7 +383,18 @@ a {
   border-radius: var(--r-sm);
 }
 .el-button--primary:not(.is-link):not(.is-text) {
-  box-shadow: 0 2px 8px rgba(59, 110, 246, 0.22);
+  /* 主按钮加一层极浅的纵向渐变，比纯色更有质感；禁用/加载态保持纯色 */
+  background-image: linear-gradient(180deg, #4d79f7 0%, #3b6ef6 100%);
+  box-shadow: 0 1px 2px rgba(37, 74, 180, 0.16), 0 3px 10px rgba(59, 110, 246, 0.18);
+  transition: background-image 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.el-button--primary:not(.is-link):not(.is-text):not(.is-disabled):not(.is-loading):hover {
+  background-image: linear-gradient(180deg, #5b85f8 0%, #4677f7 100%);
+  box-shadow: 0 2px 4px rgba(37, 74, 180, 0.18), 0 6px 16px rgba(59, 110, 246, 0.22);
+}
+.el-button--primary.is-disabled:not(.is-link):not(.is-text),
+.el-button--primary.is-loading:not(.is-link):not(.is-text) {
+  background-image: none;
 }
 .el-button--large {
   border-radius: 8px;
@@ -377,9 +414,9 @@ a {
 }
 
 .el-table {
-  --el-table-header-bg-color: #f8fafc;
-  --el-table-header-text-color: #475569;
-  --el-table-border-color: var(--border);
+  --el-table-header-bg-color: #f7f9fd;
+  --el-table-header-text-color: #56657c;
+  --el-table-border-color: #eef1f6;
   --el-table-row-hover-bg-color: #f7faff;
   font-size: 13px;
 }
@@ -387,16 +424,103 @@ a {
   font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.02em;
-  padding: 10px 0;
+  padding: 11px 0;
+  background: var(--el-table-header-bg-color);
 }
 .el-table td.el-table__cell {
-  padding: 11px 0;
+  padding: 12px 0;
+}
+.el-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+.el-table .cell {
+  line-height: 1.55;
+  /* 与 .panel-head / .panel-body 的 18px 对齐：列表不再贴卡片左边 */
+  padding: 0 var(--table-pad-x);
+}
+/* Element Plus 的 el-switch / el-checkbox 自带 32px 行盒，会把同表其余行
+   撑高到 57px（其余表格约 47px），表头也会被 checkbox 顶高 4px。
+   列表里统一收窄行盒：控件本身尺寸不变，只是不再额外占高。 */
+.el-table .el-switch,
+.el-table .el-checkbox {
+  height: 22px;
+}
+.el-table .el-checkbox {
+  margin-right: 0;
+}
+/* 数值 / 等宽文本不折行：日期时间（10-21 01:46）、金额、ID 被拆成两行
+   比省略号更难读；超宽时交给 .cell 的省略号处理。 */
+.el-table .cell .num,
+.el-table .cell .mono {
+  white-space: nowrap;
+}
+/* 勾选列宽 48px，18px 内边距会挤掉复选框：单独收窄 */
+.el-table .el-table__cell.el-table-column--selection .cell,
+.el-table .el-table__cell.el-table-column--expand .cell {
+  padding-left: 14px;
+  padding-right: 4px;
 }
 .el-table__inner-wrapper::before {
   display: none;
 }
-.el-table .cell {
-  line-height: 1.55;
+/* 表格内链接按钮收紧，给操作列留出稳定宽度 */
+.el-table .el-button.is-link {
+  font-size: 12.5px;
+  padding: 2px 0;
+}
+/* 仅约束「直接相邻」的链接按钮；带 .op-cell / .row-actions 包裹的操作列
+   由各自的 gap 控制间距，避免 10px 外边距与 gap 叠加把按钮挤出单元格。 */
+.el-table .cell > .el-button.is-link + .el-button.is-link {
+  margin-left: 10px;
+}
+/* 固定右列：表格横向溢出时，用「1px 分隔线 + 渐隐投影」明确提示
+   “右边是固定的操作列，左侧还有被遮住的内容”；滚到最右自动收起。
+   不溢出时不出现任何多余线条。 */
+.el-table--scrollable-x .el-table-fixed-column--right {
+  border-left: 1px solid var(--border);
+}
+.el-table--scrollable-x .el-table-fixed-column--right::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -13px;
+  width: 12px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.06));
+  transition: opacity 0.18s ease;
+}
+.el-table--scrollable-x.is-scrolling-right .el-table-fixed-column--right {
+  border-left-color: transparent;
+}
+.el-table--scrollable-x.is-scrolling-right .el-table-fixed-column--right::before {
+  opacity: 0;
+}
+/* 固定列表头底纹与滚动区的表头保持一致，避免出现一块白色补丁 */
+.el-table--scrollable-x .el-table__header .el-table-fixed-column--right {
+  background: var(--el-table-header-bg-color);
+}
+/* 有横向溢出的表格：常显滚动条，避免“列表被裁掉”却毫无提示。
+   Element Plus 默认把横向 bar 内联 display:none（仅悬停显示），
+   用 !important 覆盖内联样式，让宽表始终有可发现的滚动提示。 */
+.el-table--scrollable-x .el-scrollbar__bar.is-horizontal {
+  display: block !important;
+  opacity: 1;
+  height: 6px;
+  left: 4px;
+  right: 4px;
+  bottom: 1px;
+}
+.el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div,
+.el-table .el-scrollbar__thumb {
+  border-radius: 999px;
+  background: #c8d3e3;
+  opacity: 0.85;
+}
+.el-table--scrollable-x .el-scrollbar__thumb:hover {
+  background: #aebdd2;
+  opacity: 1;
+}
+.el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div {
+  background: #c8d3e3;
 }
 
 .el-tag {
@@ -412,7 +536,7 @@ a {
   font-weight: 600;
 }
 .el-drawer__body {
-  padding: 18px 20px 28px;
+  padding: 20px 20px 26px;
 }
 .el-drawer {
   border-radius: var(--r-xl) 0 0 var(--r-xl);
@@ -433,6 +557,10 @@ a {
 }
 .el-dialog__body {
   padding: 20px;
+  /* 矮屏（如 1024×768）下弹窗不许顶出视口：超出部分在 body 内滚动，
+     保证 header / footer 的「取消 / 确认」始终可见、可点。 */
+  max-height: calc(85vh - 200px);
+  overflow-y: auto;
 }
 .el-dialog__footer {
   padding: 14px 20px;
@@ -593,6 +721,36 @@ a {
   .el-pagination {
     flex-wrap: wrap;
     row-gap: 6px;
+  }
+  /* 范围日期选择器默认双月 756px 宽，手机上右月与「确定」都点不到：
+     收起左侧快捷栏与左月历，只保留单月并限制弹层宽度 */
+  .el-picker-panel.el-date-range-picker {
+    width: min(92vw, 340px);
+    min-width: 0;
+  }
+  .el-date-range-picker .el-picker-panel__sidebar {
+    display: none;
+  }
+  .el-date-range-picker .el-picker-panel__body {
+    min-width: 0;
+    margin-left: 0;
+  }
+  .el-date-range-picker .el-date-range-picker__content {
+    width: 100%;
+    padding: 8px;
+  }
+  .el-date-range-picker .el-date-range-picker__content.is-left {
+    display: none;
+  }
+  .el-date-range-picker__header {
+    padding: 0 6px;
+  }
+}
+
+/* 手机：抽屉里的 el-descriptions 标签列会被压成逐字换行，强制单行 */
+@media (max-width: 600px) {
+  .el-descriptions__label {
+    white-space: nowrap;
   }
 }
 

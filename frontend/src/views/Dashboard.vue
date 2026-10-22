@@ -98,20 +98,16 @@
           </el-button>
         </div>
         <el-table :data="recent" size="small" @row-click="(row) => router.push(`/recordings?id=${row.id}`)">
-          <el-table-column label="文件" min-width="230">
+          <el-table-column label="文件" min-width="200">
             <template #default="{ row }">
               <div class="cell-file">
                 <el-icon class="cell-file-icon"><Microphone /></el-icon>
                 <span class="ellipsis">{{ row.fileName }}</span>
+                <span class="cell-file-dur num">{{ formatDuration(row.durationSeconds) }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="时长" width="88" align="right">
-            <template #default="{ row }">
-              <span class="num dim">{{ formatDuration(row.durationSeconds) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="命中" width="72" align="center">
+          <el-table-column label="命中" width="64" align="center">
             <template #default="{ row }">
               <span v-if="row.hitCount" class="chip danger">{{ row.hitCount }}</span>
               <span v-else class="dim">—</span>
@@ -120,11 +116,18 @@
           <el-table-column label="状态" width="124" align="center">
             <template #default="{ row }"><StatusTag :status="row.status" /></template>
           </el-table-column>
-          <el-table-column label="上传时间" width="150">
+          <el-table-column label="上传时间" width="176">
             <template #default="{ row }">
-              <span class="num dim">{{ formatTime(row.uploadTime) }}</span>
+              <span class="cell-time num dim">{{ formatTime(row.uploadTime) }}</span>
             </template>
           </el-table-column>
+          <template #empty>
+            <div class="empty-block">
+              <el-icon :size="30" class="empty-icon"><Microphone /></el-icon>
+              <div class="empty-title">暂无录音</div>
+              <div class="tiny dim">上传录音后，最近处理的记录会显示在这里</div>
+            </div>
+          </template>
         </el-table>
       </section>
 
@@ -227,13 +230,19 @@ onMounted(load)
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+@media (max-width: 1080px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 .two-col {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
   gap: 16px;
 }
-@media (max-width: 1360px) {
+/* 1280 笔记本宽度下趋势 + 处置分布仍并排，低于 1200 再堆叠 */
+@media (max-width: 1200px) {
   .two-col {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -298,9 +307,42 @@ onMounted(load)
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 时长并入文件列，避免窄容器内多一列被裁切 */
+.cell-file-dur {
+  flex: none;
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--el-text-color-placeholder);
+}
+/* 上传时间保持单行，避免在 172px 列内换行 */
+.cell-time {
+  white-space: nowrap;
+}
 
 :deep(.el-table__row) {
   cursor: pointer;
+}
+
+/* 表格空态：圆形图标底座，避免空白区域过于生硬 */
+.empty-block .empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-300);
+  background: var(--ink-50);
+  border: 1px dashed var(--border-strong);
+  margin-bottom: 8px;
+}
+.empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+  margin-bottom: 4px;
 }
 
 /* 知识库 */
@@ -310,9 +352,12 @@ onMounted(load)
   gap: 12px;
 }
 .kb-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 12px 14px;
+  padding: 13px 15px;
   background: #fbfcfe;
   transition: all 0.18s ease;
 }

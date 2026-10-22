@@ -129,12 +129,34 @@ function onSeek(sentence) {
   emit('seek', sentence.start)
 }
 
+/**
+ * 仅滚动「本组件所在的、指定滚动容器」，绝不触发页面级滚动。
+ *
+ * 之前用 scrollIntoView({ block: 'nearest' }) 会连同外层 .shell-content 一起滚动：
+ * 1280 窄屏 Review 上下堆叠时，首屏会被自动顶掉约 100px（基线就存在的回归）。
+ * 同时也不能盲目找“最近的 scrollable 祖先”——窄屏时逐句列表本身不滚动，
+ * 最近的可滚动祖先恰好是页面容器，同样会把首屏顶走。
+ */
+function scrollWithinNearest(el) {
+  if (!el) return
+  const container = el.closest('.transcript-scroll, .el-drawer__body, .el-dialog__body')
+  if (!container) return
+  if (container.scrollHeight <= container.clientHeight + 1) return
+  const containerRect = container.getBoundingClientRect()
+  const elRect = el.getBoundingClientRect()
+  if (elRect.top < containerRect.top) {
+    container.scrollTop -= containerRect.top - elRect.top
+  } else if (elRect.bottom > containerRect.bottom) {
+    container.scrollTop += elRect.bottom - containerRect.bottom
+  }
+}
+
 // 播放中跟随高亮：仅在开启跟随时滚动，避免打断人工翻阅
 watch(activeIndex, async (idx) => {
   if (!props.follow || idx < 0) return
   await nextTick()
   const el = listRef.value?.querySelector(`[data-idx="${idx}"]`)
-  el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  scrollWithinNearest(el)
 })
 </script>
 

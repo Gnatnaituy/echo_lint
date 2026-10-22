@@ -35,7 +35,7 @@ defineEmits(['click'])
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 15px 16px 14px;
+  padding: 16px var(--panel-pad-x, 18px) 15px;
   box-shadow: var(--sh-xs);
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   overflow: hidden;
@@ -47,7 +47,7 @@ defineEmits(['click'])
   width: 3px;
   opacity: 0.9;
 }
-.kpi:hover {
+.kpi.clickable:hover {
   transform: translateY(-2px);
   box-shadow: var(--sh-md);
   border-color: var(--border-strong);
@@ -97,7 +97,8 @@ defineEmits(['click'])
 .sub {
   margin-top: 6px;
   font-size: 11.5px;
-  color: var(--el-text-color-placeholder);
+  /* 11.5px 小字用默认 placeholder 灰对比不足，取深一档 */
+  color: #6b7a90;
 }
 
 .tone-brand::after { background: var(--brand-500); }

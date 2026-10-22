@@ -300,13 +300,14 @@ const badgeCount = computed(() => props.badgeCount)
 .nav-item.active::before {
   content: "";
   position: absolute;
-  left: -12px;
-  top: 10px;
-  bottom: 10px;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 18px;
   width: 3px;
-  border-radius: 0 3px 3px 0;
+  border-radius: 2px 3px 3px 2px;
   background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 0 8px rgba(59, 110, 246, 0.35);
+  box-shadow: 0 0 6px rgba(59, 110, 246, 0.3);
 }
 .nav-label {
   flex: 1;

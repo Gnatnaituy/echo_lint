@@ -70,15 +70,15 @@
         </div>
       </div>
 
-      <el-table v-loading="loading" :data="rows">
-        <el-table-column label="标注" width="96" align="center">
+      <el-table ref="tableRef" v-loading="loading" :data="rows">
+        <el-table-column label="标注" width="88" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.label === 'VIOLATION' ? 'danger' : 'ok'">
               {{ row.label === 'VIOLATION' ? '违规' : '合规' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="违规类型" width="116" align="center">
+        <el-table-column label="违规类型" width="124" align="center">
           <template #default="{ row }">
             <span v-if="row.violationType && VIOLATION_TYPES[row.violationType]" class="chip warn">
               {{ VIOLATION_TYPES[row.violationType] }}
@@ -86,38 +86,44 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="语料文本" min-width="330">
+        <el-table-column label="语料文本" min-width="250">
           <template #default="{ row }">
             <el-tooltip :content="row.transcript" placement="top" :show-after="400">
               <div class="corpus-text">{{ row.transcript }}</div>
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="标注理由" min-width="180">
+        <el-table-column v-if="!compactColumns" label="标注理由" min-width="180">
           <template #default="{ row }">
-            <span :class="{ dim: !row.reason }" class="reason-text">{{ row.reason || '—' }}</span>
+            <span
+              :class="{ dim: !row.reason }"
+              class="reason-text"
+              :title="row.reason || ''"
+            >{{ row.reason || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="112" align="center">
+        <el-table-column label="来源" width="120" align="center">
           <template #default="{ row }">
             <span class="chip" :class="SOURCE_CLASS[row.source] || 'info'">
               {{ SOURCE_LABEL[row.source] || row.source }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="150">
+        <el-table-column label="创建时间" width="124">
           <template #default="{ row }">
             <span class="num dim">{{ formatTimeShort(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="86" align="right">
+        <el-table-column label="操作" width="78" align="right" fixed="right">
           <template #default="{ row }">
-            <el-popconfirm v-if="canDelete" title="确认删除该条语料？" @confirm="remove(row)">
-              <template #reference>
-                <el-button size="small" link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-            <span v-else class="dim">—</span>
+            <div class="op-cell">
+              <el-popconfirm v-if="canDelete" title="确认删除该条语料？" @confirm="remove(row)">
+                <template #reference>
+                  <el-button size="small" link type="danger">删除</el-button>
+                </template>
+              </el-popconfirm>
+              <span v-else class="dim">—</span>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -190,11 +196,17 @@ import api from '../api'
 import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import { VIOLATION_TYPES, formatTimeShort } from '../constants'
+import { useElementWidth } from '../utils/elementWidth'
 
 // 语料删除仅 ADMIN（见权限矩阵），其余角色只读
 const canDelete = computed(() => auth.hasRole('ADMIN'))
 
 const rows = ref([])
+
+/* 窄屏收起「标注理由」（详情行内不再挤成一列 3 字），让固定操作列不再压住创建时间 */
+const tableRef = ref(null)
+const tableWidth = useElementWidth(tableRef)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 900)
 const total = ref(0)
 const page = ref(0)
 const pageSize = 10
@@ -302,7 +314,14 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
+}
+/* 手机：三列会把标题/说明挤成多行，改成两列 */
+@media (max-width: 720px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
 }
 
 /* 闭环说明 */
@@ -310,6 +329,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-wrap: wrap;
+  row-gap: 12px;
 }
 .loop-icon {
   width: 38px;
@@ -322,7 +343,7 @@ onMounted(() => {
   color: var(--brand-600);
 }
 .loop-text {
-  flex: 1;
+  flex: 1 1 320px;
   min-width: 0;
 }
 .loop-title {
@@ -367,6 +388,7 @@ onMounted(() => {
 .filters {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 .filter-chip {
   height: 30px;
@@ -394,29 +416,46 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .search {
   width: 230px;
 }
 
+/* 多行文本列：统一 2 行截断 + 完整内容走 tooltip / title */
 .corpus-text {
   font-size: 12.5px;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--el-text-color-regular);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  word-break: break-word;
 }
 .reason-text {
   font-size: 12.5px;
-  line-height: 1.6;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* 操作列 */
+.op-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 12px 18px 14px;
 }
 
 /* 弹窗分段 */

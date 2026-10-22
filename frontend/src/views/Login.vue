@@ -133,10 +133,12 @@ onMounted(() => {
 .login-page {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 36px 16px 64px;
-  overflow: hidden;
+  padding: 44px 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(1000px 520px at 8% -12%, #dbe6ff 0%, rgba(244, 246, 251, 0) 62%),
     radial-gradient(760px 460px at 102% -4%, #e6edfd 0%, rgba(244, 246, 251, 0) 58%),
@@ -169,74 +171,115 @@ onMounted(() => {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 400px;
-  padding: 30px 30px 22px;
+  max-width: 408px;
+  padding: 32px 32px 24px;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.04);
+  border-radius: 20px;
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.04);
+  animation: card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
 }
 .brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   flex: none;
-  border-radius: 12px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 6px 16px rgba(59, 110, 246, 0.34);
+  box-shadow: 0 6px 16px rgba(59, 110, 246, 0.32);
 }
 .brand-name {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 16.5px;
+  font-weight: 650;
   color: var(--ink-800);
   letter-spacing: 0.01em;
   line-height: 1.25;
 }
 .brand-sub {
+  margin-top: 1px;
   font-size: 10.5px;
   color: var(--el-text-color-placeholder);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .welcome {
-  margin: 24px 0 18px;
+  margin: 26px 0 20px;
 }
 .welcome h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 600;
   color: var(--ink-800);
   letter-spacing: -0.01em;
+  line-height: 1.35;
 }
 .welcome p {
-  margin: 6px 0 0;
-  font-size: 12.5px;
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--el-text-color-secondary);
 }
 
 .login-error {
   margin-bottom: 16px;
 }
+.login-error :deep(.el-alert) {
+  padding: 10px 12px;
+}
 .login-error :deep(.el-alert__title) {
   font-size: 12.5px;
   line-height: 1.6;
 }
 
+/* 表单节奏：标签 13px，输入框与标签间距统一 */
+.login-card :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+.login-card :deep(.el-form-item__label) {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+  line-height: 1.4;
+  padding-bottom: 6px;
+}
+.login-card :deep(.el-input__wrapper) {
+  padding: 1px 12px;
+}
+.login-card :deep(.el-input__inner) {
+  font-size: 14px;
+}
+/* 自动聚焦与键盘 Tab 都保持一致的品牌色聚焦环（错误态仍用红色） */
+.login-card :deep(.el-form-item:not(.is-error) .el-input__wrapper:focus-within) {
+  box-shadow: 0 0 0 1px var(--brand-500) inset, 0 0 0 3px rgba(59, 110, 246, 0.14);
+}
+
 .submit {
   width: 100%;
-  margin-top: 4px;
-  height: 42px;
+  margin-top: 6px;
+  height: 44px;
+  border-radius: 8px;
   font-size: 14px;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
 }
 
 .foot {
@@ -244,21 +287,31 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-top: 20px;
-  padding-top: 14px;
+  margin-top: 22px;
+  padding-top: 16px;
   border-top: 1px dashed var(--border);
-  font-size: 11.5px;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--el-text-color-placeholder);
 }
 
 .copyright {
   position: absolute;
-  bottom: 20px;
+  bottom: 22px;
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-400);
   letter-spacing: 0.04em;
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 28px 16px;
+  }
+  .login-card {
+    padding: 26px 22px 20px;
+  }
 }
 </style>

@@ -66,15 +66,15 @@
       </div>
 
       <el-table v-loading="loading" :data="rows">
-        <el-table-column label="录音" min-width="240">
+        <el-table-column label="录音" min-width="172">
           <template #default="{ row }">
             <div class="rec-cell">
               <div class="file-icon"><el-icon><Microphone /></el-icon></div>
-              <div class="min-w-0">
+              <div class="rec-text">
                 <div class="strong ellipsis" :title="row.fileName">
                   {{ row.fileName || (row.recordingId != null ? `录音 #${row.recordingId}` : '—') }}
                 </div>
-                <div class="tiny dim">
+                <div class="tiny dim ellipsis">
                   <span class="mono">任务 #{{ row.id ?? '—' }}</span>
                   <span class="sep">·</span>
                   <span class="mono">录音 #{{ row.recordingId ?? '—' }}</span>
@@ -84,7 +84,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="112" align="center">
+        <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
             <span class="chip" :class="taskStatusMeta(row.status).type">
               {{ taskStatusMeta(row.status).label }}
@@ -92,13 +92,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="尝试" width="96" align="center">
+        <el-table-column label="尝试" width="76" align="center">
           <template #default="{ row }">
             <span class="num" :class="{ 'attempt-hot': row.attempts > 0 }">{{ taskAttemptsText(row) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="下次尝试" width="170">
+        <el-table-column label="下次尝试" width="176">
           <template #default="{ row }">
             <span
               v-if="row.nextAttemptAt"
@@ -109,7 +109,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="最近错误" min-width="260">
+        <el-table-column label="最近错误" min-width="150">
           <template #default="{ row }">
             <el-tooltip
               v-if="row.lastError"
@@ -124,7 +124,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="更新时间" width="170">
+        <el-table-column label="更新时间" width="176">
           <template #default="{ row }">
             <span v-if="row.updatedAt" class="num dim" :title="formatRelative(row.updatedAt)">
               {{ formatTime(row.updatedAt) }}
@@ -133,7 +133,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="96" align="right">
+        <el-table-column v-if="hasRetryable" label="操作" width="96" align="right" fixed="right">
           <template #default="{ row }">
             <el-popconfirm
               v-if="isTaskRetryable(row.status) && row.id != null"
@@ -208,6 +208,11 @@ const lastLoadedAt = ref('')
 
 const hasFilters = computed(
   () => !!(statusFilter.value || recordingIdFilter.value.trim())
+)
+
+/** 当前页有可重试任务时才渲染操作列（成功任务全为「—」，白占一列还把更新时间挤出可视区） */
+const hasRetryable = computed(() =>
+  rows.value.some((row) => isTaskRetryable(row.status) && row.id != null)
 )
 
 /** 403 / 404 给出可读降级文案（列表接口 silent，不弹全局错误） */
@@ -368,7 +373,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 16px;
   flex-wrap: wrap;
   padding: 0 18px 14px;
 }
@@ -376,9 +381,21 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
+  white-space: nowrap;
 }
 .queue-tip {
+  flex: 1 1 380px;
+  min-width: 0;
+  text-align: right;
   line-height: 1.6;
+}
+/* 窄屏时说明文案独占一行，避免与自动刷新状态互相挤压 */
+@media (max-width: 1360px) {
+  .queue-tip {
+    flex-basis: 100%;
+    text-align: left;
+  }
 }
 
 /* 表格列 */
@@ -386,6 +403,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+}
+.rec-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
 }
 .file-icon {
@@ -397,9 +420,6 @@ onUnmounted(() => {
   place-items: center;
   background: var(--brand-50);
   color: var(--brand-600);
-}
-.min-w-0 {
-  min-width: 0;
 }
 .ellipsis {
   overflow: hidden;

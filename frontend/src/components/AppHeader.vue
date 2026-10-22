@@ -66,7 +66,7 @@
           <span class="avatar">{{ avatarText }}</span>
           <span class="user-meta">
             <span class="user-name">{{ auth.displayName || t('common.unknown') }}</span>
-            <span class="user-role">{{ auth.roleLabel }}</span>
+            <span class="user-role">{{ roleSubtitle }}</span>
           </span>
           <el-icon class="user-caret" :size="12"><ArrowDown /></el-icon>
         </button>
@@ -170,6 +170,14 @@ const avatarText = computed(() => {
   return name ? name.slice(0, 1).toUpperCase() : '?'
 })
 
+/** 顶栏副标题：显示名与角色同名时（如 admin 的显示名也叫「管理员」）改显 @用户名，避免上下两行重复 */
+const roleSubtitle = computed(() => {
+  const name = auth.displayName || ''
+  const role = auth.roleLabel || ''
+  if (name && role && name !== role) return role
+  return auth.username ? `@${auth.username}` : role
+})
+
 /* ---------- 账号菜单 ---------- */
 function onCommand(command) {
   if (command === 'password') {
@@ -244,6 +252,7 @@ async function submitPassword() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 0 22px;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: saturate(1.4) blur(8px);
@@ -258,6 +267,7 @@ async function submitPassword() {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 /* 窄屏汉堡按钮：桌面隐藏 */
 .menu-btn {
@@ -281,68 +291,57 @@ async function submitPassword() {
   letter-spacing: 0.03em;
   font-weight: 600;
 }
-@media (max-width: 900px) {
+@media (max-width: 1320px) {
   .topbar {
-    height: 52px;
-    padding: 0 12px;
+    padding: 0 16px;
+    gap: 10px;
   }
-  .menu-btn {
-    display: inline-grid;
+  .ghost {
+    padding: 0 10px;
   }
+  .right {
+    gap: 8px;
+  }
+}
+/* 中等桌面宽度：顶栏只保留「当前页面 + 图标化操作」，避免文字挤成两行 */
+@media (max-width: 1180px) {
   .crumb-root,
   .crumb-sep {
     display: none;
   }
-  .crumb-current {
-    font-size: 13.5px;
-  }
-  .right {
-    gap: 6px;
-  }
-  .ghost {
-    height: 30px;
-    padding: 0 8px;
-  }
   .ghost-text {
     display: none;
   }
-  .divider {
-    display: none;
-  }
-  .user {
-    height: 34px;
-    padding: 0 4px;
-  }
-  .user-meta {
-    display: none;
-  }
-  .lang-btn {
-    padding: 0 8px;
-  }
 }
-
 .crumb {
   display: flex;
   align-items: center;
   gap: 7px;
   font-size: 13px;
+  min-width: 0;
+  white-space: nowrap;
 }
 .crumb-root {
   color: var(--el-text-color-placeholder);
+  flex: none;
 }
 .crumb-sep {
   color: var(--ink-300);
+  flex: none;
 }
 .crumb-current {
   font-size: 14.5px;
   font-weight: 600;
   color: var(--ink-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .right {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
 }
 
 .ghost {
@@ -359,6 +358,9 @@ async function submitPassword() {
   font-family: inherit;
   cursor: pointer;
   transition: all 0.18s ease;
+  /* 顶栏空间不足时只允许彼此靠拢，绝不允许文字换行把 58px 顶栏撑破 */
+  white-space: nowrap;
+  flex: none;
 }
 .ghost:hover {
   border-color: var(--brand-300);
@@ -461,5 +463,51 @@ async function submitPassword() {
 }
 .user-caret {
   color: var(--ink-400);
+}
+
+/* 窄屏覆盖必须放在基础规则之后：同权重下靠后的规则才生效，
+   否则「隐藏用户名/角色」会被后面的基础 .user-meta 反向覆盖，
+   顶栏标题被挤成 0 宽（手机端表现为页面标题消失）。 */
+@media (max-width: 900px) {
+  .topbar {
+    height: 52px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .left {
+    gap: 6px;
+  }
+  .menu-btn {
+    display: inline-grid;
+  }
+  .crumb-root,
+  .crumb-sep {
+    display: none;
+  }
+  .crumb-current {
+    font-size: 13.5px;
+    min-width: 56px;
+  }
+  .right {
+    gap: 6px;
+  }
+  .ghost {
+    height: 30px;
+    padding: 0 8px;
+  }
+  .ghost-text,
+  .divider {
+    display: none;
+  }
+  .user {
+    height: 34px;
+    padding: 0 4px;
+  }
+  .user-meta {
+    display: none;
+  }
+  .lang-btn {
+    padding: 0 8px;
+  }
 }
 </style>
