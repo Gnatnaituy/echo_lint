@@ -5,6 +5,8 @@
  * 状态：pending -> uploading -> success | error；未开始的可被取消为 canceled。
  */
 
+import { t } from '../i18n/index.js'
+
 export const UPLOAD_STATUS = {
   PENDING: 'pending',
   UPLOADING: 'uploading',
@@ -19,7 +21,7 @@ export function createUploadQueue(files) {
   return list.map((file, index) => ({
     uid: `u-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
     file,
-    name: file?.name || `文件${index + 1}`,
+    name: file?.name || t('components.upload.fileFallback', { index: index + 1 }),
     size: Number(file?.size) || 0,
     progress: 0,
     status: UPLOAD_STATUS.PENDING,
@@ -41,7 +43,7 @@ export function nextPendingIndex(queue) {
 export function markRemainingCanceled(queue) {
   return (queue || []).map((item) =>
     item.status === UPLOAD_STATUS.PENDING
-      ? { ...item, status: UPLOAD_STATUS.CANCELED, error: '已取消' }
+      ? { ...item, status: UPLOAD_STATUS.CANCELED, error: t('meta.uploadStatus.canceled') }
       : item
   )
 }
@@ -105,12 +107,23 @@ export function isUploadFinished(queue) {
   )
 }
 
+/** 状态文案：getter 形式，模板 / 计算属性读取时按当前语言翻译 */
 export const UPLOAD_STATUS_LABEL = {
-  pending: '等待上传',
-  uploading: '上传中',
-  success: '上传成功',
-  error: '上传失败',
-  canceled: '已取消'
+  get pending() {
+    return t('meta.uploadStatus.pending')
+  },
+  get uploading() {
+    return t('meta.uploadStatus.uploading')
+  },
+  get success() {
+    return t('meta.uploadStatus.success')
+  },
+  get error() {
+    return t('meta.uploadStatus.error')
+  },
+  get canceled() {
+    return t('meta.uploadStatus.canceled')
+  }
 }
 
 function clampProgress(value) {

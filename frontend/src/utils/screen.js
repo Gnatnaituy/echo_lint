@@ -8,6 +8,7 @@
  * 与 Reports 页保持一致的容错策略：缺失字段显示占位，不臆造数值。
  */
 
+import { t } from '../i18n/index.js'
 import { asObject, pick, toNumber, toText } from './shape.js'
 
 function nonNegative(value) {
@@ -97,7 +98,7 @@ export function normalizeTopRows(raw, limit = 5) {
     .map((row) => {
       const data = asObject(row)
       return {
-        name: toText(pick(data, ['name', 'label', 'agentName', 'teamName'])) || '未填写',
+        name: toText(pick(data, ['name', 'label', 'agentName', 'teamName'])) || t('screen.notFilled'),
         count: nonNegative(pick(data, ['count', 'total']))
       }
     })

@@ -14,6 +14,7 @@ import {
   messageKeys,
   setLocale,
   t,
+  tn,
   toggleLocale,
   useI18n
 } from '../src/i18n/index.js'
@@ -91,4 +92,63 @@ test('useI18n：locale 为响应式 computed，t 使用当前语言', () => {
   assert.equal(locale.value, 'en')
   assert.equal(translate('nav.review'), 'Manual Review')
   setLocale('zh')
+})
+
+test('词典值非空；英文词典不残留中文（语言名除外）', () => {
+  const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
+  // header.languageZh 在英文界面也显示「中文」（切回中文的入口），属于有意保留
+  const EN_CJK_ALLOWED = new Set(['header.languageZh'])
+  for (const locale of ['zh', 'en']) {
+    for (const [key, value] of Object.entries(MESSAGES[locale])) {
+      assert.equal(typeof value, 'string', `${locale}.${key} 必须是字符串`)
+      assert.ok(value.trim().length > 0, `${locale}.${key} 不能为空`)
+      if (locale === 'en' && !EN_CJK_ALLOWED.has(key)) {
+        assert.ok(!CJK.test(value), `en.${key} 仍含中文：${value}`)
+      }
+    }
+  }
+})
+
+test('源码中静态 t(\'key\') 引用的 key 都存在于词典', async () => {
+  const { readdirSync, readFileSync, statSync } = await import('node:fs')
+  const { join, resolve } = await import('node:path')
+  const { fileURLToPath } = await import('node:url')
+  const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
+  const SRC = join(ROOT, 'src')
+  const I18N_DIR = join(SRC, 'i18n')
+
+  const files = []
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name)
+      if (statSync(full).isDirectory()) {
+        if (full !== I18N_DIR) walk(full)
+      } else if (/\.(js|vue)$/.test(name)) {
+        files.push(full)
+      }
+    }
+  }
+  walk(SRC)
+
+  const keys = new Set()
+  const STATIC_T = /(?:^|[^\w.])(?:\$?t)\(\s*(['"])([A-Za-z][\w.-]*)\1/g
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8')
+    for (const match of source.matchAll(STATIC_T)) keys.add(match[2])
+  }
+  const missing = [...keys].filter((key) => !(key in MESSAGES.zh)).sort()
+  assert.deepEqual(missing, [], `源码引用但词典缺失的 key：\n${missing.join('\n')}`)
+  assert.ok(keys.size > 100, `静态 t() key 引用数量异常：${keys.size}`)
+})
+
+test('tn：复数变体按 count 选择，缺失变体时回退普通 t()', () => {
+  setLocale('en')
+  assert.equal(tn('time.minutesAgo', 1, { n: 1 }), '1 minute ago')
+  assert.equal(tn('time.minutesAgo', 5, { n: 5 }), '5 minutes ago')
+  assert.equal(tn('apiKeys.count', 1, { count: 1 }), '1 key')
+  assert.equal(tn('apiKeys.count', 2, { count: 2 }), '2 keys')
+  assert.equal(tn('common.save', 1), 'Save')
+  setLocale('zh')
+  assert.equal(tn('time.minutesAgo', 1, { n: 1 }), '1 分钟前')
+  assert.equal(tn('time.minutesAgo', 12, { n: 12 }), '12 分钟前')
 })

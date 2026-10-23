@@ -3,7 +3,7 @@
     <div v-if="targetSentence" class="target">
       <el-icon class="target-icon"><Aim /></el-icon>
       <div>
-        <div class="target-label">AI 判定违规原句</div>
+        <div class="target-label">{{ t('components.transcriptViewer.targetLabel') }}</div>
         <div class="target-text">“{{ targetSentence }}”</div>
       </div>
     </div>
@@ -18,7 +18,7 @@
     </div>
 
     <div v-if="hits && hits.length" class="legend">
-      <span class="legend-title">DFA 命中 {{ hits.length }} 处</span>
+      <span class="legend-title">{{ countLabel('components.transcriptViewer.hitCount', hits.length) }}</span>
       <span v-for="(h, i) in hits" :key="i" class="legend-chip">
         <b>{{ h.word }}</b>
         <span class="dim mono">[{{ h.start }},{{ h.end }})</span>
@@ -29,6 +29,14 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
+
+/** 带数量的文案：英文按单复数取词典里的 `.one` / `.other` */
+function countLabel(key, count, params = {}) {
+  return t(`${key}.${count === 1 ? 'one' : 'other'}`, { ...params, count })
+}
 
 const props = defineProps({
   text: { type: String, default: '' },

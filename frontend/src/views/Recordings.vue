@@ -3,7 +3,7 @@
     <!-- 工具栏 -->
     <section class="panel">
       <div class="toolbar">
-        <div class="filters" role="group" aria-label="状态筛选">
+        <div class="filters" role="group" :aria-label="t('recordings.filters.group')">
           <button
             v-for="f in filters"
             :key="f.key"
@@ -17,19 +17,19 @@
         </div>
 
         <div class="actions">
-          <span v-if="!canWrite" class="chip info read-only-chip">只读模式</span>
+          <span v-if="!canWrite" class="chip info read-only-chip">{{ t('recordings.readOnly') }}</span>
           <el-select
             v-model="assignedFilter"
-            placeholder="全部指派"
+            :placeholder="t('recordings.assigned.placeholder')"
             clearable
             class="filter-select"
             @change="reload"
           >
-            <el-option label="只看我的" value="mine" />
+            <el-option :label="t('recordings.assigned.mine')" value="mine" />
           </el-select>
           <el-select
             v-model="priorityFilter"
-            placeholder="全部优先级"
+            :placeholder="t('recordings.priority.placeholder')"
             clearable
             class="priority-select"
             @change="reload"
@@ -37,13 +37,13 @@
             <el-option
               v-for="opt in PRIORITY_OPTIONS"
               :key="opt.value"
-              :label="`${opt.label}优先级`"
+              :label="t('recordings.priority.option', { label: opt.label })"
               :value="opt.value"
             />
           </el-select>
           <el-input
             v-model="keyword"
-            placeholder="搜索文件名 / 转写内容"
+            :placeholder="t('recordings.search.placeholder')"
             clearable
             class="search"
             @keyup.enter="reload"
@@ -53,13 +53,13 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
+          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
           <el-button
             v-if="canWrite"
             type="primary"
             :icon="UploadFilled"
             @click="openUpload"
-          >上传录音</el-button>
+          >{{ t('recordings.upload.action') }}</el-button>
         </div>
       </div>
 
@@ -70,16 +70,16 @@
           type="daterange"
           value-format="YYYY-MM-DD"
           unlink-panels
-          range-separator="至"
-          start-placeholder="通话开始日期"
-          end-placeholder="通话结束日期"
+          :range-separator="t('recordings.meta.rangeSeparator')"
+          :start-placeholder="t('recordings.field.callStartDate')"
+          :end-placeholder="t('recordings.field.callEndDate')"
           :shortcuts="dateShortcuts"
           class="date-range"
           @change="reload"
         />
         <el-input
           v-model="agentFilter"
-          placeholder="坐席"
+          :placeholder="t('recordings.field.agent')"
           clearable
           class="meta-input"
           @keyup.enter="reload"
@@ -87,7 +87,7 @@
         />
         <el-input
           v-model="teamFilter"
-          placeholder="团队"
+          :placeholder="t('recordings.field.team')"
           clearable
           class="meta-input"
           @keyup.enter="reload"
@@ -95,7 +95,7 @@
         />
         <el-select
           v-model="directionFilter"
-          placeholder="全部方向"
+          :placeholder="t('recordings.meta.allDirections')"
           clearable
           class="direction-select"
           @change="reload"
@@ -113,19 +113,19 @@
           link
           type="primary"
           @click="resetMetaFilters"
-        >清除条件</el-button>
+        >{{ t('recordings.meta.clear') }}</el-button>
       </div>
       <div class="hint">
         <template v-if="canWrite">
           <p class="hint-line">
-            上传时可填写坐席、团队、通话时间、方向与业务线，列表与报表可按这些维度筛选；上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛，初筛与复筛<span class="accent">均判定违规</span>的录音进入人工复检。单文件 ≤ 25MB。
+            {{ t('recordings.hint.pipelinePrefix') }}<span class="accent">{{ t('recordings.hint.pipelineAccent') }}</span>{{ t('recordings.hint.pipelineSuffix') }}
           </p>
           <p class="hint-line">
-            若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内<span class="accent">推进处理 / 重新处理</span>手动触发。
+            {{ t('recordings.hint.stuckPrefix') }}<span class="accent">{{ t('recordings.hint.stuckAccent') }}</span>{{ t('recordings.hint.stuckSuffix') }}
           </p>
         </template>
         <p v-else class="hint-line">
-          只读账号可查看录音、转写与 AI 判定详情；上传、删除、认领与指派等写操作不可用。
+          {{ t('recordings.hint.readOnly') }}
         </p>
       </div>
     </section>
@@ -139,13 +139,13 @@
         scrollbar-always-on
         @row-click="openDetail"
       >
-        <el-table-column label="录音" min-width="188">
+        <el-table-column :label="t('recordings.table.recording')" min-width="188">
           <template #default="{ row }">
             <div class="file-cell">
               <div
                 class="file-icon"
                 :class="{ sampled: isSampled(row) }"
-                :title="isSampled(row) ? 'DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检' : undefined"
+                :title="isSampled(row) ? t('recordings.sampled.tooltip') : undefined"
               >
                 <el-icon><Microphone /></el-icon>
                 <span v-if="isSampled(row)" class="sample-dot" aria-hidden="true"></span>
@@ -164,7 +164,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="坐席 / 团队" width="100">
+        <el-table-column :label="t('recordings.table.agentTeam')" width="100">
           <template #default="{ row }">
             <div class="agent-cell">
               <div class="agent-line">
@@ -179,7 +179,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="通话时间" width="102">
+        <el-table-column :label="t('recordings.table.callTime')" width="102">
           <template #default="{ row }">
             <div class="call-cell">
               <span v-if="row.callTime" class="num call-time" :title="formatTime(row.callTime)">
@@ -195,51 +195,51 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="DFA 命中" width="86" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column :label="t('recordings.table.dfaHits')" width="108" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span v-if="row.hitCount" class="chip danger hit-chip">
-              <el-icon :size="10"><WarningFilled /></el-icon>{{ row.hitCount }} 处
+              <el-icon :size="10"><WarningFilled /></el-icon>{{ countLabel('recordings.table.hitCount', row.hitCount) }}
             </span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="AI 复筛结论" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column :label="t('recordings.table.aiVerdict')" width="136" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span v-if="row.aiViolationTypeLabel" class="chip warn">{{ row.aiViolationTypeLabel }}</span>
-            <span v-else-if="row.aiViolation === true" class="chip danger">违规</span>
-            <span v-else-if="row.aiViolation === false" class="chip ok">判定正常</span>
-            <span v-else-if="row.hitCount && PROCESSING_STATUSES.includes(row.status)" class="chip info">复筛中</span>
+            <span v-else-if="row.aiViolation === true" class="chip danger">{{ t('recordings.aiVerdict.violation') }}</span>
+            <span v-else-if="row.aiViolation === false" class="chip ok">{{ t('recordings.aiVerdict.compliant') }}</span>
+            <span v-else-if="row.hitCount && PROCESSING_STATUSES.includes(row.status)" class="chip info">{{ t('recordings.aiVerdict.screening') }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!compactColumns" label="优先级" width="84" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column v-if="!compactColumns" :label="t('recordings.table.priority')" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <PriorityTag :priority="row.priority" class="prio-cell" />
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!narrowColumns" label="指派" width="80" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column v-if="!narrowColumns" :label="t('recordings.table.assignee')" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span
               v-if="row.assignedTo"
               class="chip assignee-chip"
               :class="{ brand: row.assignedTo === auth.username }"
               :title="row.assignedTo"
-            >{{ row.assignedTo === auth.username ? '我' : row.assignedTo }}</span>
-            <span v-else class="dim">未指派</span>
+            >{{ row.assignedTo === auth.username ? t('recordings.table.me') : row.assignedTo }}</span>
+            <span v-else class="dim">{{ t('recordings.table.unassigned') }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态 / 复检人" width="122" align="center">
+        <el-table-column :label="t('recordings.table.statusReviewer')" width="152" align="center">
           <template #default="{ row }">
             <div class="status-cell">
               <div class="status-line">
                 <StatusTag :status="row.status" />
                 <el-tooltip
                   v-if="isStale(row)"
-                  content="停留超过 2 分钟未变更，疑似中断；可用「重新处理」手动推进"
+                  :content="t('recordings.table.staleHint')"
                   placement="top"
                 >
                   <el-icon class="stale-icon" :size="13"><WarningFilled /></el-icon>
@@ -247,26 +247,26 @@
               </div>
               <el-tooltip
                 v-if="row.reviewer"
-                :content="`${row.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行'} · ${formatTime(row.reviewTime)}`"
+                :content="`${row.reviewResult === 'CONFIRMED_VIOLATION' ? STATUS_META.VIOLATION_CONFIRMED.label : STATUS_META.FALSE_POSITIVE.label} · ${formatTime(row.reviewTime)}`"
                 placement="top"
               >
-                <span class="reviewer-line">复检 · {{ row.reviewer }}</span>
+                <span class="reviewer-line">{{ t('recordings.table.reviewedBy', { name: row.reviewer }) }}</span>
               </el-tooltip>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="152" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="216" align="right" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">详情</el-button>
+              <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">{{ t('common.detail') }}</el-button>
               <el-button
                 v-if="row.status === 'NEEDS_REVIEW'"
                 class="op-link"
                 link
                 type="danger"
                 @click.stop="$router.push(`/review?id=${row.id}`)"
-              >去复检</el-button>
+              >{{ t('recordings.actions.goReview') }}</el-button>
               <el-popover
                 v-if="canWrite"
                 trigger="click"
@@ -276,25 +276,25 @@
               >
                 <template #reference>
                   <button type="button" class="more-btn" @click.stop>
-                    更多
+                    {{ t('recordings.actions.more') }}
                     <el-icon :size="11"><ArrowDown /></el-icon>
                   </button>
                 </template>
                 <div class="more-list" @click.stop>
-                  <button v-if="canClaimRow(row)" class="more-item" @click.stop="claim(row)">认领</button>
+                  <button v-if="canClaimRow(row)" class="more-item" @click.stop="claim(row)">{{ t('recordings.actions.claim') }}</button>
                   <button
                     v-if="isAdmin && row.status === 'NEEDS_REVIEW'"
                     class="more-item"
                     @click.stop="openAssign(row)"
-                  >指派复核人</button>
+                  >{{ t('recordings.actions.assign') }}</button>
                   <el-popconfirm
                     v-if="isAdmin && isFinalReviewStatus(row.status)"
-                    title="重开为待人工复检？将清空最终结论并保留复核历史。"
+                    :title="t('recordings.reopen.confirm')"
                     width="260"
                     @confirm="reopen(row)"
                   >
                     <template #reference>
-                      <button type="button" class="more-item warn" @click.stop>重开复检</button>
+                      <button type="button" class="more-item warn" @click.stop>{{ t('recordings.actions.reopen') }}</button>
                     </template>
                   </el-popconfirm>
                   <el-popconfirm
@@ -314,11 +314,11 @@
                   </el-popconfirm>
                   <el-popconfirm
                     v-if="canWrite"
-                    title="确认删除该录音（含文件与日志）？"
+                    :title="t('recordings.delete.confirm')"
                     @confirm="remove(row)"
                   >
                     <template #reference>
-                      <button type="button" class="more-item danger" @click.stop>删除录音</button>
+                      <button type="button" class="more-item danger" @click.stop>{{ t('recordings.actions.delete') }}</button>
                     </template>
                   </el-popconfirm>
                 </div>
@@ -330,8 +330,8 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><Microphone /></el-icon>
-            <div class="empty-title">还没有录音</div>
-            <div class="tiny dim">上传客服通话录音，系统会自动完成转写、初筛与语义复筛</div>
+            <div class="empty-title">{{ t('recordings.empty.title') }}</div>
+            <div class="tiny dim">{{ t('recordings.empty.hint') }}</div>
           </div>
         </template>
       </el-table>
@@ -363,27 +363,27 @@
                   <span class="chip">{{ formatDuration(detail.durationSeconds) }}</span>
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
-                  <span v-if="detail.channelCount === 2" class="chip brand">双声道双轨</span>
+                  <span v-if="detail.channelCount === 2" class="chip brand">{{ t('recordings.detail.stereo') }}</span>
                   <span
                     v-if="isSampled(detail)"
                     class="chip warn"
-                    title="DFA 未命中，按抽样比例进入 AI 语义复筛 / 人工复检"
-                  >抽样录音</span>
+                    :title="t('recordings.sampled.tooltip')"
+                  >{{ t('recordings.sampled.label') }}</span>
                   <PriorityTag :priority="detail.priority" />
                   <span class="chip">
-                    {{ detail.assignedTo ? `指派：${detail.assignedTo}` : '未指派' }}
+                    {{ detail.assignedTo ? t('recordings.detail.assignedTo', { name: detail.assignedTo }) : t('recordings.table.unassigned') }}
                   </span>
-                  <span v-if="detail.agentName" class="chip">坐席：{{ detail.agentName }}</span>
-                  <span v-if="detail.teamName" class="chip">团队：{{ detail.teamName }}</span>
-                  <span v-if="detail.businessLine" class="chip">业务线：{{ detail.businessLine }}</span>
+                  <span v-if="detail.agentName" class="chip">{{ t('recordings.detail.agent', { name: detail.agentName }) }}</span>
+                  <span v-if="detail.teamName" class="chip">{{ t('recordings.detail.team', { name: detail.teamName }) }}</span>
+                  <span v-if="detail.businessLine" class="chip">{{ t('recordings.detail.businessLine', { name: detail.businessLine }) }}</span>
                   <span
                     v-if="detail.direction && DIRECTION_META[detail.direction]"
                     class="chip"
                     :class="directionClass(detail.direction)"
                   >{{ directionLabel(detail.direction) }}</span>
-                  <span v-if="detail.callTime" class="chip num">通话：{{ formatTime(detail.callTime) }}</span>
+                  <span v-if="detail.callTime" class="chip num">{{ t('recordings.detail.callTime', { time: formatTime(detail.callTime) }) }}</span>
                   <span v-if="detailProgress.required > 1" class="chip info">
-                    复核 {{ detailProgress.text }}
+                    {{ t('recordings.detail.reviewProgress', { progress: detailProgress.text }) }}
                   </span>
                 </div>
               </div>
@@ -394,26 +394,26 @@
                 type="danger"
                 size="small"
                 @click="$router.push(`/review?id=${detail.id}`)"
-              >去人工复检</el-button>
+              >{{ t('recordings.actions.goManualReview') }}</el-button>
               <el-button
                 v-if="canClaimRow(detail)"
                 type="primary"
                 size="small"
                 @click="claim(detail)"
-              >认领</el-button>
+              >{{ t('recordings.actions.claim') }}</el-button>
               <el-button
                 v-if="isAdmin && detail.status === 'NEEDS_REVIEW'"
                 size="small"
                 @click="openAssign(detail)"
-              >指派</el-button>
+              >{{ t('recordings.actions.assignShort') }}</el-button>
               <el-popconfirm
                 v-if="isAdmin && isFinalReviewStatus(detail.status)"
-                title="重开为待人工复检？将清空最终结论并保留复核历史。"
+                :title="t('recordings.reopen.confirm')"
                 width="260"
                 @confirm="reopen(detail)"
               >
                 <template #reference>
-                  <el-button type="warning" size="small">重开</el-button>
+                  <el-button type="warning" size="small">{{ t('recordings.actions.reopenShort') }}</el-button>
                 </template>
               </el-popconfirm>
               <el-popconfirm
@@ -428,7 +428,7 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
+              <el-button :icon="Close" circle size="small" @click="detailVisible = false" :aria-label="t('common.close')" :title="t('common.close')" />
             </div>
           </div>
 
@@ -441,7 +441,7 @@
               :fallback-duration="detail.durationSeconds || 0"
               @time-update="onTimeUpdate"
             />
-            <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
+            <div v-else class="no-audio tiny dim">{{ t('recordings.detail.noAudio') }}</div>
             <div v-if="channelFiles" class="channel-switch">
               <button
                 v-for="opt in channelOptions"
@@ -464,19 +464,19 @@
 
           <!-- AI 复筛 -->
           <section v-if="aiResult" class="block">
-            <div class="block-title">AI 语义复筛</div>
+            <div class="block-title">{{ t('recordings.detail.aiScreening') }}</div>
             <div class="verdict" :class="aiResult.violation ? 'bad' : 'ok'">
               <div class="verdict-head">
                 <span class="verdict-badge">
                   <el-icon :size="14">
                     <component :is="aiResult.violation ? 'WarningFilled' : 'CircleCheckFilled'" />
                   </el-icon>
-                  {{ aiResult.violation ? '判定违规' : '判定正常' }}
+                  {{ aiResult.violation ? t('recordings.detail.verdictViolation') : t('recordings.detail.verdictCompliant') }}
                 </span>
                 <span v-if="aiTypeLabel" class="chip warn">{{ aiTypeLabel }}</span>
                 <span class="spacer"></span>
                 <span class="conf">
-                  置信度
+                  {{ t('recordings.detail.confidence') }}
                   <b class="num">{{ aiResult.confidence != null ? (aiResult.confidence * 100).toFixed(0) + '%' : '—' }}</b>
                 </span>
               </div>
@@ -489,9 +489,9 @@
               </div>
               <div class="verdict-reason">{{ aiResult.reason || '—' }}</div>
               <div v-if="aiResult.screenModel" class="verdict-model tiny">
-                <span class="dim">判定模型</span>
+                <span class="dim">{{ t('recordings.detail.model') }}</span>
                 <span class="mono">{{ aiResult.screenProviderLabel || aiResult.screenProvider }} · {{ aiResult.screenModel }}</span>
-                <span v-if="aiResult.degraded" class="chip warn">降级转人工</span>
+                <span v-if="aiResult.degraded" class="chip warn">{{ t('recordings.detail.degraded') }}</span>
               </div>
             </div>
           </section>
@@ -507,7 +507,7 @@
                   @click="transcriptMode = 'dialogue'"
                 >
                   <el-icon :size="12"><Connection /></el-icon>
-                  双栏对话
+                  {{ t('recordings.transcript.dialogue') }}
                 </button>
                 <button
                   class="seg-btn"
@@ -515,7 +515,7 @@
                   @click="transcriptMode = 'segment'"
                 >
                   <el-icon :size="12"><Tickets /></el-icon>
-                  逐句对照
+                  {{ t('recordings.transcript.sentence') }}
                 </button>
                 <button
                   class="seg-btn"
@@ -523,12 +523,12 @@
                   @click="transcriptMode = 'full'"
                 >
                   <el-icon :size="12"><Document /></el-icon>
-                  全文
+                  {{ t('recordings.transcript.full') }}
                 </button>
               </div>
               <label v-if="transcriptMode !== 'full'" class="follow">
                 <el-switch v-model="follow" size="small" />
-                <span class="tiny dim">跟随播放</span>
+                <span class="tiny dim">{{ t('recordings.transcript.follow') }}</span>
               </label>
             </div>
 
@@ -545,7 +545,7 @@
             />
             <TranscriptViewer
               v-else
-              :text="detail.transcript || '（暂无转写文本）'"
+              :text="detail.transcript || t('recordings.transcript.empty')"
               :hits="dfaHits"
               :target-sentence="aiResult?.targetSentence"
             />
@@ -553,31 +553,31 @@
 
           <!-- 人工复检 -->
           <section v-if="detail.reviewResult" class="block">
-            <div class="block-title">人工复检</div>
+            <div class="block-title">{{ t('recordings.detail.manualReview') }}</div>
             <div class="review-grid">
               <div class="review-item">
-                <span class="review-label">结论</span>
+                <span class="review-label">{{ t('recordings.review.result') }}</span>
                 <span
                   class="chip"
                   :class="detail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
                 >
-                  {{ detail.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行' }}
+                  {{ detail.reviewResult === 'CONFIRMED_VIOLATION' ? STATUS_META.VIOLATION_CONFIRMED.label : STATUS_META.FALSE_POSITIVE.label }}
                 </span>
               </div>
               <div class="review-item">
-                <span class="review-label">类型</span>
+                <span class="review-label">{{ t('common.type') }}</span>
                 <span>{{ detail.violationTypeLabel || '—' }}</span>
               </div>
               <div class="review-item">
-                <span class="review-label">复检人</span>
+                <span class="review-label">{{ t('recordings.review.reviewer') }}</span>
                 <span>{{ detail.reviewer || '—' }}</span>
               </div>
               <div class="review-item">
-                <span class="review-label">时间</span>
+                <span class="review-label">{{ t('recordings.review.time') }}</span>
                 <span class="num">{{ formatTime(detail.reviewTime) }}</span>
               </div>
               <div class="review-item span-2">
-                <span class="review-label">备注</span>
+                <span class="review-label">{{ t('common.remark') }}</span>
                 <span>{{ detail.reviewComment || '—' }}</span>
               </div>
             </div>
@@ -585,7 +585,7 @@
 
           <!-- 处理轨迹 -->
           <section class="block">
-            <div class="block-title">处理轨迹</div>
+            <div class="block-title">{{ t('recordings.detail.timeline') }}</div>
             <el-timeline v-if="logs.length" class="timeline">
               <el-timeline-item
                 v-for="(l, i) in logs"
@@ -598,14 +598,14 @@
                 <span class="log-msg">{{ l.message }}</span>
               </el-timeline-item>
             </el-timeline>
-            <div v-else class="dim tiny">暂无处理日志</div>
+            <div v-else class="dim tiny">{{ t('recordings.detail.noLogs') }}</div>
           </section>
 
           <!-- AI 调用详情：完整提示词与模型原始回复 -->
           <section v-if="aiInvocations.length" class="block">
             <div class="block-head">
-              <div class="block-title">AI 调用详情</div>
-              <span class="tiny dim">完整提示词与原始回复，共 {{ aiInvocations.length }} 次</span>
+              <div class="block-title">{{ t('recordings.detail.aiInvocations') }}</div>
+              <span class="tiny dim">{{ countLabel('recordings.detail.aiInvocationsHint', aiInvocations.length) }}</span>
             </div>
             <el-collapse class="ai-collapse">
               <el-collapse-item v-for="inv in aiInvocations" :key="inv.id" :name="inv.id">
@@ -615,41 +615,41 @@
                       {{ stageLabel(inv.stage) }}
                     </span>
                     <span class="mono ai-inv-model">{{ inv.providerLabel }} · {{ inv.model }}</span>
-                    <span v-if="!inv.success" class="chip danger">失败</span>
-                    <span v-else-if="inv.degraded" class="chip warn">降级</span>
-                    <span v-else class="chip ok">成功</span>
+                    <span v-if="!inv.success" class="chip danger">{{ t('common.failed') }}</span>
+                    <span v-else-if="inv.degraded" class="chip warn">{{ t('meta.aiStatus.DEGRADED') }}</span>
+                    <span v-else class="chip ok">{{ t('common.success') }}</span>
                     <span class="spacer"></span>
                     <span class="num tiny dim">{{ inv.latencyMs }}ms</span>
                   </div>
                 </template>
 
                 <div class="ai-meta tiny dim">
-                  <div>端点：<span class="mono">{{ inv.endpoint || '—' }}</span></div>
+                  <div>{{ t('recordings.detail.endpoint') }}<span class="mono">{{ inv.endpoint || '—' }}</span></div>
                   <div>
                     <span class="num">{{ formatTime(inv.createdAt) }}</span>
-                    · 请求 {{ inv.requestChars }} 字符 · 回复 {{ inv.responseChars }} 字符
+                    · {{ t('recordings.detail.requestChars', { count: inv.requestChars }) }} · {{ t('recordings.detail.responseChars', { count: inv.responseChars }) }}
                   </div>
                 </div>
 
                 <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
                   <div class="ai-part-head">
                     <span class="ai-role" :class="m.role">
-                      {{ m.role === 'system' ? '系统提示词' : '用户提示词' }}
+                      {{ m.role === 'system' ? t('meta.aiRole.SYSTEM') : t('meta.aiRole.USER') }}
                     </span>
-                    <span class="tiny dim">{{ (m.content || '').length }} 字符</span>
+                    <span class="tiny dim">{{ t('recordings.detail.charCount', { count: (m.content || '').length }) }}</span>
                   </div>
                   <pre class="ai-raw">{{ m.content }}</pre>
                 </div>
 
-                <div v-if="!inv.requestJson" class="tiny dim">（请求体未留痕）</div>
+                <div v-if="!inv.requestJson" class="tiny dim">{{ t('recordings.detail.noRequestBody') }}</div>
 
                 <div class="ai-part">
                   <div class="ai-part-head">
-                    <span class="ai-role reply">模型回复</span>
-                    <span class="tiny dim">{{ inv.responseChars }} 字符</span>
+                    <span class="ai-role reply">{{ t('meta.aiRole.ASSISTANT') }}</span>
+                    <span class="tiny dim">{{ t('recordings.detail.charCount', { count: inv.responseChars }) }}</span>
                   </div>
                   <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
-                  <pre v-else class="ai-raw error">{{ inv.errorMessage || '（无回复）' }}</pre>
+                  <pre v-else class="ai-raw error">{{ inv.errorMessage || t('recordings.detail.noReply') }}</pre>
                 </div>
               </el-collapse-item>
             </el-collapse>
@@ -661,7 +661,7 @@
     <!-- 上传录音：文件 + 元数据（坐席 / 团队 / 通话时间 / 方向 / 业务线） -->
     <el-dialog
       v-model="uploadVisible"
-      title="上传录音"
+      :title="t('recordings.upload.title')"
       width="540px"
       :close-on-click-modal="!uploading"
       :close-on-press-escape="!uploading"
@@ -669,7 +669,7 @@
       @closed="resetUploadForm"
     >
       <el-form :model="uploadForm" label-width="76px" class="upload-form">
-        <el-form-item label="音频文件" required>
+        <el-form-item :label="t('recordings.upload.audioFiles')" required>
           <el-upload
             ref="uploadRef"
             class="uploader"
@@ -684,42 +684,42 @@
             :on-exceed="onUploadExceed"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">拖拽音频到此处，或 <em>点击选择</em></div>
+            <div class="el-upload__text">{{ t('recordings.upload.dropPrefix') }}<em>{{ t('recordings.upload.dropAccent') }}</em></div>
             <template #tip>
               <div class="el-upload__tip">
-                支持多选（最多 20 个），单文件 ≤ 25MB；按选择顺序逐个上传，元数据应用到本批全部文件
+                {{ t('recordings.upload.tip') }}
               </div>
             </template>
           </el-upload>
         </el-form-item>
-        <el-form-item label="坐席">
+        <el-form-item :label="t('recordings.field.agent')">
           <el-input
             v-model="uploadForm.agentName"
-            placeholder="如 张三 / 工号 A1024"
+            :placeholder="t('recordings.upload.agentPlaceholder')"
             clearable
             maxlength="64"
           />
         </el-form-item>
-        <el-form-item label="团队">
+        <el-form-item :label="t('recordings.field.team')">
           <el-input
             v-model="uploadForm.teamName"
-            placeholder="如 客服一组"
+            :placeholder="t('recordings.upload.teamPlaceholder')"
             clearable
             maxlength="128"
           />
         </el-form-item>
-        <el-form-item label="通话时间">
+        <el-form-item :label="t('recordings.field.callTime')">
           <el-date-picker
             v-model="uploadForm.callTime"
             type="datetime"
-            placeholder="选择通话时间"
+            :placeholder="t('recordings.upload.callTimePlaceholder')"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="方向">
-          <el-select v-model="uploadForm.direction" placeholder="未选择按未知处理" clearable style="width: 100%">
+        <el-form-item :label="t('recordings.field.direction')">
+          <el-select v-model="uploadForm.direction" :placeholder="t('recordings.upload.directionPlaceholder')" clearable style="width: 100%">
             <el-option
               v-for="opt in DIRECTION_OPTIONS"
               :key="opt.value"
@@ -728,10 +728,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="业务线">
+        <el-form-item :label="t('recordings.field.businessLine')">
           <el-input
             v-model="uploadForm.businessLine"
-            placeholder="如 电商 / 金融分期"
+            :placeholder="t('recordings.upload.businessLinePlaceholder')"
             clearable
             maxlength="64"
           />
@@ -742,9 +742,9 @@
       <div v-if="uploadQueue.length" class="upload-queue">
         <div class="uq-head">
           <span class="tiny dim">
-            共 {{ uploadQueue.length }} 个文件 · 已完成 {{ uploadDoneCount }} / {{ uploadQueue.length }}
+            {{ countLabel('recordings.upload.queueSummary', uploadQueue.length, { done: uploadDoneCount }) }}
           </span>
-          <span v-if="uploading" class="tiny dim">总进度 {{ uploadOverallPercent }}%</span>
+          <span v-if="uploading" class="tiny dim">{{ t('recordings.upload.overallProgress', { percent: uploadOverallPercent }) }}</span>
         </div>
         <div v-for="item in uploadQueue" :key="item.uid" class="uq-row">
           <div class="uq-line">
@@ -764,18 +764,21 @@
       </div>
 
       <div v-if="uploadSummary && !uploading" class="upload-summary tiny">
-        本批完成：成功 {{ uploadSummary.success }} · 失败 {{ uploadSummary.error }} ·
-        取消 {{ uploadSummary.canceled }}
+        {{ t('recordings.upload.summary', {
+          success: uploadSummary.success,
+          error: uploadSummary.error,
+          canceled: uploadSummary.canceled
+        }) }}
       </div>
 
       <div class="upload-tip tiny dim">
-        元数据均为选填，后续可在列表与报表中按坐席 / 团队 / 通话时间 / 方向筛选；上传成功后表单自动清空。
+        {{ t('recordings.upload.metadataTip') }}
       </div>
       <template #footer>
-        <el-button :disabled="uploading" @click="uploadVisible = false">取消</el-button>
-        <el-button v-if="uploading" @click="cancelRemaining">取消剩余</el-button>
+        <el-button :disabled="uploading" @click="uploadVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button v-if="uploading" @click="cancelRemaining">{{ t('recordings.upload.cancelRemaining') }}</el-button>
         <el-button type="primary" :loading="uploading" @click="submitUpload">
-          {{ uploading ? `上传中 ${uploadDoneCount} / ${uploadQueue.length}` : '开始上传' }}
+          {{ uploading ? t('recordings.upload.uploadingProgress', { done: uploadDoneCount, count: uploadQueue.length }) : t('recordings.upload.start') }}
         </el-button>
       </template>
     </el-dialog>
@@ -798,6 +801,7 @@ import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
+import { useI18n } from '../i18n'
 import { formatClock } from '../utils/segments'
 import {
   UPLOAD_STATUS,
@@ -822,8 +826,16 @@ import {
   PRIORITY_OPTIONS,
   reprocessInfo,
   reviewProgress,
-  PROCESSING_STATUSES
+  PROCESSING_STATUSES,
+  STATUS_META
 } from '../constants'
+
+const { t } = useI18n()
+
+/** 带数量的文案：英文按单复数取词典里的 `.one` / `.other` */
+function countLabel(key, count, params = {}) {
+  return t(`${key}.${count === 1 ? 'one' : 'other'}`, { ...params, count })
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -900,14 +912,20 @@ function canClaimRow(row) {
   return canWrite.value && row?.status === 'NEEDS_REVIEW' && !row.assignedTo
 }
 
+/* 筛选项文案：getter 保证语言切换后 `filters` 计算属性重新求值；
+ * 状态类标签复用 constants 的响应式 getter，分组 / 简称（处理中、待复检）单独取词。 */
 const FILTERS = [
-  { key: '', label: '全部', countKey: 'ALL' },
-  { key: 'PROCESSING', label: '处理中', countKey: 'PROCESSING' },
-  { key: 'NEEDS_REVIEW', label: '待复检', countKey: 'NEEDS_REVIEW' },
-  { key: 'COMPLIANT', label: '自动通过', countKey: 'COMPLIANT' },
-  { key: 'VIOLATION_CONFIRMED', label: '确认违规', countKey: 'VIOLATION_CONFIRMED' },
-  { key: 'FALSE_POSITIVE', label: '误判放行', countKey: 'FALSE_POSITIVE' },
-  { key: 'FAILED', label: '失败', countKey: 'FAILED' }
+  { key: '', countKey: 'ALL', get label() { return t('common.all') } },
+  { key: 'PROCESSING', countKey: 'PROCESSING', get label() { return t('recordings.filters.processing') } },
+  { key: 'NEEDS_REVIEW', countKey: 'NEEDS_REVIEW', get label() { return t('recordings.filters.needsReview') } },
+  { key: 'COMPLIANT', countKey: 'COMPLIANT', get label() { return STATUS_META.COMPLIANT.label } },
+  {
+    key: 'VIOLATION_CONFIRMED',
+    countKey: 'VIOLATION_CONFIRMED',
+    get label() { return STATUS_META.VIOLATION_CONFIRMED.label }
+  },
+  { key: 'FALSE_POSITIVE', countKey: 'FALSE_POSITIVE', get label() { return STATUS_META.FALSE_POSITIVE.label } },
+  { key: 'FAILED', countKey: 'FAILED', get label() { return STATUS_META.FAILED.label } }
 ]
 
 const filters = computed(() =>
@@ -942,11 +960,12 @@ function dayOffset(days) {
   return d
 }
 
-const dateShortcuts = [
-  { text: '最近 7 天', value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: '最近 30 天', value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: '最近 90 天', value: () => [dayOffset(-89), dayOffset(0)] }
-]
+/* 快捷日期：文案放在 computed 里，语言切换时重新求值 */
+const dateShortcuts = computed(() => [
+  { text: t('recordings.meta.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
+  { text: t('recordings.meta.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
+  { text: t('recordings.meta.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
+])
 
 const metaParams = computed(() => ({
   agentName: agentFilter.value.trim() || undefined,
@@ -1026,12 +1045,12 @@ const channelFiles = computed(() => {
 const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
 const channelOptions = computed(() => {
   const files = channelFiles.value || {}
-  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || '左声道'
-  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || '右声道'
+  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || t('recordings.channel.left')
+  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || t('recordings.channel.right')
   return [
-    { key: 'mix', label: '混合', badge: '' },
-    { key: 'L', label: files.L ? leftName : '左声道', badge: 'L' },
-    { key: 'R', label: files.R ? rightName : '右声道', badge: 'R' }
+    { key: 'mix', label: t('recordings.channel.mix'), badge: '' },
+    { key: 'L', label: files.L ? leftName : t('recordings.channel.left'), badge: 'L' },
+    { key: 'R', label: files.R ? rightName : t('recordings.channel.right'), badge: 'R' }
   ]
 })
 const audioSrc = computed(() => {
@@ -1057,28 +1076,33 @@ function seekTo(time) {
   if (time == null) return
   currentTime.value = time
   if (!audioUrl.value) {
-    ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
+    ElMessage.info(t('recordings.messages.noAudioSeek', { time: formatClock(time) }))
     return
   }
   playerRef.value?.seekTo(time)
 }
 
+/* 处理轨迹阶段：getter 形式，切换语言后重新求值 */
 const STAGE_NAMES = {
-  PIPELINE: '流水线',
-  TRANSCRIBE: 'Whisper 转写',
-  DFA: 'DFA 初筛',
-  AI: 'AI 复筛',
-  REVIEW: '人工复检',
-  MINING: '词典挖掘',
-  RAG: '知识库检索'
+  get PIPELINE() { return t('recordings.stage.pipeline') },
+  get TRANSCRIBE() { return t('recordings.stage.transcribe') },
+  get DFA() { return t('recordings.stage.dfa') },
+  get AI() { return t('recordings.stage.ai') },
+  get REVIEW() { return t('recordings.stage.review') },
+  get MINING() { return t('recordings.stage.mining') },
+  get RAG() { return t('recordings.stage.rag') }
 }
 const stageName = (s) => STAGE_NAMES[s] || s
 
 /* ---------- AI 调用留痕 ---------- */
-const stageLabel = (s) => (s === 'MINING' ? '敏感词挖掘'
-  : s === 'EMBED_QUERY' ? '检索向量化'
-  : s === 'EMBED_INDEX' ? '索引向量化'
-  : '语义复筛')
+/** AI 调用阶段复用 meta 里的枚举标签（未知阶段按语义复筛展示） */
+const AI_STAGE_KEYS = {
+  SCREEN: 'meta.aiStage.SCREEN',
+  MINING: 'meta.aiStage.MINING',
+  EMBED_QUERY: 'meta.aiStage.EMBED_QUERY',
+  EMBED_INDEX: 'meta.aiStage.EMBED_INDEX'
+}
+const stageLabel = (s) => t(AI_STAGE_KEYS[s] || 'meta.aiStage.SCREEN')
 
 /** 从留痕的请求体里取出 messages，供分栏展示 */
 function messagesOf(inv) {
@@ -1194,7 +1218,7 @@ function syncUploadQueue(fileList) {
     const prev = previous.get(uid)
     if (prev) {
       if (tooLarge && prev.status === UPLOAD_STATUS.PENDING) {
-        return { ...prev, status: UPLOAD_STATUS.ERROR, error: '超过 25MB（Whisper 单文件上限）' }
+        return { ...prev, status: UPLOAD_STATUS.ERROR, error: t('recordings.upload.tooLarge') }
       }
       // 移除后重新选择同一文件：保留新 raw 引用
       return { ...prev, file: raw }
@@ -1202,11 +1226,11 @@ function syncUploadQueue(fileList) {
     return {
       uid,
       file: raw,
-      name: raw?.name || '未知文件',
+      name: raw?.name || t('recordings.upload.unknownFile'),
       size: Number(raw?.size) || 0,
       progress: 0,
       status: tooLarge ? UPLOAD_STATUS.ERROR : UPLOAD_STATUS.PENDING,
-      error: tooLarge ? '超过 25MB（Whisper 单文件上限）' : ''
+      error: tooLarge ? t('recordings.upload.tooLarge') : ''
     }
   })
 }
@@ -1221,7 +1245,7 @@ function onUploadFileRemove(_file, fileList) {
 
 /** 超过 20 个文件：提示而不是清空已选队列 */
 function onUploadExceed() {
-  ElMessage.warning('一次最多上传 20 个文件，请分批上传')
+  ElMessage.warning(t('recordings.upload.tooMany'))
 }
 
 /** 取消剩余：正在上传的当前文件会继续完成，未开始的标记为已取消 */
@@ -1229,12 +1253,12 @@ function cancelRemaining() {
   if (!uploading.value) return
   cancelRequested = true
   uploadQueue.value = markRemainingCanceled(uploadQueue.value)
-  ElMessage.info('已取消剩余文件（当前文件仍会上传完成）')
+  ElMessage.info(t('recordings.upload.canceledRemaining'))
 }
 
 async function submitUpload() {
   if (!uploadQueue.value.length) {
-    ElMessage.warning('请选择要上传的音频文件')
+    ElMessage.warning(t('recordings.upload.noFilesSelected'))
     return
   }
   // 失败项（非超限）允许点击「开始上传」重试
@@ -1250,8 +1274,8 @@ async function submitUpload() {
     )
     ElMessage.warning(
       hasOversized
-        ? '没有可上传的文件：请移除超过 25MB 的文件后重试'
-        : '本批已全部处理完成，可关闭窗口或重新选择文件'
+        ? t('recordings.upload.noUploadable')
+        : t('recordings.upload.batchDone')
     )
     return
   }
@@ -1291,7 +1315,7 @@ async function submitUpload() {
       } catch (e) {
         uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
           status: UPLOAD_STATUS.ERROR,
-          error: e?.message || '上传失败'
+          error: e?.message || t('recordings.upload.failed')
         })
         failed += 1
       }
@@ -1303,11 +1327,11 @@ async function submitUpload() {
   const summary = summarizeQueue(uploadQueue.value)
   uploadSummary.value = summary
   if (success > 0) {
-    ElMessage.success(`本批成功上传 ${success} 个文件，已进入稽核流水线`)
+    ElMessage.success(countLabel('recordings.upload.successMessage', success))
     reload()
     loadOverview()
   }
-  if (failed > 0) ElMessage.error(`${failed} 个文件上传失败，可在列表中重试或重新选择`)
+  if (failed > 0) ElMessage.error(countLabel('recordings.upload.failureMessage', failed))
 
   // 保持单文件旧体验：单个文件全部成功时自动关闭并清空
   if (totalFiles === 1 && summary.success === 1) {
@@ -1349,7 +1373,11 @@ async function openDetail(row) {
 async function reprocess(row) {
   const info = reprocessInfo(row)
   await api.reprocessRecording(row.id)
-  ElMessage.success(`${info?.label || '处理'}已触发，正在重新执行流水线`)
+  ElMessage.success(
+    t('recordings.reprocess.triggered', {
+      action: info?.label || t('recordings.reprocess.fallbackAction')
+    })
+  )
   load()
   loadOverview()
   if (detail.value?.id === row.id) openDetail(row)
@@ -1357,7 +1385,7 @@ async function reprocess(row) {
 
 async function remove(row) {
   await api.deleteRecording(row.id)
-  ElMessage.success('已删除')
+  ElMessage.success(t('recordings.messages.deleted'))
   if (detail.value?.id === row.id) detailVisible.value = false
   load()
   loadOverview()
@@ -1378,7 +1406,7 @@ async function claim(row) {
     if (detail.value?.id === row.id) {
       detail.value = { ...detail.value, ...patch, assignedTo }
     }
-    ElMessage.success('已认领，可在人工复检页处理')
+    ElMessage.success(t('recordings.messages.claimed'))
   } catch {
     // 409 等由请求层统一提示
   }
@@ -1402,7 +1430,7 @@ async function reopen(row) {
   if (!row?.id) return
   try {
     await api.reopenRecording(row.id)
-    ElMessage.success('已重开为待人工复检')
+    ElMessage.success(t('recordings.messages.reopened'))
     if (detail.value?.id === row.id) detailVisible.value = false
     await load()
     loadOverview()

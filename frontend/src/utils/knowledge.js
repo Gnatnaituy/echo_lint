@@ -12,8 +12,28 @@
 
 import { asObject, pick, toBoolean, toNumber, toText, toStringList } from './shape.js'
 
-/** 常见知识库分类：仅作为下拉候选，允许输入自定义分类 */
-export const KNOWLEDGE_CATEGORIES = ['话术规范', '违规示例', '处罚标准', 'SOP', '其他']
+/**
+ * 常见知识库分类：仅作为下拉候选，允许输入自定义分类。
+ *
+ * 注意：这些中文值是持久化数据（写入后端 category 字段），必须保留原值，不能翻译；
+ * 展示层通过 `knowledgeCategoryMessageKey` 映射到 messages/knowledge.js 的文案。
+ */
+export const KNOWLEDGE_CATEGORIES = ['话术规范', '违规示例', '处罚标准', 'SOP', '其他'] // i18n-audit-ignore
+
+/** 分类候选对应的展示文案 key（与 KNOWLEDGE_CATEGORIES 顺序一一对应） */
+const KNOWLEDGE_CATEGORY_MESSAGE_KEYS = [
+  'knowledge.category.script',
+  'knowledge.category.violationExample',
+  'knowledge.category.penalty',
+  'knowledge.category.sop',
+  'knowledge.category.other'
+]
+
+/** 分类展示文案 key：自定义分类返回空串，由调用方原样展示 */
+export function knowledgeCategoryMessageKey(category) {
+  const index = KNOWLEDGE_CATEGORIES.indexOf(toText(category))
+  return index >= 0 ? KNOWLEDGE_CATEGORY_MESSAGE_KEYS[index] : ''
+}
 
 /** 单条知识库条目 */
 export function normalizeKnowledgeEntry(raw) {

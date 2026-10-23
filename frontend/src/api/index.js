@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { t } from '../i18n/index.js'
 import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download'
 import {
   normalizeNotificationSettings,
@@ -34,7 +35,10 @@ const http = axios.create({
   withCredentials: true
 })
 
-const GENERIC_ERROR = '请求失败，请检查后端服务是否可用'
+/** 统一兜底错误文案：跟随当前语言 */
+function genericError() {
+  return t('api.genericError')
+}
 
 /** 从普通 JSON 错误体里取 message（blob 错误体需异步解析，见 pickMessage） */
 function payloadMessage(data) {
@@ -56,7 +60,7 @@ async function pickMessage(error) {
       if (text) {
         try {
           const parsed = JSON.parse(text)
-          return payloadMessage(parsed) || error.message || GENERIC_ERROR
+          return payloadMessage(parsed) || error.message || genericError()
         } catch {
           // 非 JSON（如 nginx 的 HTML 错误页）：不直接回显，避免污染界面
         }
@@ -64,9 +68,9 @@ async function pickMessage(error) {
     } catch {
       // 读取 Blob 失败：退回 axios 自身 message
     }
-    return error.message || GENERIC_ERROR
+    return error.message || genericError()
   }
-  return payloadMessage(data) || error.message || GENERIC_ERROR
+  return payloadMessage(data) || error.message || genericError()
 }
 
 /**
@@ -106,8 +110,8 @@ http.interceptors.response.use(
     }
 
     if (status === 403) {
-      if (!silent) ElMessage.error('无权限执行该操作')
-      const denied = new Error('无权限执行该操作')
+      if (!silent) ElMessage.error(t('api.forbidden'))
+      const denied = new Error(t('api.forbidden'))
       denied.status = 403
       return Promise.reject(denied)
     }

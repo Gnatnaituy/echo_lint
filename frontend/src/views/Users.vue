@@ -4,28 +4,36 @@
     <section class="panel">
       <div class="toolbar">
         <div class="row-wrap">
-          <div class="section-title">用户管理</div>
-          <span class="chip info">{{ rows.length }} 个账号</span>
-          <span class="chip brand">管理员 {{ adminCount }}</span>
-          <span v-if="disabledCount" class="chip">{{ disabledCount }} 个已禁用</span>
+          <div class="section-title">{{ t('users.title') }}</div>
+          <span class="chip info">{{ tn('users.accountCount', rows.length) }}</span>
+          <span class="chip brand">{{ tn('users.adminCount', adminCount) }}</span>
+          <span v-if="disabledCount" class="chip">
+            {{ t('users.disabledCount', { count: disabledCount }) }}
+          </span>
         </div>
         <div class="actions">
           <el-input
             v-model="keyword"
-            placeholder="搜索用户名 / 显示名"
+            :placeholder="t('users.searchPlaceholder')"
             clearable
             class="search"
             @clear="page = 1"
           >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="load" aria-label="刷新" title="刷新" />
-          <el-button type="primary" :icon="Plus" @click="openCreate">新建用户</el-button>
+          <el-button
+            :icon="Refresh"
+            circle
+            @click="load"
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+          />
+          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('users.create') }}</el-button>
         </div>
       </div>
       <div class="hint tiny dim">
-        <div>角色：<b>管理员</b> 拥有全部权限；<b>复核员</b> 可上传、认领与提交复核结论；<b>只读</b> 仅可查看。</div>
-        <div>禁用账号不会删除历史数据与审计记录，可随时重新启用；密码以 BCrypt 存储，最少 8 位。</div>
+        <div>{{ t('users.roleHint') }}</div>
+        <div>{{ t('users.securityHint') }}</div>
       </div>
     </section>
 
@@ -34,11 +42,11 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">重试</el-button>
+        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="pagedRows" :row-class-name="rowClass">
-        <el-table-column label="用户名" min-width="190">
+        <el-table-column :label="t('users.username')" min-width="190">
           <template #default="{ row }">
             <div class="user-cell">
               <div class="avatar" :class="{ off: !row.enabled }">{{ initial(row) }}</div>
@@ -49,42 +57,44 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="displayName" label="显示名" min-width="140">
+        <el-table-column prop="displayName" :label="t('users.displayName')" min-width="140">
           <template #default="{ row }">
             <span :class="{ dim: !row.displayName }">{{ row.displayName || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="角色" width="110" align="center">
+        <el-table-column :label="t('users.role')" width="110" align="center">
           <template #default="{ row }">
             <span class="chip" :class="ROLE_CHIP[row.role] || 'info'">
               {{ roleLabel(row.role) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('common.status')" width="100" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.enabled ? 'ok' : 'off'">
-              {{ row.enabled ? '启用' : '已禁用' }}
+              {{ row.enabled ? t('common.enabled') : t('users.statusDisabled') }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="150">
+        <el-table-column :label="t('common.createdAt')" width="150">
           <template #default="{ row }">
             <span class="num dim">{{ formatTimeShort(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="right">
+        <el-table-column :label="t('common.actions')" width="176" align="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button size="small" link type="primary" @click="openEdit(row)">
+                {{ t('common.edit') }}
+              </el-button>
               <el-popconfirm
                 v-if="row.enabled && !isSelf(row)"
-                title="禁用后该账号将无法登录，确认禁用？"
+                :title="t('users.disableConfirm')"
                 width="240"
                 @confirm="disable(row)"
               >
                 <template #reference>
-                  <el-button size="small" link type="danger">禁用</el-button>
+                  <el-button size="small" link type="danger">{{ t('users.disable') }}</el-button>
                 </template>
               </el-popconfirm>
               <el-button
@@ -93,17 +103,19 @@
                 link
                 type="success"
                 @click="enable(row)"
-              >启用</el-button>
-              <span v-else class="tiny dim">当前账号</span>
+              >{{ t('users.enable') }}</el-button>
+              <span v-else class="tiny dim">{{ t('users.self') }}</span>
             </div>
           </template>
         </el-table-column>
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><User /></el-icon>
-            <div class="empty-title">{{ rows.length ? '没有匹配的账号' : '暂无用户' }}</div>
+            <div class="empty-title">
+              {{ rows.length ? t('users.emptyFilteredTitle') : t('users.emptyTitle') }}
+            </div>
             <div class="tiny dim">
-              {{ rows.length ? '换个关键词试试' : '点击右上角「新建用户」创建第一个账号' }}
+              {{ rows.length ? t('users.emptyFilteredHint') : t('users.emptyHint') }}
             </div>
           </div>
         </template>
@@ -123,25 +135,29 @@
     <!-- 新建 / 编辑 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="editing ? '编辑用户' : '新建用户'"
+      :title="editing ? t('users.editTitle') : t('users.createTitle')"
       width="470px"
       append-to-body
       @closed="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="86px" @submit.prevent="submit">
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="t('users.username')" prop="username">
           <el-input
             v-if="!editing"
             v-model="form.username"
-            placeholder="登录账号，小写字母/数字/._-"
+            :placeholder="t('users.usernamePlaceholder')"
             autocomplete="off"
           />
           <el-input v-else :model-value="editing.username" disabled />
         </el-form-item>
-        <el-form-item label="显示名" prop="displayName">
-          <el-input v-model="form.displayName" placeholder="如：张合规" maxlength="40" />
+        <el-form-item :label="t('users.displayName')" prop="displayName">
+          <el-input
+            v-model="form.displayName"
+            :placeholder="t('users.displayNamePlaceholder')"
+            maxlength="40"
+          />
         </el-form-item>
-        <el-form-item label="角色" prop="role">
+        <el-form-item :label="t('users.role')" prop="role">
           <div class="role-field">
             <el-select v-model="form.role" style="width: 100%">
               <el-option
@@ -154,32 +170,37 @@
             <div class="tiny dim role-desc">{{ ROLE_META[form.role]?.description }}</div>
           </div>
         </el-form-item>
-        <el-form-item :label="editing ? '重置密码' : '初始密码'" prop="password">
+        <el-form-item
+          :label="editing ? t('users.resetPassword') : t('users.initialPassword')"
+          prop="password"
+        >
           <el-input
             v-model="form.password"
             type="password"
             show-password
             autocomplete="new-password"
-            :placeholder="editing ? '留空则不修改（至少 8 位）' : '至少 8 位'"
+            :placeholder="
+              editing ? t('users.passwordKeepPlaceholder') : t('users.passwordPlaceholder')
+            "
           />
         </el-form-item>
-        <el-form-item v-if="editing" label="启用">
+        <el-form-item v-if="editing" :label="t('common.enabled')">
           <el-switch v-model="form.enabled" />
-          <span class="tiny dim ml-8">禁用后该账号无法登录，历史审计保留</span>
+          <span class="tiny dim ml-8">{{ t('users.disableHint') }}</span>
         </el-form-item>
         <el-alert
           v-if="editing && isSelf(editing)"
           type="warning"
           :closable="false"
           show-icon
-          title="这是当前登录账号，修改角色/禁用可能影响本会话的权限"
+          :title="t('users.selfAlert')"
           class="self-alert"
         />
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="saving" @click="submit">
-          {{ editing ? '保存修改' : '创建用户' }}
+          {{ editing ? t('users.saveChanges') : t('users.createSubmit') }}
         </el-button>
       </template>
     </el-dialog>
@@ -193,6 +214,9 @@ import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import { formatTimeShort, ROLE_META, ROLE_OPTIONS, roleLabel } from '../constants'
+import { useI18n } from '../i18n'
+
+const { t, tn } = useI18n()
 
 const rows = ref([])
 const loading = ref(false)
@@ -242,7 +266,7 @@ async function load() {
     rows.value = Array.isArray(data) ? data : data?.content || []
   } catch (e) {
     rows.value = []
-    error.value = e?.message || '用户列表加载失败'
+    error.value = e?.message || t('users.loadFailed')
   } finally {
     loading.value = false
   }
@@ -263,24 +287,24 @@ const form = reactive({
 
 function validatePassword(rule, value, callback) {
   if (editing.value && !value) return callback()
-  if (!value) return callback(new Error('请输入初始密码'))
-  if (String(value).length < 8) return callback(new Error('密码至少 8 位'))
+  if (!value) return callback(new Error(t('users.passwordRequired')))
+  if (String(value).length < 8) return callback(new Error(t('users.passwordMin')))
   callback()
 }
 
-const rules = {
+const rules = computed(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { required: true, message: t('users.usernameRequired'), trigger: 'blur' },
     {
       pattern: /^[a-z0-9._-]{3,32}$/,
-      message: '3-32 位小写字母/数字/._-',
+      message: t('users.usernamePattern'),
       trigger: 'blur'
     }
   ],
-  displayName: [{ required: true, message: '请输入显示名', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  displayName: [{ required: true, message: t('users.displayNameRequired'), trigger: 'blur' }],
+  role: [{ required: true, message: t('users.roleRequired'), trigger: 'change' }],
   password: [{ validator: validatePassword, trigger: 'blur' }]
-}
+}))
 
 function resetForm() {
   editing.value = null
@@ -325,7 +349,7 @@ async function submit() {
       }
       if (form.password) payload.password = form.password
       await api.updateUser(editing.value.id, payload)
-      ElMessage.success('用户已更新')
+      ElMessage.success(t('users.updated'))
     } else {
       await api.createUser({
         username: form.username.trim().toLowerCase(),
@@ -333,7 +357,7 @@ async function submit() {
         displayName,
         role: form.role
       })
-      ElMessage.success('用户已创建')
+      ElMessage.success(t('users.created'))
     }
     dialogVisible.value = false
     await load()
@@ -347,7 +371,7 @@ async function submit() {
 async function disable(row) {
   try {
     await api.disableUser(row.id)
-    ElMessage.success(`已禁用 ${row.username}`)
+    ElMessage.success(t('users.disabledSuccess', { name: row.username }))
     await load()
   } catch {
     // 请求层已统一提示
@@ -361,7 +385,7 @@ async function enable(row) {
       role: row.role,
       enabled: true
     })
-    ElMessage.success(`已启用 ${row.username}`)
+    ElMessage.success(t('users.enabledSuccess', { name: row.username }))
     await load()
   } catch {
     // 请求层已统一提示

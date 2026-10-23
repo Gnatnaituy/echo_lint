@@ -5,18 +5,18 @@
       <div class="topbar-main">
         <div class="seg">
           <button class="seg-item" :class="{ on: tab === 'pending' }" @click="switchTab('pending')">
-            待复检
+            {{ t('review.tabs.pending') }}
             <span class="seg-count" :class="{ hot: pendingTotal > 0 }">{{ pendingTotal }}</span>
           </button>
           <button class="seg-item" :class="{ on: tab === 'history' }" @click="switchTab('history')">
-            已复检
+            {{ t('review.tabs.history') }}
             <span class="seg-count">{{ historyTotal }}</span>
           </button>
         </div>
         <div v-if="tab === 'pending'" class="queue-filters">
           <el-select
             v-model="priorityFilter"
-            placeholder="全部优先级"
+            :placeholder="t('review.filters.allPriorities')"
             clearable
             class="prio-select"
             @change="applyQueueFilters"
@@ -24,7 +24,7 @@
             <el-option
               v-for="opt in PRIORITY_OPTIONS"
               :key="opt.value"
-              :label="`${opt.label}优先级`"
+              :label="t('review.filters.priorityOption', { label: opt.label })"
               :value="opt.value"
             />
           </el-select>
@@ -41,7 +41,7 @@
       </div>
       <div v-if="tab === 'pending'" class="topbar-hint">
         <el-icon :size="13"><InfoFilled /></el-icon>
-        <span class="queue-logic">初筛 ∩ 复筛均判违规才进入复检队列</span>
+        <span class="queue-logic">{{ t('review.queue.hint') }}</span>
       </div>
     </section>
 
@@ -50,13 +50,13 @@
       <!-- 队列 -->
       <aside class="panel queue">
         <div class="queue-head">
-          <div class="section-title">复检队列</div>
+          <div class="section-title">{{ t('review.queue.title') }}</div>
           <el-input
             v-model="queueKeyword"
-            placeholder="筛选文件/转写"
+            :placeholder="t('review.queue.searchPlaceholder')"
             clearable
             class="queue-search"
-            title="输入后按回车筛选（文件名或转写文本）"
+            :title="t('review.queue.searchTitle')"
             @keyup.enter="applyQueueFilters"
             @clear="applyQueueFilters"
           >
@@ -77,19 +77,19 @@
               <span class="queue-name ellipsis">{{ r.fileName }}</span>
               <span class="queue-meta">
                 <span class="dot" :style="{ background: priorityDot(r.priority) }"></span>
-                <span class="queue-type">{{ r.aiViolationTypeLabel || '未分类' }}</span>
+                <span class="queue-type">{{ r.aiViolationTypeLabel || t('review.queue.uncategorized') }}</span>
                 <span
                   v-if="isSampled(r)"
                   class="queue-sampled"
-                  title="DFA 未命中，按抽样比例进入复检"
-                >抽样</span>
+                  :title="t('review.queue.sampledTitle')"
+                >{{ t('review.badges.sampled') }}</span>
                 <span class="queue-prio" :class="priorityClass(r.priority)">{{ priorityMeta(r.priority).label }}</span>
                 <span
                   v-if="r.assignedTo"
                   class="queue-assignee"
                   :class="{ me: r.assignedTo === auth.username }"
-                >{{ r.assignedTo === auth.username ? '我的' : r.assignedTo }}</span>
-                <span v-else class="queue-assignee unassigned">未指派</span>
+                >{{ r.assignedTo === auth.username ? t('review.queue.mine') : r.assignedTo }}</span>
+                <span v-else class="queue-assignee unassigned">{{ t('review.assign.unassigned') }}</span>
                 <span class="queue-time num">{{ formatRelative(r.uploadTime) }}</span>
               </span>
             </span>
@@ -97,14 +97,18 @@
 
           <div v-if="!pendingRows.length" class="empty-block">
             <el-icon :size="32" class="empty-icon"><CircleCheckFilled /></el-icon>
-            <div class="empty-title">{{ hasQueueFilter ? '没有匹配的录音' : '队列已清空' }}</div>
-            <div class="tiny dim">{{ hasQueueFilter ? '试试其他筛选条件' : '当前没有待人工复检的录音' }}</div>
+            <div class="empty-title">
+              {{ hasQueueFilter ? t('review.queue.emptyFilteredTitle') : t('review.queue.emptyTitle') }}
+            </div>
+            <div class="tiny dim">
+              {{ hasQueueFilter ? t('review.queue.emptyFilteredHint') : t('review.queue.emptyHint') }}
+            </div>
           </div>
         </div>
 
         <!-- 队列分页：筛选与分页都由服务端完成，翻页结果与「共 N 条」一致 -->
         <div v-if="pendingTotal" class="queue-foot">
-          <span class="queue-total num">共 {{ pendingTotal }} 条</span>
+          <span class="queue-total num">{{ t('review.queue.total', { total: pendingTotal }) }}</span>
           <el-pagination
             size="small"
             layout="prev, pager, next"
@@ -128,20 +132,26 @@
               <div class="work-chips">
                 <span class="chip mono">#{{ current.id }}</span>
                 <span class="chip">{{ formatDuration(current.durationSeconds) }}</span>
-                <span class="chip danger">DFA 命中 {{ current.hitCount }} 处</span>
-                <span v-if="aiResult?.violationTypeLabel" class="chip warn">AI：{{ aiResult.violationTypeLabel }}</span>
+                <span class="chip danger">{{ t('review.work.dfaHits', { count: current.hitCount }) }}</span>
+                <span v-if="aiResult?.violationTypeLabel" class="chip warn">
+                  {{ t('review.work.aiType', { type: aiResult.violationTypeLabel }) }}
+                </span>
                 <span
                   v-if="isSampled(current)"
                   class="chip warn"
-                  title="DFA 未命中，按抽样比例进入 AI 语义复筛与人工复检"
-                >抽样</span>
+                  :title="t('review.work.sampledTitle')"
+                >{{ t('review.badges.sampled') }}</span>
                 <PriorityTag :priority="current.priority" />
                 <span class="chip" :class="{ brand: current.assignedTo === auth.username }">
                   {{ current.assignedTo
-                    ? (current.assignedTo === auth.username ? '指派给我' : `指派：${current.assignedTo}`)
-                    : '未指派' }}
+                    ? (current.assignedTo === auth.username
+                      ? t('review.assign.assignedToMe')
+                      : t('review.assign.assignedTo', { name: current.assignedTo }))
+                    : t('review.assign.unassigned') }}
                 </span>
-                <span v-if="progress.required > 1" class="chip info">复核 {{ progress.text }}</span>
+                <span v-if="progress.required > 1" class="chip info">
+                  {{ t('review.work.reviewProgress', { progress: progress.text }) }}
+                </span>
                 <span class="chip num">{{ formatTime(current.uploadTime) }}</span>
               </div>
             </div>
@@ -152,12 +162,14 @@
                 :icon="Flag"
                 :loading="claiming"
                 @click="claimCurrent"
-              >认领</el-button>
+              >{{ t('review.actions.claim') }}</el-button>
               <el-button v-if="canAssign" :icon="User" @click="assignVisible = true">
-                指派
+                {{ t('review.actions.assign') }}
               </el-button>
               <el-button :icon="Right" @click="autoNext">
-                下一条<template v-if="remaining > 0">（剩 {{ remaining }}）</template>
+                {{ t('review.actions.next') }}<template v-if="remaining > 0">{{
+                  t('review.actions.nextRemaining', { count: remaining })
+                }}</template>
               </el-button>
             </div>
           </div>
@@ -168,23 +180,37 @@
               <component :is="current.reviewResult === 'CONFIRMED_VIOLATION' ? 'WarningFilled' : 'CircleCheckFilled'" />
             </el-icon>
             <div class="reviewed-title">
-              {{ current.reviewResult === 'CONFIRMED_VIOLATION' ? '已确认违规' : '已判定为误报' }}
+              {{
+                current.reviewResult === 'CONFIRMED_VIOLATION'
+                  ? t('review.reviewed.confirmed')
+                  : t('review.reviewed.falsePositive')
+              }}
             </div>
             <div class="reviewed-sub">
-              结论已回馈语料库①，并{{ current.reviewResult === 'CONFIRMED_VIOLATION' ? '触发敏感词挖掘（新词默认停用待审核）' : '作为合规反例参与 AI 复筛' }}
+              {{
+                current.reviewResult === 'CONFIRMED_VIOLATION'
+                  ? t('review.reviewed.confirmedSub')
+                  : t('review.reviewed.falsePositiveSub')
+              }}
             </div>
-            <el-button type="primary" @click="autoNext">处理下一条</el-button>
+            <el-button type="primary" @click="autoNext">{{ t('review.actions.processNext') }}</el-button>
           </div>
 
           <!-- 已提交复核，等待下一位复核人（双人复核进度未满） -->
           <div v-else-if="submittedPending" class="reviewed submitted">
             <el-icon :size="38" class="icon-warn"><Clock /></el-icon>
-            <div class="reviewed-title">已提交复核 {{ submittedPending.text }}</div>
-            <div class="reviewed-sub">
-              本条录音需要 {{ submittedPending.required }} 位复核人确认，当前已提交
-              {{ submittedPending.count }} 人。待下一人复核后才会落最终结论并回馈语料库。
+            <div class="reviewed-title">
+              {{ t('review.submitted.title', { progress: submittedPending.text }) }}
             </div>
-            <el-button type="primary" @click="autoNext">处理下一条</el-button>
+            <div class="reviewed-sub">
+              {{
+                t('review.submitted.hint', {
+                  required: submittedPending.required,
+                  count: submittedPending.count
+                })
+              }}
+            </div>
+            <el-button type="primary" @click="autoNext">{{ t('review.actions.processNext') }}</el-button>
           </div>
 
           <template v-else>
@@ -196,7 +222,7 @@
                 :fallback-duration="current.durationSeconds || totalDuration"
                 @time-update="onTimeUpdate"
               />
-              <div v-else class="no-audio tiny dim">该录音无可播放文件（演示数据不含音频）</div>
+              <div v-else class="no-audio tiny dim">{{ t('review.player.noAudio') }}</div>
 
               <!-- 分声道试听：双轨录音可单独听坐席 / 客户 -->
               <div v-if="channelFiles" class="channel-switch">
@@ -225,7 +251,7 @@
                       @click="transcriptMode = 'dialogue'"
                     >
                       <el-icon :size="12"><Connection /></el-icon>
-                      双栏对话
+                      {{ t('review.transcript.dialogue') }}
                     </button>
                     <button
                       class="seg-btn"
@@ -233,7 +259,7 @@
                       @click="transcriptMode = 'segment'"
                     >
                       <el-icon :size="12"><Tickets /></el-icon>
-                      逐句对照
+                      {{ t('review.transcript.segment') }}
                     </button>
                     <button
                       class="seg-btn"
@@ -241,12 +267,12 @@
                       @click="transcriptMode = 'full'"
                     >
                       <el-icon :size="12"><Document /></el-icon>
-                      全文
+                      {{ t('review.transcript.full') }}
                     </button>
                   </div>
                   <label v-if="transcriptMode !== 'full'" class="follow">
                     <el-switch v-model="follow" size="small" />
-                    <span class="tiny dim">跟随播放</span>
+                    <span class="tiny dim">{{ t('review.transcript.follow') }}</span>
                   </label>
                 </div>
 
@@ -264,7 +290,7 @@
                   />
                   <TranscriptViewer
                     v-else
-                    :text="current.transcript || '（无转写文本）'"
+                    :text="current.transcript || t('review.transcript.empty')"
                     :hits="dfaHits"
                     :target-sentence="aiResult?.targetSentence"
                   />
@@ -279,11 +305,17 @@
                       <el-icon :size="14">
                         <component :is="aiResult?.violation ? 'WarningFilled' : 'CircleCheckFilled'" />
                       </el-icon>
-                      AI 复筛：{{ aiResult?.violation ? '判定违规' : '判定正常' }}
+                      {{
+                        t('review.ai.verdict', {
+                          result: aiResult?.violation
+                            ? t('review.ai.judgedViolation')
+                            : t('review.ai.judgedNormal')
+                        })
+                      }}
                     </span>
                     <span v-if="aiResult?.violationTypeLabel" class="chip warn">{{ aiResult.violationTypeLabel }}</span>
                     <span class="conf">
-                      <span class="tiny dim">置信度</span>
+                      <span class="tiny dim">{{ t('review.ai.confidence') }}</span>
                       <b class="num">{{ aiResult?.confidence != null ? Math.round(aiResult.confidence * 100) + '%' : '—' }}</b>
                     </span>
                   </div>
@@ -294,43 +326,47 @@
                       :style="{ width: (aiResult?.confidence || 0) * 100 + '%' }"
                     ></div>
                   </div>
-                  <div class="verdict-reason">{{ aiResult?.reason || '（无复筛理由）' }}</div>
+                  <div class="verdict-reason">{{ aiResult?.reason || t('review.ai.noReason') }}</div>
                   <div v-if="aiResult?.screenModel" class="verdict-model tiny">
-                    <span class="dim">判定模型</span>
+                    <span class="dim">{{ t('review.ai.model') }}</span>
                     <span class="mono">
                       {{ aiResult.screenProviderLabel || aiResult.screenProvider }} · {{ aiResult.screenModel }}
                     </span>
-                    <span v-if="aiResult.degraded" class="chip warn">降级转人工</span>
+                    <span v-if="aiResult.degraded" class="chip warn">{{ t('review.ai.degraded') }}</span>
                   </div>
 
                   <!-- AI 调用留痕：点开看完整提示词与模型原始回复 -->
                   <el-collapse v-if="aiInvocations.length" class="ai-collapse">
                     <el-collapse-item :name="0">
                       <template #title>
-                        <span class="ai-toggle tiny">查看 AI 调用详情（{{ aiInvocations.length }} 次）</span>
+                        <span class="ai-toggle tiny">
+                          {{ t('review.ai.invocations', { count: aiInvocations.length }) }}
+                        </span>
                       </template>
                       <div v-for="inv in aiInvocations" :key="inv.id" class="ai-inv">
                         <div class="ai-inv-head tiny">
                           <span class="chip" :class="inv.stage === 'MINING' ? 'info' : 'brand'">
-                            {{ inv.stage === 'MINING' ? '敏感词挖掘' : '语义复筛' }}
+                            {{ inv.stage === 'MINING' ? t('meta.aiStage.MINING') : t('meta.aiStage.SCREEN') }}
                           </span>
                           <span class="mono">{{ inv.providerLabel }} · {{ inv.model }}</span>
-                          <span v-if="!inv.success" class="chip danger">失败</span>
+                          <span v-if="!inv.success" class="chip danger">{{ t('common.failed') }}</span>
                           <span class="spacer"></span>
                           <span class="num dim">{{ inv.latencyMs }}ms</span>
                         </div>
                         <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
                           <div class="ai-part-head tiny">
                             <span class="ai-role" :class="m.role">
-                              {{ m.role === 'system' ? '系统提示词' : '用户提示词' }}
+                              {{ m.role === 'system' ? t('meta.aiRole.SYSTEM') : t('meta.aiRole.USER') }}
                             </span>
                           </div>
                           <pre class="ai-raw">{{ m.content }}</pre>
                         </div>
                         <div class="ai-part">
-                          <div class="ai-part-head tiny"><span class="ai-role reply">模型回复</span></div>
+                          <div class="ai-part-head tiny">
+                            <span class="ai-role reply">{{ t('meta.aiRole.ASSISTANT') }}</span>
+                          </div>
                           <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
-                          <pre v-else class="ai-raw error">{{ inv.errorMessage || '（无回复）' }}</pre>
+                          <pre v-else class="ai-raw error">{{ inv.errorMessage || t('review.ai.noResponse') }}</pre>
                         </div>
                       </div>
                     </el-collapse-item>
@@ -340,11 +376,16 @@
                 <!-- 复核工作流：进度 / 权限提示 / 复核历史 -->
                 <div class="workflow">
                   <div class="block-head">
-                    <div class="block-title no-mb">复核进度</div>
+                    <div class="block-title no-mb">{{ t('review.progress.title') }}</div>
                     <span class="tiny dim">
-                      {{ progress.required > 1
-                        ? `需 ${progress.required} 人确认 · 已提交 ${progress.count} 人`
-                        : '单人复核' }}
+                      {{
+                        progress.required > 1
+                          ? t('review.progress.multi', {
+                            required: progress.required,
+                            count: progress.count
+                          })
+                          : t('review.progress.single')
+                      }}
                     </span>
                   </div>
                   <div class="progress-row">
@@ -355,7 +396,7 @@
                       :class="{ on: i <= progress.count }"
                     ></span>
                     <b class="num">{{ progress.text }}</b>
-                    <span class="tiny dim">人已复核</span>
+                    <span class="tiny dim">{{ t('review.progress.unit') }}</span>
                   </div>
 
                   <el-alert
@@ -363,7 +404,7 @@
                     type="info"
                     :closable="false"
                     show-icon
-                    title="只读账号仅可查看复核信息"
+                    :title="t('review.alerts.readOnly')"
                     class="wf-alert"
                   />
                   <el-alert
@@ -371,7 +412,7 @@
                     type="warning"
                     :closable="false"
                     show-icon
-                    title="双人复核：你已提交过本条录音，需另一位复核人确认"
+                    :title="t('review.alerts.sameReviewer')"
                     class="wf-alert"
                   />
                   <el-alert
@@ -379,16 +420,20 @@
                     type="info"
                     :closable="false"
                     show-icon
-                    :title="`已提交 ${progress.count}/${progress.required}，待下一人复核`"
+                    :title="t('review.alerts.pendingNext', { count: progress.count, required: progress.required })"
                     class="wf-alert"
                   />
 
                   <div class="history-head">
-                    <div class="block-title no-mb">复核记录</div>
-                    <span class="tiny dim">{{ reviewHistory.length ? `${reviewHistory.length} 条` : '暂无' }}</span>
+                    <div class="block-title no-mb">{{ t('review.history.title') }}</div>
+                    <span class="tiny dim">{{
+                      reviewHistory.length
+                        ? tn('common.recordsUnit', reviewHistory.length)
+                        : t('review.history.none')
+                    }}</span>
                   </div>
-                  <div v-if="reviewHistoryLoading" class="tiny dim">加载中…</div>
-                  <div v-else-if="!reviewHistory.length" class="tiny dim">尚未有人提交复核结论</div>
+                  <div v-if="reviewHistoryLoading" class="tiny dim">{{ t('common.loading') }}</div>
+                  <div v-else-if="!reviewHistory.length" class="tiny dim">{{ t('review.history.empty') }}</div>
                   <el-timeline v-else class="review-timeline">
                     <el-timeline-item
                       v-for="(h, i) in reviewHistory"
@@ -400,12 +445,16 @@
                       <div class="rh-line">
                         <span class="strong">{{ h.reviewerUsername || '—' }}</span>
                         <span class="chip" :class="h.result === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-                          {{ h.result === 'CONFIRMED_VIOLATION' ? '确认违规' : '判定正常' }}
+                          {{ h.result === 'CONFIRMED_VIOLATION'
+                            ? t('review.result.confirmed')
+                            : t('review.result.normal') }}
                         </span>
                         <span v-if="h.violationType" class="chip warn">
                           {{ VIOLATION_TYPES[h.violationType] || h.violationType }}
                         </span>
-                        <span v-if="h.round != null" class="chip info">第 {{ h.round }} 轮</span>
+                        <span v-if="h.round != null" class="chip info">
+                          {{ t('review.history.round', { round: h.round }) }}
+                        </span>
                       </div>
                       <div v-if="h.comment" class="rh-comment">{{ h.comment }}</div>
                     </el-timeline-item>
@@ -414,10 +463,10 @@
 
                 <div v-if="readOnly" class="readonly-note">
                   <el-icon :size="15"><View /></el-icon>
-                  你的账号为只读角色，可查看录音与复核历史，但不能提交复核结论。
+                  {{ t('review.readOnly.note') }}
                 </div>
                 <div v-else class="form">
-                  <div class="block-title">人工复检结论</div>
+                  <div class="block-title">{{ t('review.form.title') }}</div>
                   <div class="verdict-choice">
                     <button
                       class="choice"
@@ -425,7 +474,7 @@
                       @click="form.result = 'CONFIRMED_VIOLATION'"
                     >
                       <el-icon :size="15"><WarningFilled /></el-icon>
-                      确认违规
+                      {{ t('review.form.confirmViolation') }}
                     </button>
                     <button
                       class="choice"
@@ -433,12 +482,12 @@
                       @click="form.result = 'FALSE_POSITIVE'"
                     >
                       <el-icon :size="15"><CircleCheckFilled /></el-icon>
-                      判定正常
+                      {{ t('review.form.markNormal') }}
                     </button>
                   </div>
 
                   <div v-if="form.result === 'CONFIRMED_VIOLATION'" class="types">
-                    <div class="types-label">违规类型</div>
+                    <div class="types-label">{{ t('review.form.violationType') }}</div>
                     <div class="types-grid">
                       <button
                         v-for="(label, code) in VIOLATION_TYPES"
@@ -458,12 +507,12 @@
                     :rows="3"
                     maxlength="300"
                     show-word-limit
-                    placeholder="复检说明（将作为语料库的标注理由，留空则沿用 AI 判定理由）"
+                    :placeholder="t('review.form.commentPlaceholder')"
                   />
 
                   <div v-if="sameReviewerBlocked" class="form-warn">
                     <el-icon :size="13"><WarningFilled /></el-icon>
-                    你已提交过本轮复核，需由另一位复核人再次确认后才能落最终结论。
+                    {{ t('review.form.sameReviewerWarn') }}
                   </div>
 
                   <el-button
@@ -473,7 +522,11 @@
                     :disabled="sameReviewerBlocked"
                     @click="submit"
                   >
-                    {{ form.result === 'CONFIRMED_VIOLATION' ? '确认违规并回馈语料库' : '判定正常并回馈语料库' }}
+                    {{
+                      form.result === 'CONFIRMED_VIOLATION'
+                        ? t('review.form.submitConfirmed')
+                        : t('review.form.submitNormal')
+                    }}
                   </el-button>
                 </div>
               </div>
@@ -483,8 +536,8 @@
 
         <div v-else class="empty-block">
           <el-icon :size="34" class="empty-icon"><DocumentChecked /></el-icon>
-          <div class="empty-title">选择左侧录音开始复检</div>
-          <div class="tiny dim">复检结论会写入语料库，用于 AI 复筛的 few-shot 参考</div>
+          <div class="empty-title">{{ t('review.empty.selectTitle') }}</div>
+          <div class="tiny dim">{{ t('review.empty.selectHint') }}</div>
         </div>
       </section>
     </div>
@@ -492,7 +545,7 @@
     <!-- 已复检 -->
     <section v-show="tab === 'history'" class="panel">
       <el-table :data="historyRows" v-loading="historyLoading" scrollbar-always-on>
-        <el-table-column label="录音" min-width="240">
+        <el-table-column :label="t('review.table.recording')" min-width="240">
           <template #default="{ row }">
             <div class="file-cell">
               <div class="file-icon"><el-icon><Microphone /></el-icon></div>
@@ -503,39 +556,48 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="结论" width="118" align="center">
+        <el-table-column :label="t('review.table.result')" width="118" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-              {{ row.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行' }}
+              {{ row.reviewResult === 'CONFIRMED_VIOLATION'
+                ? t('review.result.confirmed')
+                : t('review.result.falsePositive') }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="类型" width="112" align="center">
+        <el-table-column :label="t('common.type')" width="112" align="center">
           <template #default="{ row }">
             <span v-if="row.violationTypeLabel" class="chip warn">{{ row.violationTypeLabel }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reviewComment" label="复检备注" min-width="200" show-overflow-tooltip>
+        <el-table-column
+          prop="reviewComment"
+          :label="t('review.table.comment')"
+          min-width="200"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             <span :class="{ dim: !row.reviewComment }">{{ row.reviewComment || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reviewer" label="复检人" width="100" align="center" />
-        <el-table-column label="复检时间" width="160">
+        <el-table-column prop="reviewer" :label="t('review.table.reviewer')" width="100" align="center" />
+        <el-table-column :label="t('review.table.reviewedAt')" width="160">
           <template #default="{ row }">
             <span class="num dim">{{ formatTime(row.reviewTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="88" align="right">
+        <el-table-column :label="t('common.actions')" width="88" align="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openHistoryDetail(row)">详情</el-button>
+            <el-button size="small" link type="primary" @click="openHistoryDetail(row)">
+              {{ t('common.detail') }}
+            </el-button>
           </template>
         </el-table-column>
         <template #empty>
           <div class="empty-block">
-            <div class="empty-title">暂无复检记录</div>
-            <div class="tiny dim">完成第一条人工复检后，这里会沉淀结论</div>
+            <div class="empty-title">{{ t('review.table.emptyTitle') }}</div>
+            <div class="tiny dim">{{ t('review.table.emptyHint') }}</div>
           </div>
         </template>
       </el-table>
@@ -558,19 +620,28 @@
             <div class="work-name ellipsis">{{ historyDetail.fileName }}</div>
             <div class="work-chips">
               <span class="chip" :class="historyDetail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-                {{ historyDetail.reviewResult === 'CONFIRMED_VIOLATION' ? '确认违规' : '误判放行' }}
+                {{ historyDetail.reviewResult === 'CONFIRMED_VIOLATION'
+                  ? t('review.result.confirmed')
+                  : t('review.result.falsePositive') }}
               </span>
               <span v-if="historyDetail.violationTypeLabel" class="chip warn">{{ historyDetail.violationTypeLabel }}</span>
-              <span v-if="isSampled(historyDetail)" class="chip warn">抽样</span>
+              <span v-if="isSampled(historyDetail)" class="chip warn">{{ t('review.badges.sampled') }}</span>
               <span class="chip">{{ historyDetail.reviewer || '—' }} · {{ formatTime(historyDetail.reviewTime) }}</span>
             </div>
           </div>
-          <el-button :icon="Close" circle size="small" @click="historyVisible = false" aria-label="关闭" title="关闭" />
+          <el-button
+            :icon="Close"
+            circle
+            size="small"
+            @click="historyVisible = false"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+          />
         </div>
         <div v-if="historyDetail.reviewComment" class="comment-block">
           {{ historyDetail.reviewComment }}
         </div>
-        <div class="block-title mt-14">录音转写</div>
+        <div class="block-title mt-14">{{ t('review.history.transcript') }}</div>
         <TranscriptViewer :text="historyDetail.transcript" :hits="historyHits" />
       </template>
     </el-drawer>
@@ -583,6 +654,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from '../i18n'
 import { ElMessage } from 'element-plus'
 import { Search, Right, Close, Flag, User } from '@element-plus/icons-vue'
 import api from '../api'
@@ -615,6 +687,7 @@ import {
 } from '../constants'
 
 const route = useRoute()
+const { t, tn } = useI18n()
 
 const tab = ref('pending')
 const pendingRows = ref([])
@@ -638,11 +711,11 @@ const pendingPageSize = ref(QUEUE_PAGE_SIZE)
 const pendingTotal = ref(0)
 const pendingLoading = ref(false)
 
-const ASSIGN_FILTERS = [
-  { key: '', label: '全部' },
-  { key: 'mine', label: '只看我的' },
-  { key: 'unassigned', label: '未指派' }
-]
+const ASSIGN_FILTERS = computed(() => [
+  { key: '', label: t('common.all') },
+  { key: 'mine', label: t('review.filters.mineOnly') },
+  { key: 'unassigned', label: t('review.assign.unassigned') }
+])
 
 const form = ref({ result: 'CONFIRMED_VIOLATION', violationType: 'INSULT', comment: '' })
 
@@ -668,12 +741,12 @@ const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
 
 const channelOptions = computed(() => {
   const files = channelFiles.value || {}
-  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || '左声道'
-  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || '右声道'
+  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || t('review.channels.left')
+  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || t('review.channels.right')
   return [
-    { key: 'mix', label: '混合', badge: '' },
-    { key: 'L', label: files.L ? leftName : '左声道', badge: 'L' },
-    { key: 'R', label: files.R ? rightName : '右声道', badge: 'R' }
+    { key: 'mix', label: t('review.channels.mix'), badge: '' },
+    { key: 'L', label: files.L ? leftName : t('review.channels.left'), badge: 'L' },
+    { key: 'R', label: files.R ? rightName : t('review.channels.right'), badge: 'R' }
   ]
 })
 
@@ -746,8 +819,10 @@ const priorityClass = (priority) => PRIORITY_CLASS[priority] || PRIORITY_CLASS.N
 /** 队列行保持两行简洁，摘要与置信度放进原生 tooltip，信息不丢但不占版面 */
 function queueTooltip(r) {
   const conf = r.aiConfidence != null ? Math.round(r.aiConfidence * 100) + '%' : '—'
-  const lines = [`${r.aiViolationTypeLabel || '未分类'} · 置信度 ${conf}`]
-  if (isSampled(r)) lines.push('DFA 未命中：按抽样比例进入复检')
+  const lines = [
+    `${r.aiViolationTypeLabel || t('review.queue.uncategorized')} · ${t('review.ai.confidence')} ${conf}`
+  ]
+  if (isSampled(r)) lines.push(t('review.queue.sampledTooltip'))
   if (r.transcriptSnippet) lines.push(r.transcriptSnippet)
   return lines.join('\n')
 }
@@ -787,7 +862,7 @@ function seekTo(time) {
   if (time == null) return
   currentTime.value = time
   if (!current.value?.filePath) {
-    ElMessage.info(`该录音无音频文件，句子起始时间 ${formatClock(time)}`)
+    ElMessage.info(t('review.messages.noAudioSeek', { time: formatClock(time) }))
     return
   }
   playerRef.value?.seekTo(time)
@@ -953,7 +1028,7 @@ async function claimCurrent() {
     pendingRows.value = pendingRows.value.map((row) =>
       row.id === rec.id ? { ...row, assignedTo } : row
     )
-    ElMessage.success('已认领，可开始复核')
+    ElMessage.success(t('review.messages.claimed'))
   } catch {
     // 409（已被他人认领）等由请求层统一提示
   } finally {
@@ -973,15 +1048,15 @@ function onAssigned({ username }) {
 
 async function submit() {
   if (!canReview.value) {
-    ElMessage.warning('当前账号为只读角色，无法提交复核结论')
+    ElMessage.warning(t('review.messages.readOnlySubmit'))
     return
   }
   if (sameReviewerBlocked.value) {
-    ElMessage.warning('你已提交过本轮复核，需由另一位复核人确认')
+    ElMessage.warning(t('review.messages.sameReviewerSubmit'))
     return
   }
   if (form.value.result === 'CONFIRMED_VIOLATION' && !form.value.violationType) {
-    ElMessage.warning('请选择违规类型')
+    ElMessage.warning(t('review.messages.selectViolationType'))
     return
   }
   submitting.value = true
@@ -1015,13 +1090,13 @@ async function submit() {
     if (merged.status === 'NEEDS_REVIEW' && savedProgress.count < savedProgress.required) {
       // 双人复核：本轮已提交，等待下一位复核人
       submittedPending.value = savedProgress
-      ElMessage.success(`已提交复核 ${savedProgress.text}，待下一人复核`)
+      ElMessage.success(t('review.messages.submittedPending', { progress: savedProgress.text }))
     } else {
       alreadyReviewed.value = true
       ElMessage.success(
         form.value.result === 'CONFIRMED_VIOLATION'
-          ? '已确认违规：结论回馈语料库，并启动敏感词挖掘'
-          : '已判定正常：作为合规反例回馈语料库'
+          ? t('review.messages.confirmedSaved')
+          : t('review.messages.normalSaved')
       )
       await loadPending()
     }

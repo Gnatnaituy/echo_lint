@@ -4,13 +4,13 @@
     <section class="panel">
       <div class="toolbar">
         <div class="row-wrap">
-          <div class="section-title">操作审计</div>
-          <span class="tiny dim">审计记录当前登录人与请求 IP；写入失败不影响主流程</span>
+          <div class="section-title">{{ t('audit.title') }}</div>
+          <span class="tiny dim">{{ t('audit.subtitle') }}</span>
         </div>
         <div class="actions">
           <el-input
             v-model="filters.actor"
-            placeholder="操作人"
+            :placeholder="t('audit.actorPlaceholder')"
             clearable
             class="actor-search"
             @keyup.enter="reload"
@@ -20,7 +20,7 @@
           </el-input>
           <el-select
             v-model="filters.action"
-            placeholder="全部动作"
+            :placeholder="t('audit.allActions')"
             clearable
             class="action-select"
             @change="reload"
@@ -32,11 +32,17 @@
               :value="opt.value"
             />
           </el-select>
-          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
-          <el-button :icon="Search" @click="reload">查询</el-button>
+          <el-button
+            :icon="Refresh"
+            circle
+            @click="reload"
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+          />
+          <el-button :icon="Search" @click="reload">{{ t('audit.search') }}</el-button>
         </div>
       </div>
-      <div class="hint tiny dim">按时间倒序分页；点击任意行查看完整详情。</div>
+      <div class="hint tiny dim">{{ t('audit.listHint') }}</div>
     </section>
 
     <!-- 列表 -->
@@ -44,7 +50,7 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">重试</el-button>
+        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-table
@@ -53,19 +59,19 @@
         :row-class-name="() => 'row-clickable'"
         @row-click="openDetail"
       >
-        <el-table-column label="时间" width="120">
+        <el-table-column :label="t('audit.time')" width="120">
           <template #default="{ row }">
             <span class="num" :title="formatTime(row.createdAt)">
               {{ formatSmartTime(row.createdAt) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作人" width="112">
+        <el-table-column :label="t('audit.actor')" width="112">
           <template #default="{ row }">
             <span class="mono">{{ row.actor || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="动作" width="156">
+        <el-table-column :label="t('audit.action')" width="156">
           <template #default="{ row }">
             <div class="action-cell">
               <span class="chip" :class="actionChip(row.action)">
@@ -75,7 +81,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="对象" min-width="140">
+        <el-table-column :label="t('audit.target')" min-width="140">
           <template #default="{ row }">
             <span v-if="row.targetType || row.targetId">
               {{ row.targetType || '—' }}
@@ -84,7 +90,7 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="detail" :label="t('common.detail')" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span :class="{ dim: !row.detail }">{{ row.detail || '—' }}</span>
           </template>
@@ -97,8 +103,8 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><List /></el-icon>
-            <div class="empty-title">暂无审计记录</div>
-            <div class="tiny dim">登录、用户管理、录音处理、复核与配置变更会自动写入审计</div>
+            <div class="empty-title">{{ t('audit.emptyTitle') }}</div>
+            <div class="tiny dim">{{ t('audit.emptyHint') }}</div>
           </div>
         </template>
       </el-table>
@@ -118,22 +124,29 @@
     <el-drawer v-model="detailVisible" size="520px" :with-header="false" append-to-body>
       <template v-if="detail">
         <div class="drawer-head">
-          <div class="section-title">审计详情</div>
-          <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
+          <div class="section-title">{{ t('audit.detailTitle') }}</div>
+          <el-button
+            :icon="Close"
+            circle
+            size="small"
+            @click="detailVisible = false"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+          />
         </div>
 
         <el-descriptions :column="1" border class="detail-desc">
-          <el-descriptions-item label="时间">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="操作人">
+          <el-descriptions-item :label="t('audit.time')">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('audit.actor')">
             <span class="mono">{{ detail.actor || '—' }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="动作">
+          <el-descriptions-item :label="t('audit.action')">
             <span class="chip" :class="actionChip(detail.action)">
               {{ auditActionLabel(detail.action) }}
             </span>
             <span class="mono tiny dim ml-8">{{ detail.action || '—' }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="对象">
+          <el-descriptions-item :label="t('audit.target')">
             <span>{{ detail.targetType || '—' }}</span>
             <span v-if="detail.targetId != null" class="mono dim ml-8">#{{ detail.targetId }}</span>
           </el-descriptions-item>
@@ -142,9 +155,9 @@
           </el-descriptions-item>
         </el-descriptions>
 
-        <div class="block-title">附加详情</div>
+        <div class="block-title">{{ t('audit.extraDetailTitle') }}</div>
         <pre v-if="detail.detail" class="detail-pre">{{ prettyDetail(detail.detail) }}</pre>
-        <div v-else class="tiny dim">无附加详情</div>
+        <div v-else class="tiny dim">{{ t('audit.noExtraDetail') }}</div>
       </template>
     </el-drawer>
   </div>
@@ -161,6 +174,9 @@ import {
   formatSmartTime,
   formatTime
 } from '../constants'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 const filters = reactive({ actor: '', action: '' })
 const rows = ref([])
@@ -197,7 +213,7 @@ async function load() {
   } catch (e) {
     rows.value = []
     total.value = 0
-    error.value = e?.message || '审计日志加载失败'
+    error.value = e?.message || t('audit.loadFailed')
   } finally {
     loading.value = false
   }

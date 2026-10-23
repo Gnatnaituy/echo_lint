@@ -3,31 +3,31 @@
     <!-- 概览 -->
     <div class="kpi-grid">
       <StatCard
-        label="词条总数"
+        :label="t('dictionary.kpi.total')"
         :value="stats.total"
         icon="Collection"
         tone="brand"
-        :sub="`启用中 ${stats.enabled} 条`"
+        :sub="t('dictionary.kpi.enabledSub', { count: stats.enabled })"
         clickable
         :active="!sourceFilter && !enabledFilter"
         @click="clearFilters"
       />
       <StatCard
-        label="启用中"
+        :label="t('dictionary.kpi.enabled')"
         :value="stats.enabled"
         icon="Select"
         tone="ok"
-        sub="参与 DFA 初筛"
+        :sub="t('dictionary.kpi.enabledHint')"
         clickable
         :active="enabledFilter === true"
         @click="filterEnabled(true)"
       />
       <StatCard
-        label="AI 挖掘待审核"
+        :label="t('dictionary.kpi.minedPending')"
         :value="stats.minedPending"
         icon="MagicStick"
         tone="warn"
-        sub="来自确认违规录音"
+        :sub="t('dictionary.kpi.minedPendingHint')"
         clickable
         :active="sourceFilter === 'MINED' && enabledFilter === false"
         @click="filterMined"
@@ -38,8 +38,8 @@
     <div class="two-col">
       <section class="panel dfa-panel">
         <div class="panel-head">
-          <div class="section-title">DFA 检测工具</div>
-          <span class="tiny dim">使用当前启用词典实时匹配</span>
+          <div class="section-title">{{ t('dictionary.dfa.title') }}</div>
+          <span class="tiny dim">{{ t('dictionary.dfa.subtitle') }}</span>
         </div>
         <div class="panel-body">
           <template v-if="canWrite">
@@ -48,57 +48,59 @@
                 v-model="testText"
                 type="textarea"
                 :rows="3"
-                placeholder="粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!"
+                :placeholder="t('dictionary.dfa.placeholder')"
               />
             </div>
             <div class="dfa-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">检测</el-button>
-              <el-button v-if="tested" link @click="clearTest">清空</el-button>
-              <span v-if="tested && testHits.length" class="chip danger">命中 {{ testHits.length }} 处</span>
-              <span v-else-if="tested" class="chip ok">未命中，文本干净</span>
+              <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">
+                {{ t('dictionary.dfa.test') }}
+              </el-button>
+              <el-button v-if="tested" link @click="clearTest">{{ t('dictionary.dfa.clear') }}</el-button>
+              <span v-if="tested && testHits.length" class="chip danger">
+                {{ t('dictionary.dfa.hitCount', { count: testHits.length }) }}
+              </span>
+              <span v-else-if="tested" class="chip ok">{{ t('dictionary.dfa.noHit') }}</span>
             </div>
 
             <div v-if="tested && testText" class="preview">
-              <div class="preview-label">命中预览</div>
+              <div class="preview-label">{{ t('dictionary.dfa.preview') }}</div>
               <TranscriptViewer :text="testText" :hits="testHits" />
             </div>
           </template>
           <div v-else class="readonly-hint">
             <el-icon :size="15"><Lock /></el-icon>
-            <span>只读角色可浏览词库与统计；DFA 检测工具与词条维护仅管理员可用。</span>
+            <span>{{ t('dictionary.dfa.readonlyHint') }}</span>
           </div>
         </div>
       </section>
 
       <section class="panel rules-panel">
         <div class="panel-head">
-          <div class="section-title">匹配规则与维护说明</div>
+          <div class="section-title">{{ t('dictionary.rules.title') }}</div>
         </div>
         <div class="panel-body tips">
           <div class="tip">
             <el-icon class="tip-icon"><InfoFilled /></el-icon>
             <div>
-              <b>不区分大小写</b>，且忽略词间空格与标点：词典里的 <code class="mono">fuck</code>
-              能命中 <code class="mono">F U C K</code>、<code class="mono">f.u.c.k</code>。
+              <b>{{ t('dictionary.rules.caseInsensitive') }}</b>{{ t('dictionary.rules.caseInsensitiveDesc') }}<code class="mono">fuck</code>{{ t('dictionary.rules.caseInsensitiveMatches') }}<code class="mono">F U C K</code>{{ t('dictionary.rules.listSeparator') }}<code class="mono">f.u.c.k</code>{{ t('dictionary.rules.sentenceEnd') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><InfoFilled /></el-icon>
             <div>
-              <b>子串语义</b>：<code class="mono">unfuckingbelievable</code> 会命中 <code class="mono">fuck</code>。
-              命中的误报由 AI 语义复筛兜底，这是两段式设计的取舍。
+              <b>{{ t('dictionary.rules.substring') }}</b>{{ t('dictionary.rules.substringLead') }}<code class="mono">unfuckingbelievable</code>{{ t('dictionary.rules.substringMatches') }}<code class="mono">fuck</code>{{ t('dictionary.rules.substringTail') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><MagicStick /></el-icon>
             <div>
-              <b>AI 挖掘的词默认停用</b>：人工复检确认违规后，系统会提炼新词入库，需在此页审核后启用。
+              <b>{{ t('dictionary.rules.minedDisabled') }}</b>{{ t('dictionary.rules.minedDisabledDesc') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><WarningFilled /></el-icon>
             <div>
-              <b>保存即生效</b>：任何增删改都会重建 DFA 匹配器，无需重启服务。
+              <b>{{ t('dictionary.rules.saveTakesEffect') }}</b>{{ t('dictionary.rules.saveTakesEffectDesc') }}
             </div>
           </div>
         </div>
@@ -110,55 +112,64 @@
       <div class="toolbar">
         <div class="filters">
           <button class="filter-chip" :class="{ on: sourceFilter === '' && enabledFilter === null }" @click="clearFilters">
-            全部
+            {{ t('common.all') }}
           </button>
           <button class="filter-chip" :class="{ on: sourceFilter === 'MANUAL' }" @click="setSource('MANUAL')">
-            人工录入
+            {{ SOURCE_META.MANUAL.label }}
           </button>
           <button class="filter-chip" :class="{ on: sourceFilter === 'MINED' }" @click="setSource('MINED')">
-            AI 挖掘
+            {{ SOURCE_META.MINED.label }}
           </button>
           <button class="filter-chip" :class="{ on: enabledFilter === false }" @click="filterEnabled(false)">
-            已停用
+            {{ t('dictionary.filters.disabled') }}
           </button>
         </div>
         <div class="actions">
-          <span v-if="!canWrite" class="chip info">只读模式</span>
-          <el-input v-model="keyword" placeholder="搜索词条" clearable class="search" @keyup.enter="reload" @clear="reload">
+          <span v-if="!canWrite" class="chip info">{{ t('dictionary.readonly') }}</span>
+          <el-input
+            v-model="keyword"
+            :placeholder="t('dictionary.searchPlaceholder')"
+            clearable
+            class="search"
+            @keyup.enter="reload"
+            @clear="reload"
+          >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
+          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
           <template v-if="canWrite">
-            <el-button :icon="Download" :loading="exporting" @click="exportCsv">导出 CSV</el-button>
-            <el-button :icon="Upload" @click="openImport">导入 CSV</el-button>
-            <el-button type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
+            <el-button :icon="Download" :loading="exporting" @click="exportCsv">
+              {{ t('dictionary.exportCsv') }}
+            </el-button>
+            <el-button :icon="Upload" @click="openImport">{{ t('dictionary.importCsv') }}</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('dictionary.createEntry') }}</el-button>
           </template>
         </div>
       </div>
 
       <!-- 批量启停（仅 ADMIN）：选中词条后出现 -->
       <div v-if="canWrite && selectedRows.length" class="bulk-bar">
-        <span class="chip brand">已选 {{ selectedRows.length }} 条</span>
+        <span class="chip brand">{{ t('dictionary.bulk.selected', { count: selectedRows.length }) }}</span>
         <el-button
           size="small"
           type="success"
           plain
           :loading="bulkLoading === 'on'"
           @click="bulkUpdate(true)"
-        >批量启用</el-button>
+        >{{ t('dictionary.bulk.enable') }}</el-button>
         <el-popconfirm
-          title="确认停用选中词条？停用后不再参与 DFA 初筛。"
+          :title="t('dictionary.bulk.confirmDisable')"
           width="260"
           @confirm="bulkUpdate(false)"
         >
           <template #reference>
             <el-button size="small" type="warning" plain :loading="bulkLoading === 'off'">
-              批量停用
+              {{ t('dictionary.bulk.disable') }}
             </el-button>
           </template>
         </el-popconfirm>
-        <el-button size="small" link @click="clearSelection">取消选择</el-button>
-        <span class="tiny dim">启停后立即重建 DFA 匹配器</span>
+        <el-button size="small" link @click="clearSelection">{{ t('dictionary.bulk.clear') }}</el-button>
+        <span class="tiny dim">{{ t('dictionary.bulk.hint') }}</span>
       </div>
 
       <el-table
@@ -169,19 +180,19 @@
         @selection-change="onSelectionChange"
       >
         <el-table-column v-if="canWrite" type="selection" width="48" align="center" />
-        <el-table-column label="敏感词" min-width="164">
+        <el-table-column :label="t('dictionary.table.word')" min-width="164">
           <template #default="{ row }">
             <div class="word-cell" :title="row.word">
               <span class="word mono">{{ row.word }}</span>
               <span
                 v-if="row.source === 'MINED' && !row.enabled"
                 class="chip warn"
-                title="AI 从确认违规录音中挖掘，启用前请人工审核"
-              >待审核</span>
+                :title="t('dictionary.pendingReviewTip')"
+              >{{ t('dictionary.pendingReview') }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="违规类型" width="124" align="center">
+        <el-table-column :label="t('dictionary.table.category')" width="138" align="center">
           <template #default="{ row }">
             <span v-if="row.category && VIOLATION_TYPES[row.category]" class="chip warn">
               {{ VIOLATION_TYPES[row.category] }}
@@ -189,7 +200,7 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="严重度" width="88" align="center">
+        <el-table-column :label="t('dictionary.table.severity')" width="114" align="center">
           <template #default="{ row }">
             <span class="chip" :class="SEVERITY_CLASS[row.severity]">
               <span class="dot" :style="{ background: SEVERITY_DOT[row.severity] }"></span>
@@ -197,14 +208,14 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="120" align="center">
+        <el-table-column :label="t('dictionary.table.source')" width="136" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.source === 'MINED' ? 'warn' : 'brand'">
               {{ SOURCE_META[row.source]?.label || row.source }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" label="命中次数" width="120">
+        <el-table-column v-if="!compactColumns" :label="t('dictionary.table.hits')" width="120">
           <template #default="{ row }">
             <div class="hits">
               <span class="num hits-value" :class="{ dim: !row.hitCount }">{{ row.hitCount }}</span>
@@ -215,28 +226,28 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="启用" width="76" align="center">
+        <el-table-column :label="t('dictionary.table.enabled')" width="94" align="center">
           <template #default="{ row }">
             <el-switch v-if="canWrite" :model-value="row.enabled" @change="(v) => toggle(row, v)" />
             <span v-else class="chip" :class="row.enabled ? 'ok' : 'info'">
-              {{ row.enabled ? '启用' : '停用' }}
+              {{ row.enabled ? t('common.enabled') : t('common.disabled') }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" width="120">
+        <el-table-column :label="t('common.updatedAt')" width="120">
           <template #default="{ row }">
             <span class="num dim" :title="formatTime(row.updatedAt || row.createdAt)">
               {{ formatTimeShort(row.updatedAt || row.createdAt) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="canWrite" label="操作" width="104" align="right" fixed="right">
+        <el-table-column v-if="canWrite" :label="t('common.actions')" width="104" align="right" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
-              <el-popconfirm title="确认删除该词？" @confirm="remove(row)">
+              <el-button size="small" link type="primary" @click="openEdit(row)">{{ t('common.edit') }}</el-button>
+              <el-popconfirm :title="t('dictionary.confirmDelete')" @confirm="remove(row)">
                 <template #reference>
-                  <el-button size="small" link type="danger">删除</el-button>
+                  <el-button size="small" link type="danger">{{ t('common.delete') }}</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -244,8 +255,8 @@
         </el-table-column>
         <template #empty>
           <div class="empty-block">
-            <div class="empty-title">没有匹配的词条</div>
-            <div class="tiny dim">调整筛选条件，或新增一个敏感词</div>
+            <div class="empty-title">{{ t('dictionary.empty.title') }}</div>
+            <div class="tiny dim">{{ t('dictionary.empty.hint') }}</div>
           </div>
         </template>
       </el-table>
@@ -262,19 +273,18 @@
     </section>
 
     <!-- 导入 CSV（仅 ADMIN） -->
-    <el-dialog v-model="importVisible" title="导入敏感词 CSV" width="560px" @closed="resetImport">
+    <el-dialog v-model="importVisible" :title="t('dictionary.import.title')" width="560px" @closed="resetImport">
       <div class="import-hint">
         <div class="tip-line">
           <el-icon><InfoFilled /></el-icon>
           <span>
-            CSV 列：<code class="mono">word,category,severity,enabled</code>，允许表头，最多 5000 行；规范化后自动去重。
+            {{ t('dictionary.import.columnsLead') }}<code class="mono">word,category,severity,enabled</code>{{ t('dictionary.import.columnsRest') }}
           </span>
         </div>
         <div class="tip-line">
           <el-icon><InfoFilled /></el-icon>
           <span>
-            category：INSULT / DISCRIMINATION / THREAT / HARASSMENT / SEXUAL / FRAUD / PRIVACY / OTHER；
-            severity：HIGH / MEDIUM / LOW；enabled：true / false。
+            {{ t('dictionary.import.valueSyntax') }}
           </span>
         </div>
       </div>
@@ -291,58 +301,62 @@
         :on-exceed="onImportExceed"
       >
         <el-icon class="el-icon--upload"><Upload /></el-icon>
-        <div class="el-upload__text">拖拽 CSV 到此处，或 <em>点击选择</em></div>
+        <div class="el-upload__text">{{ t('dictionary.import.dragPrefix') }}<em>{{ t('dictionary.import.clickSelect') }}</em></div>
         <template #tip>
-          <div class="el-upload__tip">单文件 ≤ 5MB；导入成功后自动重建 DFA 匹配器</div>
+          <div class="el-upload__tip">{{ t('dictionary.import.uploadTip') }}</div>
         </template>
       </el-upload>
 
       <div v-if="importResult" class="import-result">
         <div class="result-item ok">
           <span class="result-value num">{{ importResult.created }}</span>
-          <span class="result-label">新增</span>
+          <span class="result-label">{{ t('dictionary.import.created') }}</span>
         </div>
         <div class="result-item info">
           <span class="result-value num">{{ importResult.skipped }}</span>
-          <span class="result-label">跳过（重复/已存在）</span>
+          <span class="result-label">{{ t('dictionary.import.skipped') }}</span>
         </div>
         <div class="result-item danger">
           <span class="result-value num">{{ importResult.invalid }}</span>
-          <span class="result-label">格式错误</span>
+          <span class="result-label">{{ t('dictionary.import.invalid') }}</span>
         </div>
       </div>
 
       <template #footer>
-        <el-button @click="importVisible = false">{{ importResult ? '完成' : '取消' }}</el-button>
+        <el-button @click="importVisible = false">{{ importResult ? t('dictionary.import.done') : t('common.cancel') }}</el-button>
         <el-button
           v-if="!importResult"
           type="primary"
           :loading="importing"
           :disabled="!importFile"
           @click="submitImport"
-        >开始导入</el-button>
+        >{{ t('dictionary.import.start') }}</el-button>
         <el-button v-else type="primary" :disabled="importing" @click="resetImportForm">
-          继续导入
+          {{ t('dictionary.import.continue') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 新增/编辑 -->
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑敏感词' : '新增敏感词'" width="470px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editing ? t('dictionary.dialog.editTitle') : t('dictionary.dialog.createTitle')"
+      width="470px"
+    >
       <el-form :model="form" label-width="82px">
-        <el-form-item label="敏感词">
-          <el-input v-model="form.word" placeholder="如 kill you / 傻逼" />
+        <el-form-item :label="t('dictionary.table.word')">
+          <el-input v-model="form.word" :placeholder="t('dictionary.form.wordPlaceholder')" />
           <div class="norm-hint">
-            规范化结果：<code class="mono">{{ normalizedPreview || '—' }}</code>
-            <span class="dim">（小写、去空格与标点）</span>
+            {{ t('dictionary.form.normalized') }}<code class="mono">{{ normalizedPreview || '—' }}</code>
+            <span class="dim">{{ t('dictionary.form.normalizedHint') }}</span>
           </div>
         </el-form-item>
-        <el-form-item label="违规类型">
+        <el-form-item :label="t('dictionary.table.category')">
           <el-select v-model="form.category" style="width: 100%">
             <el-option v-for="(label, code) in VIOLATION_TYPES" :key="code" :label="label" :value="code" />
           </el-select>
         </el-form-item>
-        <el-form-item label="严重度">
+        <el-form-item :label="t('dictionary.table.severity')">
           <div class="sev-grid">
             <button
               v-for="(meta, code) in SEVERITY_META"
@@ -353,14 +367,16 @@
             >{{ meta.label }}</button>
           </div>
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item :label="t('common.enabled')">
           <el-switch v-model="form.enabled" />
-          <span class="dim tiny ml-8">停用的词不参与初筛</span>
+          <span class="dim tiny ml-8">{{ t('dictionary.form.enabledHint') }}</span>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存并重建匹配器</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">
+          {{ t('dictionary.form.saveAndRebuild') }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -378,8 +394,10 @@ import TranscriptViewer from '../components/TranscriptViewer.vue'
 import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTime, formatTimeShort } from '../constants'
 import { saveBlob } from '../utils/download'
 import { useElementWidth } from '../utils/elementWidth'
+import { useI18n } from '../i18n'
 
 const route = useRoute()
+const { t } = useI18n()
 
 // 敏感词写操作仅 ADMIN：非管理员隐藏入口（后端仍会独立校验）
 const canWrite = computed(() => auth.hasRole('ADMIN'))
@@ -514,17 +532,17 @@ function openEdit(row) {
 
 async function save() {
   if (!form.value.word?.trim()) {
-    ElMessage.warning('请输入敏感词')
+    ElMessage.warning(t('dictionary.messages.wordRequired'))
     return
   }
   saving.value = true
   try {
     if (editing.value) {
       await api.updateWord(editing.value.id, form.value)
-      ElMessage.success('已更新，DFA 匹配器已重建')
+      ElMessage.success(t('dictionary.messages.updated'))
     } else {
       await api.createWord(form.value)
-      ElMessage.success('已新增，DFA 匹配器已重建')
+      ElMessage.success(t('dictionary.messages.created'))
     }
     dialogVisible.value = false
     reload()
@@ -539,7 +557,11 @@ async function save() {
 async function toggle(row, v) {
   try {
     await api.updateWord(row.id, { enabled: v })
-    ElMessage.success(v ? `已启用「${row.word}」` : `已停用「${row.word}」`)
+    ElMessage.success(
+      v
+        ? t('dictionary.messages.enabledWord', { word: row.word })
+        : t('dictionary.messages.disabledWord', { word: row.word })
+    )
     load()
     loadOverview()
   } catch {
@@ -550,7 +572,7 @@ async function toggle(row, v) {
 async function remove(row) {
   try {
     await api.deleteWord(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('dictionary.messages.deleted'))
     load()
     loadOverview()
   } catch {
@@ -578,7 +600,9 @@ async function bulkUpdate(enabled) {
   try {
     const r = await api.bulkEnabled(ids, enabled)
     const count = Number(r?.updated) || ids.length
-    ElMessage.success(`已${enabled ? '启用' : '停用'} ${count} 条，DFA 匹配器已重建`)
+    ElMessage.success(
+      t(enabled ? 'dictionary.messages.bulkEnabled' : 'dictionary.messages.bulkDisabled', { count })
+    )
     clearSelection()
     load()
     loadOverview()
@@ -595,7 +619,7 @@ async function exportCsv() {
   try {
     const { blob, filename } = await api.exportDictionaryCsv()
     saveBlob(blob, filename)
-    ElMessage.success(`词库已导出：${filename}`)
+    ElMessage.success(t('dictionary.messages.exported', { filename }))
   } catch {
     // 请求层 / 接口层已统一提示
   } finally {
@@ -624,12 +648,12 @@ function onImportFileChange(file) {
   const raw = file?.raw
   if (!raw) return
   if (!/\.csv$/i.test(raw.name || '')) {
-    ElMessage.error('请选择 .csv 文件')
+    ElMessage.error(t('dictionary.messages.csvRequired'))
     importUploadRef.value?.clearFiles?.()
     return
   }
   if (raw.size > 5 * 1024 * 1024) {
-    ElMessage.error('CSV 文件超过 5MB')
+    ElMessage.error(t('dictionary.messages.csvTooLarge'))
     importUploadRef.value?.clearFiles?.()
     return
   }
@@ -652,7 +676,7 @@ function onImportExceed(files) {
 
 async function submitImport() {
   if (!importFile.value) {
-    ElMessage.warning('请选择要导入的 CSV 文件')
+    ElMessage.warning(t('dictionary.messages.importFileRequired'))
     return
   }
   importing.value = true
@@ -664,7 +688,11 @@ async function submitImport() {
       invalid: Number(r?.invalid) || 0
     }
     ElMessage.success(
-      `导入完成：新增 ${importResult.value.created}，跳过 ${importResult.value.skipped}，无效 ${importResult.value.invalid}`
+      t('dictionary.messages.importDone', {
+        created: importResult.value.created,
+        skipped: importResult.value.skipped,
+        invalid: importResult.value.invalid
+      })
     )
     reload()
     loadOverview()
@@ -677,7 +705,7 @@ async function submitImport() {
 
 async function runTest() {
   if (!testText.value?.trim()) {
-    ElMessage.warning('请输入检测文本')
+    ElMessage.warning(t('dictionary.messages.testTextRequired'))
     return
   }
   testing.value = true
