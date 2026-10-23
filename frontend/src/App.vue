@@ -1,51 +1,56 @@
 <template>
-  <!-- 公开路由（登录页）使用独立布局，不套侧栏/顶栏壳层 -->
-  <router-view v-if="isPublic" />
+  <!-- Element Plus 组件（分页 / 日期选择 / 空态等）语言跟随站点语言 -->
+  <el-config-provider :locale="elementLocale">
+    <!-- 公开路由（登录页）使用独立布局，不套侧栏/顶栏壳层 -->
+    <router-view v-if="isPublic" />
 
-  <!-- 全屏路由（数据大屏）：同样不渲染壳层 -->
-  <router-view v-else-if="isFullscreen" />
+    <!-- 全屏路由（数据大屏）：同样不渲染壳层 -->
+    <router-view v-else-if="isFullscreen" />
 
-  <div v-else class="shell">
-    <a class="skip-link" href="#main-content" @click.prevent="focusMain">
-      {{ t('a11y.skipToContent') }}
-    </a>
+    <div v-else class="shell">
+      <a class="skip-link" href="#main-content" @click.prevent="focusMain">
+        {{ t('a11y.skipToContent') }}
+      </a>
 
-    <!-- 窄屏抽屉遮罩：点击关闭 -->
-    <div
-      v-if="isNarrow && drawerOpen"
-      class="sidebar-backdrop"
-      aria-hidden="true"
-      @click="closeDrawer"
-    ></div>
+      <!-- 窄屏抽屉遮罩：点击关闭 -->
+      <div
+        v-if="isNarrow && drawerOpen"
+        class="sidebar-backdrop"
+        aria-hidden="true"
+        @click="closeDrawer"
+      ></div>
 
-    <AppSidebar
-      ref="sidebarRef"
-      :collapsed="collapsed"
-      :badge-count="pendingReview"
-      :overlay="isNarrow"
-      :open="drawerOpen"
-      @toggle="onToggleSidebar"
-      @navigate="closeDrawer"
-    />
-    <div class="shell-main">
-      <AppHeader
-        ref="headerRef"
-        :title="routeTitle"
-        :pending="pendingReview"
-        :healthy="healthy"
-        @refresh="refreshStatus"
-        @toggle-menu="toggleDrawer"
+      <AppSidebar
+        ref="sidebarRef"
+        :collapsed="collapsed"
+        :badge-count="pendingReview"
+        :overlay="isNarrow"
+        :open="drawerOpen"
+        @toggle="onToggleSidebar"
+        @navigate="closeDrawer"
       />
-      <main id="main-content" ref="mainRef" class="shell-content" tabindex="-1">
-        <router-view />
-      </main>
+      <div class="shell-main">
+        <AppHeader
+          ref="headerRef"
+          :title="routeTitle"
+          :pending="pendingReview"
+          :healthy="healthy"
+          @refresh="refreshStatus"
+          @toggle-menu="toggleDrawer"
+        />
+        <main id="main-content" ref="mainRef" class="shell-content" tabindex="-1">
+          <router-view />
+        </main>
+      </div>
     </div>
-  </div>
+  </el-config-provider>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import elementEn from 'element-plus/es/locale/lang/en'
 import api from './api'
 import AppSidebar from './components/AppSidebar.vue'
 import AppHeader from './components/AppHeader.vue'
@@ -54,6 +59,9 @@ import { isEscapeKey, isNarrowWidth } from './utils/ui'
 
 const route = useRoute()
 const { locale } = useI18n()
+
+/** Element Plus 内置文案语言包：随站点语言切换（分页、日期、空态等） */
+const elementLocale = computed(() => (locale.value === 'zh' ? zhCn : elementEn))
 
 const collapsed = ref(false)
 const drawerOpen = ref(false)

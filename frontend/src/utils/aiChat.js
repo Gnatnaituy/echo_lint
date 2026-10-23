@@ -10,13 +10,15 @@
  * 列表/详情字段可能增补或暂缺，缺失统一返回 null / '' / []，不臆造业务值。
  */
 
+import { t } from '../i18n/index.js'
 import { asObject, pick, toBoolean, toNumber, toText } from './shape.js'
 
+// label 用 getter：模板 / 计算属性读取时自动跟随语言切换；默认语言为中文
 export const AI_STAGE_META = {
-  SCREEN: { label: '语义复筛', type: 'brand' },
-  MINING: { label: '敏感词挖掘', type: 'info' },
-  EMBED_QUERY: { label: '检索向量化', type: 'info' },
-  EMBED_INDEX: { label: '索引向量化', type: 'info' }
+  SCREEN: { get label() { return t('meta.aiStage.SCREEN') }, type: 'brand' },
+  MINING: { get label() { return t('meta.aiStage.MINING') }, type: 'info' },
+  EMBED_QUERY: { get label() { return t('meta.aiStage.EMBED_QUERY') }, type: 'info' },
+  EMBED_INDEX: { get label() { return t('meta.aiStage.EMBED_INDEX') }, type: 'info' }
 }
 
 export function aiStageMeta(stage) {
@@ -29,12 +31,12 @@ export function aiStageMeta(stage) {
 export function aiStatusMeta(row) {
   const data = asObject(row)
   if (toBoolean(pick(data, ['success'])) === false) {
-    return { label: '失败', type: 'danger' }
+    return { get label() { return t('meta.aiStatus.FAILED') }, type: 'danger' }
   }
   if (toBoolean(pick(data, ['degraded'])) === true) {
-    return { label: '降级', type: 'warn' }
+    return { get label() { return t('meta.aiStatus.DEGRADED') }, type: 'warn' }
   }
-  return { label: '成功', type: 'ok' }
+  return { get label() { return t('meta.aiStatus.SUCCESS') }, type: 'ok' }
 }
 
 function normalizeSummary(raw) {
@@ -150,13 +152,19 @@ export function prettyJson(raw) {
   }
 }
 
+/** 角色 code -> meta.aiRole.* key；未命中的角色保持原样返回 */
+const AI_ROLE_KEYS = new Map([
+  ['system', 'meta.aiRole.SYSTEM'],
+  ['user', 'meta.aiRole.USER'],
+  ['assistant', 'meta.aiRole.ASSISTANT'],
+  ['tool', 'meta.aiRole.TOOL']
+])
+
 export function roleLabel(role) {
   const value = toText(role)
-  if (value === 'system') return '系统提示词'
-  if (value === 'user') return '用户提示词'
-  if (value === 'assistant') return '模型回复'
-  if (value === 'tool') return '工具返回'
-  return value || '消息'
+  const key = AI_ROLE_KEYS.get(value)
+  if (key) return t(key)
+  return value || t('meta.aiRole.MESSAGE')
 }
 
 export function formatCostUsd(costMicros) {

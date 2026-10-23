@@ -5,20 +5,26 @@
       <div class="toolbar">
         <div class="toolbar-head">
           <div class="row-wrap">
-            <div class="section-title">知识库 / SOP</div>
-            <span class="chip info">共 {{ total }} 条</span>
-            <span v-if="!canWrite" class="chip">只读</span>
+            <div class="section-title">{{ t('knowledge.pageTitle') }}</div>
+            <span class="chip info">{{ t('common.total', { total }) }}</span>
+            <span v-if="!canWrite" class="chip">{{ t('knowledge.readonly') }}</span>
           </div>
           <div class="toolbar-actions">
-            <el-button v-if="canWrite" :icon="Aim" @click="openSearchPreview">检索预览</el-button>
-            <el-button v-if="canWrite" :icon="Upload" @click="openImportDialog">导入文档</el-button>
-            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新建条目</el-button>
+            <el-button v-if="canWrite" :icon="Aim" @click="openSearchPreview">
+              {{ t('knowledge.searchPreview') }}
+            </el-button>
+            <el-button v-if="canWrite" :icon="Upload" @click="openImportDialog">
+              {{ t('knowledge.importDocument') }}
+            </el-button>
+            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">
+              {{ t('knowledge.createEntry') }}
+            </el-button>
           </div>
         </div>
         <div class="toolbar-filters">
           <el-input
             v-model="keyword"
-            placeholder="搜索标题 / 正文"
+            :placeholder="t('knowledge.searchPlaceholder')"
             clearable
             class="search"
             @keyup.enter="applyFilters"
@@ -28,33 +34,40 @@
           </el-input>
           <el-select
             v-model="categoryFilter"
-            placeholder="全部分类"
+            :placeholder="t('knowledge.allCategories')"
             clearable
             filterable
             allow-create
             class="category-select"
             @change="applyFilters"
           >
-            <el-option v-for="c in KNOWLEDGE_CATEGORIES" :key="c" :label="c" :value="c" />
+            <el-option
+              v-for="c in KNOWLEDGE_CATEGORIES"
+              :key="c"
+              :label="categoryLabel(c)"
+              :value="c"
+            />
           </el-select>
           <el-select
             v-model="enabledFilter"
-            placeholder="全部状态"
+            :placeholder="t('knowledge.allStatuses')"
             clearable
             class="enabled-select"
             @change="applyFilters"
           >
-            <el-option label="启用" value="true" />
-            <el-option label="停用" value="false" />
+            <el-option :label="t('common.enabled')" value="true" />
+            <el-option :label="t('common.disabled')" value="false" />
           </el-select>
-          <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">查询</el-button>
-          <el-button link @click="resetFilters">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">
+            {{ t('knowledge.query') }}
+          </el-button>
+          <el-button link @click="resetFilters">{{ t('common.reset') }}</el-button>
         </div>
       </div>
       <div class="hint tiny dim">
-        知识库用于沉淀话术规范、违规示例与处罚标准，供人工复核与 AI 复筛参考；
-        支持导入 PDF / Word / TXT / Markdown 文档并自动解析建立索引；
-        所有登录用户可查看，管理员 / 复核员可维护。
+        {{ t('knowledge.intro.usage') }}
+        {{ t('knowledge.intro.import') }}
+        {{ t('knowledge.intro.permission') }}
       </div>
     </section>
 
@@ -63,14 +76,18 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">重试</el-button>
+        <el-button link type="primary" size="small" @click="load">
+          {{ t('common.retry') }}
+        </el-button>
       </div>
 
       <el-table v-loading="loading" :data="rows" @row-click="openDetail">
-        <el-table-column label="标题" min-width="168">
+        <el-table-column :label="t('knowledge.title')" min-width="168">
           <template #default="{ row }">
             <div class="min-w-0">
-              <div class="strong ellipsis" :title="row.title">{{ row.title || '未命名条目' }}</div>
+              <div class="strong ellipsis" :title="row.title">
+                {{ row.title || t('knowledge.untitledEntry') }}
+              </div>
               <div class="tiny dim mono">#{{ row.id ?? '—' }}</div>
               <div
                 v-if="row.sourceFilename"
@@ -84,43 +101,47 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="分类" width="104">
+        <el-table-column :label="t('common.category')" width="104">
           <template #default="{ row }">
-            <span v-if="row.category" class="chip info">{{ row.category }}</span>
+            <span v-if="row.category" class="chip info">{{ categoryLabel(row.category) }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="违规类型" width="104">
+        <el-table-column :label="t('knowledge.violationType')" width="104">
           <template #default="{ row }">
             <span v-if="row.violationType" class="chip warn">{{ violationLabel(row.violationType) }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!compactColumns" label="标签" min-width="92">
+        <el-table-column v-if="!compactColumns" :label="t('knowledge.tags')" min-width="92">
           <template #default="{ row }">
-            <div v-if="row.tags.length" class="tag-cell" :title="row.tags.join('、')">
-              <span v-for="t in row.tags.slice(0, 2)" :key="t" class="chip">{{ t }}</span>
+            <div
+              v-if="row.tags.length"
+              class="tag-cell"
+              :title="row.tags.join(t('knowledge.listSeparator'))"
+            >
+              <span v-for="tag in row.tags.slice(0, 2)" :key="tag" class="chip">{{ tag }}</span>
               <span v-if="row.tags.length > 2" class="tiny dim">+{{ row.tags.length - 2 }}</span>
             </div>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="78" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column :label="t('common.status')" width="92" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
-              {{ row.enabled === false ? '停用' : row.enabled === true ? '启用' : '未知' }}
+              {{ enabledLabel(row.enabled) }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column label="索引状态" width="88" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column :label="t('knowledge.indexStatus')" width="102" align="center" class-name="col-tight" label-class-name="col-tight">
           <template #default="{ row }">
             <el-tooltip
               v-if="isFailedIndex(row)"
-              :content="row.indexError || '索引失败，可点击「重建索引」重试'"
+              :content="row.indexError || t('knowledge.indexFailedHint')"
               placement="top"
               :show-after="200"
               :popper-style="{ maxWidth: '420px', wordBreak: 'break-all' }"
@@ -138,7 +159,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="更新时间" width="120">
+        <el-table-column :label="t('common.updatedAt')" width="120">
           <template #default="{ row }">
             <span v-if="row.updatedAt" class="num dim" :title="formatTime(row.updatedAt)">
               {{ formatTimeShort(row.updatedAt) }}
@@ -147,12 +168,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="196" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="232" align="right" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button size="small" link type="primary" @click.stop="openDetail(row)">详情</el-button>
+              <el-button size="small" link type="primary" @click.stop="openDetail(row)">
+                {{ t('common.detail') }}
+              </el-button>
               <el-button v-if="canWrite" size="small" link type="primary" @click.stop="openEdit(row)">
-                编辑
+                {{ t('common.edit') }}
               </el-button>
               <el-button
                 v-if="canWrite"
@@ -162,16 +185,18 @@
                 :loading="reindexingId === row.id"
                 @click.stop="reindexRow(row)"
               >
-                重建索引
+                {{ t('knowledge.reindex') }}
               </el-button>
               <el-popconfirm
                 v-if="canWrite"
-                title="删除后不可恢复，确认删除该知识库条目？"
+                :title="t('knowledge.confirmDelete')"
                 width="250"
                 @confirm="remove(row)"
               >
                 <template #reference>
-                  <el-button size="small" link type="danger" @click.stop>删除</el-button>
+                  <el-button size="small" link type="danger" @click.stop>
+                    {{ t('common.delete') }}
+                  </el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -181,11 +206,13 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><Reading /></el-icon>
-            <div class="empty-title">{{ hasFilters ? '没有匹配的条目' : '知识库还是空的' }}</div>
+            <div class="empty-title">
+              {{ hasFilters ? t('knowledge.emptyFilteredTitle') : t('knowledge.emptyTitle') }}
+            </div>
             <div class="tiny dim">
               {{ hasFilters
-                ? '试试清空搜索词、分类或状态筛选'
-                : (canWrite ? '点击右上角「新建条目」沉淀话术规范与违规示例' : '暂无知识库内容') }}
+                ? t('knowledge.emptyFilteredHint')
+                : (canWrite ? t('knowledge.emptyCreateHint') : t('knowledge.emptyReadonlyHint')) }}
             </div>
           </div>
         </template>
@@ -207,76 +234,86 @@
       <div v-if="detail" class="detail">
         <div class="detail-head">
           <div class="min-w-0">
-            <div class="detail-title">{{ detail.title || '未命名条目' }}</div>
+            <div class="detail-title">{{ detail.title || t('knowledge.untitledEntry') }}</div>
             <div class="detail-chips">
               <span class="chip" :class="detail.enabled === false ? 'info' : 'ok'">
-                {{ detail.enabled === false ? '已停用' : '启用' }}
+                {{ detail.enabled === false ? t('knowledge.disabledState') : t('common.enabled') }}
               </span>
-              <span v-if="detail.category" class="chip info">{{ detail.category }}</span>
+              <span v-if="detail.category" class="chip info">{{ categoryLabel(detail.category) }}</span>
               <span v-if="detail.violationType" class="chip warn">
                 {{ violationLabel(detail.violationType) }}
               </span>
             </div>
           </div>
           <div class="detail-actions">
-            <el-button v-if="canWrite" size="small" @click="openEdit(detail)">编辑</el-button>
+            <el-button v-if="canWrite" size="small" @click="openEdit(detail)">
+              {{ t('common.edit') }}
+            </el-button>
             <el-button
               v-if="canWrite"
               size="small"
               :loading="reindexingId === detail.id"
               @click="reindexRow(detail)"
             >
-              重建索引
+              {{ t('knowledge.reindex') }}
             </el-button>
-            <el-button :icon="Close" circle size="small" @click="detailVisible = false" aria-label="关闭" title="关闭" />
+            <el-button
+              :icon="Close"
+              circle
+              size="small"
+              @click="detailVisible = false"
+              :aria-label="t('common.close')"
+              :title="t('common.close')"
+            />
           </div>
         </div>
 
         <div v-if="detail.tags.length" class="detail-tags">
-          <span class="tiny dim">标签</span>
-          <span v-for="t in detail.tags" :key="t" class="chip">{{ t }}</span>
+          <span class="tiny dim">{{ t('knowledge.tags') }}</span>
+          <span v-for="tag in detail.tags" :key="tag" class="chip">{{ tag }}</span>
         </div>
 
         <div class="detail-meta tiny dim">
-          创建：{{ detail.createdBy || '—' }} · {{ formatTime(detail.createdAt) }}
+          {{ t('knowledge.metaCreated', { value: detail.createdBy || '—' }) }} ·
+          {{ formatTime(detail.createdAt) }}
           <span class="sep">·</span>
-          更新：{{ formatTime(detail.updatedAt) }}
+          {{ t('knowledge.metaUpdated', { value: formatTime(detail.updatedAt) }) }}
         </div>
 
-        <div class="block-title mt-18">索引信息</div>
+        <div class="block-title mt-18">{{ t('knowledge.indexInfo') }}</div>
         <div class="index-grid">
           <div class="index-item">
-            <span class="tiny dim">索引状态</span>
+            <span class="tiny dim">{{ t('knowledge.indexStatus') }}</span>
             <span class="chip" :class="indexStatusMeta(detail.indexStatus).type">
               {{ indexStatusMeta(detail.indexStatus).label }}
             </span>
           </div>
           <div class="index-item">
-            <span class="tiny dim">来源</span>
+            <span class="tiny dim">{{ t('knowledge.source') }}</span>
             <span class="ellipsis" :title="detail.sourceType || ''">
               {{ detail.sourceType === 'DOCUMENT'
-                ? '文档导入'
+                ? t('knowledge.sourceDocument')
                 : detail.sourceType === 'MANUAL'
-                  ? '手工录入'
+                  ? t('knowledge.sourceManual')
                   : (detail.sourceType || '—') }}
             </span>
           </div>
           <div class="index-item">
-            <span class="tiny dim">来源文件</span>
+            <span class="tiny dim">{{ t('knowledge.sourceFile') }}</span>
             <span class="ellipsis" :title="detail.sourceFilename || ''">
               {{ detail.sourceFilename || '—' }}
             </span>
           </div>
           <div class="index-item">
-            <span class="tiny dim">文件大小</span>
+            <span class="tiny dim">{{ t('knowledge.fileSize') }}</span>
             <span class="num">{{ formatFileSize(detail.sourceSize) }}</span>
           </div>
           <div class="index-item">
-            <span class="tiny dim">分块数</span>
+            <span class="tiny dim">{{ t('knowledge.chunkCount') }}</span>
             <span class="num">{{ detail.chunkCount ?? '—' }}</span>
           </div>
           <div class="index-item">
-            <span class="tiny dim">索引时间</span>
+            <span class="tiny dim">{{ t('knowledge.indexedAt') }}</span>
             <span>{{ detail.indexedAt ? formatTime(detail.indexedAt) : '—' }}</span>
           </div>
         </div>
@@ -285,15 +322,15 @@
           <span>{{ detail.indexError }}</span>
         </div>
 
-        <div class="block-title mt-18">正文</div>
-        <pre class="kb-content">{{ detail.content || '（暂无正文）' }}</pre>
+        <div class="block-title mt-18">{{ t('knowledge.content') }}</div>
+        <pre class="kb-content">{{ detail.content || t('knowledge.noContent') }}</pre>
       </div>
     </el-drawer>
 
     <!-- 新建 / 编辑 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="editing ? '编辑知识库条目' : '新建知识库条目'"
+      :title="editing ? t('knowledge.editTitle') : t('knowledge.createTitle')"
       width="640px"
       top="6vh"
       append-to-body
@@ -301,28 +338,33 @@
       @closed="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="96px" @submit.prevent="submit">
-        <el-form-item label="标题" prop="title">
+        <el-form-item :label="t('knowledge.title')" prop="title">
           <el-input
             v-model="form.title"
             maxlength="200"
             show-word-limit
-            placeholder="如：催收话术红线"
+            :placeholder="t('knowledge.titlePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="分类">
+        <el-form-item :label="t('common.category')">
           <el-select
             v-model="form.category"
             filterable
             allow-create
             clearable
-            placeholder="选择或输入分类"
+            :placeholder="t('knowledge.categoryEditPlaceholder')"
             style="width: 100%"
           >
-            <el-option v-for="c in KNOWLEDGE_CATEGORIES" :key="c" :label="c" :value="c" />
+            <el-option
+              v-for="c in KNOWLEDGE_CATEGORIES"
+              :key="c"
+              :label="categoryLabel(c)"
+              :value="c"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="违规类型">
-          <el-select v-model="form.violationType" clearable placeholder="可选，关联敏感词违规类型" style="width: 100%">
+        <el-form-item :label="t('knowledge.violationType')">
+          <el-select v-model="form.violationType" clearable :placeholder="t('knowledge.violationTypePlaceholder')" style="width: 100%">
             <el-option
               v-for="(label, value) in VIOLATION_TYPES"
               :key="value"
@@ -331,36 +373,36 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="标签">
+        <el-form-item :label="t('knowledge.tags')">
           <el-select
             v-model="form.tags"
             multiple
             filterable
             allow-create
             default-first-option
-            placeholder="输入标签后回车添加"
+            :placeholder="t('knowledge.tagsPlaceholder')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="正文">
+        <el-form-item :label="t('knowledge.content')">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="10"
             maxlength="20000"
             show-word-limit
-            placeholder="支持 Markdown / 纯文本，可记录话术正反例、判定标准与处置建议"
+            :placeholder="t('knowledge.contentPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item :label="t('common.enabled')">
           <el-switch v-model="form.enabled" />
-          <span class="tiny dim form-hint">停用后仍保留在列表中，供管理员后续维护</span>
+          <span class="tiny dim form-hint">{{ t('knowledge.enabledHint') }}</span>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="saving" @click="submit">
-          {{ editing ? '保存修改' : '创建条目' }}
+          {{ editing ? t('knowledge.saveEdit') : t('knowledge.createSubmit') }}
         </el-button>
       </template>
     </el-dialog>
@@ -368,7 +410,7 @@
     <!-- 导入文档 -->
     <el-dialog
       v-model="importVisible"
-      title="导入知识库文档"
+      :title="t('knowledge.importTitle')"
       width="560px"
       append-to-body
       :close-on-click-modal="!importing"
@@ -388,46 +430,55 @@
         :on-remove="onFileRemove"
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">将文档拖到此处，或 <em>点击选择</em></div>
+        <div class="el-upload__text">
+          {{ t('knowledge.uploadDrag') }}<em>{{ t('knowledge.uploadClick') }}</em>
+        </div>
         <template #tip>
           <div class="el-upload__tip">
-            支持 PDF / DOCX / TXT / Markdown，单文件不超过 20 MB；上传后后台解析并建立索引。
+            {{ t('knowledge.uploadTip') }}
           </div>
         </template>
       </el-upload>
 
       <el-form label-width="72px" class="import-form" @submit.prevent="submitImport">
-        <el-form-item label="标题">
+        <el-form-item :label="t('knowledge.title')">
           <el-input
             v-model="importForm.title"
             maxlength="200"
-            placeholder="可选，留空使用文件名"
+            :placeholder="t('knowledge.importTitlePlaceholder')"
             :disabled="importing"
           />
         </el-form-item>
-        <el-form-item label="分类">
+        <el-form-item :label="t('common.category')">
           <el-select
             v-model="importForm.category"
             filterable
             allow-create
             clearable
-            placeholder="可选，选择或输入分类"
+            :placeholder="t('knowledge.importCategoryPlaceholder')"
             style="width: 100%"
             :disabled="importing"
           >
-            <el-option v-for="c in KNOWLEDGE_CATEGORIES" :key="c" :label="c" :value="c" />
+            <el-option
+              v-for="c in KNOWLEDGE_CATEGORIES"
+              :key="c"
+              :label="categoryLabel(c)"
+              :value="c"
+            />
           </el-select>
         </el-form-item>
       </el-form>
       <div v-if="importing" class="tiny dim import-progress">
         <el-icon class="is-loading"><Loading /></el-icon>
-        正在上传文档，请勿关闭对话框…
+        {{ t('knowledge.importing') }}
       </div>
 
       <template #footer>
-        <el-button :disabled="importing" @click="importVisible = false">取消</el-button>
+        <el-button :disabled="importing" @click="importVisible = false">
+          {{ t('common.cancel') }}
+        </el-button>
         <el-button type="primary" :loading="importing" :disabled="importing" @click="submitImport">
-          {{ importing ? '上传中…' : '开始导入' }}
+          {{ importing ? t('knowledge.uploading') : t('knowledge.startImport') }}
         </el-button>
       </template>
     </el-dialog>
@@ -435,7 +486,7 @@
     <!-- 检索预览 -->
     <el-dialog
       v-model="searchVisible"
-      title="知识库检索预览"
+      :title="t('knowledge.searchTitle')"
       width="720px"
       top="8vh"
       append-to-body
@@ -443,7 +494,7 @@
       <div class="search-bar">
         <el-input
           v-model="searchForm.query"
-          placeholder="输入问题或关键词，查看语义检索命中的知识片段"
+          :placeholder="t('knowledge.searchQueryPlaceholder')"
           clearable
           :disabled="searching"
           @keyup.enter="runSearchPreview"
@@ -459,13 +510,15 @@
           controls-position="right"
           class="topk-input"
         />
-        <el-button type="primary" :loading="searching" @click="runSearchPreview">检索</el-button>
+        <el-button type="primary" :loading="searching" @click="runSearchPreview">
+          {{ t('knowledge.searchButton') }}
+        </el-button>
       </div>
-      <div class="tiny dim search-hint">Top K 为召回条数（1~10），检索使用知识库已就绪的向量片段。</div>
+      <div class="tiny dim search-hint">{{ t('knowledge.topKHint') }}</div>
 
       <div v-if="searching" class="search-state tiny dim">
         <el-icon class="is-loading"><Loading /></el-icon>
-        正在检索…
+        {{ t('knowledge.searching') }}
       </div>
       <div v-else-if="searchError" class="error-banner search-error">
         <el-icon><WarningFilled /></el-icon>
@@ -473,8 +526,8 @@
       </div>
       <div v-else-if="searchDone && !searchResults.length" class="empty-block">
         <el-icon :size="34" class="empty-icon"><Search /></el-icon>
-        <div class="empty-title">没有召回相关知识片段</div>
-        <div class="tiny dim">试试换一个说法，或确认 RAG 已启用且知识库索引已就绪</div>
+        <div class="empty-title">{{ t('knowledge.searchEmptyTitle') }}</div>
+        <div class="tiny dim">{{ t('knowledge.searchEmptyHint') }}</div>
       </div>
       <div v-else-if="searchResults.length" class="search-results">
         <div
@@ -483,18 +536,22 @@
           class="search-hit"
         >
           <div class="search-hit-head">
-            <span class="chip brand num">相似度 {{ formatScore(item.score) }}</span>
-            <span class="strong ellipsis" :title="item.title">{{ item.title || '未命名条目' }}</span>
-            <span v-if="item.category" class="chip info">{{ item.category }}</span>
+            <span class="chip brand num">
+              {{ t('knowledge.similarity', { score: formatScore(item.score) }) }}
+            </span>
+            <span class="strong ellipsis" :title="item.title">
+              {{ item.title || t('knowledge.untitledEntry') }}
+            </span>
+            <span v-if="item.category" class="chip info">{{ categoryLabel(item.category) }}</span>
             <span class="tiny dim mono">#{{ item.entryId ?? '—' }}</span>
           </div>
-          <pre class="search-hit-content">{{ item.content || '（无内容）' }}</pre>
+          <pre class="search-hit-content">{{ item.content || t('knowledge.noSnippet') }}</pre>
         </div>
       </div>
-      <div v-else class="tiny dim search-state">输入查询后点击「检索」查看召回结果。</div>
+      <div v-else class="tiny dim search-state">{{ t('knowledge.searchIdleHint') }}</div>
 
       <template #footer>
-        <el-button @click="searchVisible = false">关闭</el-button>
+        <el-button @click="searchVisible = false">{{ t('common.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -509,10 +566,14 @@ import auth from '../auth'
 import { formatTime, formatTimeShort, VIOLATION_TYPES } from '../constants'
 import {
   KNOWLEDGE_CATEGORIES,
+  knowledgeCategoryMessageKey,
   knowledgeTagsPayload
 } from '../utils/knowledge'
 import { formatFileSize, indexStatusMeta, isIndexInProgress } from '../utils/rag'
 import { useElementWidth } from '../utils/elementWidth'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 /* 列表列宽自适应：内容区放不下「标签」列时先收起它（标签在详情抽屉仍可见），
    让 1024/1280 下表格不被固定操作列压住「更新时间」。 */
@@ -529,6 +590,19 @@ const REFRESH_SECONDS = 3
 /** FAILED 状态在列表里用 tooltip 展示 indexError */
 function isFailedIndex(row) {
   return String(row?.indexStatus || '').toUpperCase() === 'FAILED'
+}
+
+/** 分类值是持久化中文（写入后端），展示时按候选顺序映射为当前语言文案 */
+function categoryLabel(category) {
+  const key = knowledgeCategoryMessageKey(category)
+  return key ? t(key) : category
+}
+
+/** 条目启用状态文案：启用 / 停用 / 未知 */
+function enabledLabel(enabled) {
+  if (enabled === true) return t('common.enabled')
+  if (enabled === false) return t('common.disabled')
+  return t('common.unknown')
 }
 
 const pageSize = 10
@@ -551,9 +625,9 @@ const violationLabel = (type) => VIOLATION_TYPES[type] || type || '—'
 /** 403 / 404 给出可读降级文案（列表接口 silent，不弹全局错误） */
 function knowledgeErrorMessage(err) {
   const status = err?.status
-  if (status === 403) return '当前账号无权限查看知识库（请重新登录）'
-  if (status === 404) return '后端尚未提供知识库接口（HTTP 404），请确认后端版本'
-  return err?.message || '知识库加载失败，请稍后重试'
+  if (status === 403) return t('knowledge.errorForbidden')
+  if (status === 404) return t('knowledge.errorNotFound')
+  return err?.message || t('knowledge.errorLoadFailed')
 }
 
 async function load({ background = false } = {}) {
@@ -628,12 +702,12 @@ const form = reactive({
   enabled: true
 })
 
-const rules = {
+const rules = computed(() => ({
   title: [
-    { required: true, message: '请输入标题', trigger: 'blur' },
-    { max: 200, message: '标题最多 200 个字符', trigger: 'blur' }
+    { required: true, message: t('knowledge.titleRequired'), trigger: 'blur' },
+    { max: 200, message: t('knowledge.titleMax'), trigger: 'blur' }
   ]
-}
+}))
 
 function resetForm() {
   editing.value = null
@@ -682,10 +756,10 @@ async function submit() {
     let saved = null
     if (editing.value) {
       saved = await api.updateKnowledge(editing.value.id, payload)
-      ElMessage.success('知识库条目已更新')
+      ElMessage.success(t('knowledge.updated'))
     } else {
       saved = await api.createKnowledge(payload)
-      ElMessage.success('知识库条目已创建')
+      ElMessage.success(t('knowledge.created'))
     }
     dialogVisible.value = false
     // 详情抽屉打开时同步刷新内容
@@ -701,7 +775,7 @@ async function submit() {
 async function remove(row) {
   try {
     await api.deleteKnowledge(row.id)
-    ElMessage.success(`已删除「${row.title || row.id}」`)
+    ElMessage.success(t('knowledge.deleted', { title: row.title || row.id }))
     if (detail.value?.id === row.id) {
       detailVisible.value = false
       detail.value = null
@@ -721,7 +795,7 @@ async function reindexRow(row) {
   reindexingId.value = row.id
   try {
     await api.reindexKnowledge(row.id)
-    ElMessage.success(`「${row.title || row.id}」已提交重建索引，后台处理中`)
+    ElMessage.success(t('knowledge.reindexQueued', { title: row.title || row.id }))
     // 详情抽屉打开时同步为处理中，避免继续显示旧状态
     if (detail.value?.id === row.id) {
       detail.value = { ...detail.value, indexStatus: 'PENDING', indexError: '' }
@@ -771,11 +845,11 @@ function acceptDocument(file) {
   const raw = file?.raw || file
   const name = raw?.name || ''
   if (!DOCUMENT_EXTENSIONS.includes(documentExtension(name))) {
-    ElMessage.warning('仅支持 PDF / DOCX / TXT / MD 文档')
+    ElMessage.warning(t('knowledge.uploadUnsupported'))
     return null
   }
   if (typeof raw?.size === 'number' && raw.size > DOCUMENT_MAX_BYTES) {
-    ElMessage.warning('文档超过 20 MB，请压缩或拆分后再导入')
+    ElMessage.warning(t('knowledge.uploadTooLarge'))
     return null
   }
   return raw
@@ -796,7 +870,7 @@ function onFileChange(file, fileList) {
 }
 
 function onFileExceed() {
-  ElMessage.warning('一次只能导入一份文档，请先移除已选择的文件')
+  ElMessage.warning(t('knowledge.uploadSingleFile'))
 }
 
 function onFileRemove() {
@@ -805,7 +879,7 @@ function onFileRemove() {
 
 async function submitImport() {
   if (!selectedFile.value) {
-    ElMessage.warning('请先选择要导入的文档')
+    ElMessage.warning(t('knowledge.uploadNoFile'))
     return
   }
   const file = selectedFile.value
@@ -816,7 +890,9 @@ async function submitImport() {
       category: importForm.category.trim()
     })
     ElMessage.success(
-      `「${entry.title || file.name || '文档'}」已导入，后台正在解析并建立索引`
+      t('knowledge.imported', {
+        title: entry.title || file.name || t('knowledge.documentFallback')
+      })
     )
     importVisible.value = false
     resetImport()
@@ -844,16 +920,16 @@ function openSearchPreview() {
 /** 403 / 404 给出可读降级文案（检索接口 silent） */
 function searchErrorMessage(err) {
   const status = err?.status
-  if (status === 403) return '当前账号无检索权限（需要 ADMIN / REVIEWER）'
-  if (status === 404) return '后端尚未提供语义检索接口（HTTP 404），请确认后端版本'
-  return err?.message || '检索失败，请稍后重试'
+  if (status === 403) return t('knowledge.searchErrorForbidden')
+  if (status === 404) return t('knowledge.searchErrorNotFound')
+  return err?.message || t('knowledge.searchErrorFailed')
 }
 
 async function runSearchPreview() {
   if (searching.value) return
   const query = searchForm.query.trim()
   if (!query) {
-    ElMessage.warning('请输入检索关键词')
+    ElMessage.warning(t('knowledge.searchQueryRequired'))
     return
   }
   const topK = Math.min(10, Math.max(1, Math.round(Number(searchForm.topK) || 4)))

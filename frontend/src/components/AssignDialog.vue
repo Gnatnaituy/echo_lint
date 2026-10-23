@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="指派复核人"
+    :title="t('components.assign.title')"
     width="440px"
     append-to-body
     @update:model-value="(v) => emit('update:modelValue', v)"
@@ -9,25 +9,25 @@
   >
     <div v-if="recording" class="assign-target">
       <el-icon :size="14"><Microphone /></el-icon>
-      <span class="ellipsis">{{ recording.fileName || `录音 #${recording.id}` }}</span>
+      <span class="ellipsis">{{ recording.fileName || t('components.assign.recordingFallback', { id: recording.id }) }}</span>
       <span class="chip mono">#{{ recording.id }}</span>
     </div>
 
     <el-form label-position="top" @submit.prevent="confirm">
-      <el-form-item label="复核人">
+      <el-form-item :label="t('components.assign.reviewer')">
         <el-select
           v-model="username"
           filterable
           allow-create
           default-first-option
-          placeholder="选择复核员，或直接输入用户名"
+          :placeholder="t('components.assign.reviewerPlaceholder')"
           style="width: 100%"
           :loading="usersLoading"
         >
           <el-option
             v-for="u in reviewerOptions"
             :key="u.username"
-            :label="`${u.displayName || u.username}（${u.username}）`"
+            :label="t('components.assign.optionLabel', { name: u.displayName || u.username, username: u.username })"
             :value="u.username"
           />
         </el-select>
@@ -35,13 +35,13 @@
     </el-form>
 
     <div class="assign-hint tiny dim">
-      指派后该录音会出现在对方的复检队列；仅管理员可指派。
+      {{ t('components.assign.hint') }}
       <span v-if="usersError" class="assign-error">{{ usersError }}</span>
     </div>
 
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="saving" :disabled="!username" @click="confirm">指派</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('common.cancel') }}</el-button>
+      <el-button type="primary" :loading="saving" :disabled="!username" @click="confirm">{{ t('components.assign.submit') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -50,6 +50,9 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -78,7 +81,7 @@ async function loadUsers() {
     const data = await api.listUsers()
     users.value = Array.isArray(data) ? data : data?.content || []
   } catch {
-    usersError.value = '用户列表加载失败，可直接输入用户名指派'
+    usersError.value = t('components.assign.usersLoadFailed')
   } finally {
     usersLoading.value = false
   }
@@ -95,7 +98,7 @@ async function confirm() {
   saving.value = true
   try {
     const data = await api.assignRecording(props.recording.id, target)
-    ElMessage.success(`已指派给 ${target}`)
+    ElMessage.success(t('components.assign.success', { name: target }))
     emit('assigned', { username: target, data })
     emit('update:modelValue', false)
     username.value = ''

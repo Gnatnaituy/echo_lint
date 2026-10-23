@@ -3,52 +3,52 @@
     <!-- KPI -->
     <div class="kpi-grid">
       <StatCard
-        label="录音总数"
+        :label="t('dashboard.kpi.total')"
         :value="overview?.totalUploads ?? '-'"
         icon="Files"
         tone="brand"
-        :sub="`今日新增 ${overview?.todayUploads ?? 0} 条`"
+        :sub="t('dashboard.kpi.totalSub', { count: overview?.todayUploads ?? 0 })"
         clickable
         @click="router.push('/recordings')"
       />
       <StatCard
-        label="处理中"
+        :label="t('dashboard.kpi.processing')"
         :value="processingCount"
         icon="Loading"
         tone="info"
-        sub="转写 / 初筛 / 复筛"
+        :sub="t('dashboard.kpi.processingSub')"
       />
       <StatCard
-        label="待人工复检"
+        :label="STATUS_META.NEEDS_REVIEW.label"
         :value="count('NEEDS_REVIEW')"
         icon="DocumentChecked"
         tone="warn"
-        sub="初筛与复筛均判违规"
+        :sub="t('dashboard.kpi.needsReviewSub')"
         clickable
         @click="router.push('/review')"
       />
       <StatCard
-        label="确认违规"
+        :label="STATUS_META.VIOLATION_CONFIRMED.label"
         :value="count('VIOLATION_CONFIRMED')"
         icon="WarningFilled"
         tone="danger"
-        sub="人工复检确认"
+        :sub="t('dashboard.kpi.confirmedSub')"
         clickable
         @click="router.push('/recordings?statuses=VIOLATION_CONFIRMED')"
       />
       <StatCard
-        label="自动通过"
+        :label="STATUS_META.COMPLIANT.label"
         :value="count('COMPLIANT')"
         icon="CircleCheckFilled"
         tone="ok"
-        :sub="`复筛误报放行 ${count('FALSE_POSITIVE')} 条`"
+        :sub="t('dashboard.kpi.compliantSub', { count: count('FALSE_POSITIVE') })"
       />
       <StatCard
-        label="处理失败"
+        :label="STATUS_META.FAILED.label"
         :value="count('FAILED')"
         icon="CircleCloseFilled"
         tone="danger"
-        sub="可重试"
+        :sub="t('dashboard.kpi.failedSub')"
         clickable
         @click="router.push('/recordings?statuses=FAILED')"
       />
@@ -58,8 +58,8 @@
     <div class="two-col">
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">近 7 日上传趋势</div>
-          <span class="tiny dim">按上传日期统计</span>
+          <div class="section-title">{{ t('dashboard.trend.title') }}</div>
+          <span class="tiny dim">{{ t('dashboard.trend.sub') }}</span>
         </div>
         <div class="panel-body">
           <TrendChart :data="overview?.last7Days || []" :height="196" />
@@ -68,8 +68,8 @@
 
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">处置分布</div>
-          <span class="tiny dim">共 {{ overview?.totalUploads ?? 0 }} 条</span>
+          <div class="section-title">{{ t('dashboard.distribution.title') }}</div>
+          <span class="tiny dim">{{ t('dashboard.distribution.total', { count: overview?.totalUploads ?? 0 }) }}</span>
         </div>
         <div class="panel-body dist">
           <div v-for="row in distribution" :key="row.key" class="dist-row">
@@ -92,13 +92,13 @@
     <div class="two-col">
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">最近录音</div>
+          <div class="section-title">{{ t('dashboard.recent.title') }}</div>
           <el-button link type="primary" size="small" @click="router.push('/recordings')">
-            查看全部<el-icon class="el-icon--right"><ArrowRight /></el-icon>
+            {{ t('dashboard.recent.viewAll') }}<el-icon class="el-icon--right"><ArrowRight /></el-icon>
           </el-button>
         </div>
         <el-table :data="recent" size="small" @row-click="(row) => router.push(`/recordings?id=${row.id}`)">
-          <el-table-column label="文件" min-width="200">
+          <el-table-column :label="t('dashboard.recent.file')" min-width="200">
             <template #default="{ row }">
               <div class="cell-file">
                 <el-icon class="cell-file-icon"><Microphone /></el-icon>
@@ -107,16 +107,16 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="命中" width="64" align="center">
+          <el-table-column :label="t('dashboard.recent.hits')" width="64" align="center">
             <template #default="{ row }">
               <span v-if="row.hitCount" class="chip danger">{{ row.hitCount }}</span>
               <span v-else class="dim">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="124" align="center">
+          <el-table-column :label="t('common.status')" width="142" align="center">
             <template #default="{ row }"><StatusTag :status="row.status" /></template>
           </el-table-column>
-          <el-table-column label="上传时间" width="176">
+          <el-table-column :label="t('dashboard.recent.uploadTime')" width="176">
             <template #default="{ row }">
               <span class="cell-time num dim">{{ formatTime(row.uploadTime) }}</span>
             </template>
@@ -124,8 +124,8 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><Microphone /></el-icon>
-              <div class="empty-title">暂无录音</div>
-              <div class="tiny dim">上传录音后，最近处理的记录会显示在这里</div>
+              <div class="empty-title">{{ t('dashboard.recent.emptyTitle') }}</div>
+              <div class="tiny dim">{{ t('dashboard.recent.emptyHint') }}</div>
             </div>
           </template>
         </el-table>
@@ -133,39 +133,38 @@
 
       <section class="panel knowledge">
         <div class="panel-head">
-          <div class="section-title">知识库与闭环</div>
+          <div class="section-title">{{ t('dashboard.knowledge.title') }}</div>
         </div>
         <div class="panel-body">
           <div class="kb-grid">
             <router-link class="kb-item" to="/dictionary">
-              <div class="kb-label">敏感词总数</div>
+              <div class="kb-label">{{ t('dashboard.knowledge.dictionaryTotal') }}</div>
               <div class="kb-value num">{{ overview?.dictionary?.total ?? '-' }}</div>
-              <div class="kb-sub">启用 {{ overview?.dictionary?.enabled ?? '-' }}</div>
+              <div class="kb-sub">{{ t('dashboard.knowledge.dictionaryEnabled', { count: overview?.dictionary?.enabled ?? '-' }) }}</div>
             </router-link>
             <router-link class="kb-item" to="/dictionary?source=MINED&enabled=false">
-              <div class="kb-label">AI 挖掘待审核</div>
+              <div class="kb-label">{{ t('dashboard.knowledge.minedPending') }}</div>
               <div class="kb-value num" :class="{ alert: (overview?.dictionary?.minedPending ?? 0) > 0 }">
                 {{ overview?.dictionary?.minedPending ?? 0 }}
               </div>
-              <div class="kb-sub">来自确认违规录音</div>
+              <div class="kb-sub">{{ t('dashboard.knowledge.minedSub') }}</div>
             </router-link>
             <router-link class="kb-item" to="/corpus">
-              <div class="kb-label">违规语料</div>
+              <div class="kb-label">{{ t('dashboard.knowledge.violationCorpus') }}</div>
               <div class="kb-value num">{{ overview?.corpus?.violation ?? 0 }}</div>
-              <div class="kb-sub">few-shot 正例</div>
+              <div class="kb-sub">{{ t('dashboard.knowledge.violationSub') }}</div>
             </router-link>
             <router-link class="kb-item" to="/corpus">
-              <div class="kb-label">合规语料</div>
+              <div class="kb-label">{{ t('dashboard.knowledge.compliantCorpus') }}</div>
               <div class="kb-value num">{{ overview?.corpus?.compliant ?? 0 }}</div>
-              <div class="kb-sub">few-shot 反例</div>
+              <div class="kb-sub">{{ t('dashboard.knowledge.compliantSub') }}</div>
             </router-link>
           </div>
 
           <div class="loop-tip">
             <el-icon class="loop-icon"><Refresh /></el-icon>
             <div>
-              人工复检结论自动写入语料库，作为 AI 复筛的 few-shot 参考；
-              确认违规的录音会由 AI 提炼新敏感词入库（默认停用，审核后启用）。
+              {{ t('dashboard.knowledge.loopTip') }}
             </div>
           </div>
         </div>
@@ -181,8 +180,10 @@ import api from '../api'
 import StatCard from '../components/StatCard.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TrendChart from '../components/TrendChart.vue'
-import { formatDuration, formatTime, PROCESSING_STATUSES } from '../constants'
+import { formatDuration, formatTime, PROCESSING_STATUSES, STATUS_META } from '../constants'
+import { useI18n } from '../i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 const overview = ref(null)
 const recent = ref([])
@@ -196,12 +197,22 @@ const processingCount = computed(() =>
 const distribution = computed(() => {
   const total = Math.max(1, overview.value?.totalUploads ?? 0)
   const rows = [
-    { key: 'processing', label: '处理中', value: processingCount.value, color: '#3b6ef6' },
-    { key: 'NEEDS_REVIEW', label: '待人工复检', value: count('NEEDS_REVIEW'), color: '#f59e0b' },
-    { key: 'COMPLIANT', label: '自动通过', value: count('COMPLIANT'), color: '#16a34a' },
-    { key: 'VIOLATION_CONFIRMED', label: '确认违规', value: count('VIOLATION_CONFIRMED'), color: '#ef4444' },
-    { key: 'FALSE_POSITIVE', label: '误判放行', value: count('FALSE_POSITIVE'), color: '#64748b' },
-    { key: 'FAILED', label: '处理失败', value: count('FAILED'), color: '#b91c1c' }
+    { key: 'processing', label: t('dashboard.distribution.processing'), value: processingCount.value, color: '#3b6ef6' },
+    { key: 'NEEDS_REVIEW', label: STATUS_META.NEEDS_REVIEW.label, value: count('NEEDS_REVIEW'), color: '#f59e0b' },
+    { key: 'COMPLIANT', label: STATUS_META.COMPLIANT.label, value: count('COMPLIANT'), color: '#16a34a' },
+    {
+      key: 'VIOLATION_CONFIRMED',
+      label: STATUS_META.VIOLATION_CONFIRMED.label,
+      value: count('VIOLATION_CONFIRMED'),
+      color: '#ef4444'
+    },
+    {
+      key: 'FALSE_POSITIVE',
+      label: STATUS_META.FALSE_POSITIVE.label,
+      value: count('FALSE_POSITIVE'),
+      color: '#64748b'
+    },
+    { key: 'FAILED', label: STATUS_META.FAILED.label, value: count('FAILED'), color: '#b91c1c' }
   ]
   return rows.map((r) => ({ ...r, pct: Math.round((r.value / total) * 100) }))
 })

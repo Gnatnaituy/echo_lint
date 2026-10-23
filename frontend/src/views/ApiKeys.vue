@@ -4,19 +4,29 @@
     <section class="panel">
       <div class="toolbar">
         <div class="row-wrap">
-          <div class="section-title">开放 API 密钥</div>
-          <span class="chip info">{{ total }} 个密钥</span>
-          <span v-if="enabledCount" class="chip ok">{{ enabledCount }} 个启用中</span>
+          <div class="section-title">{{ t('apiKeys.title') }}</div>
+          <span class="chip info">{{ tn('apiKeys.count', total) }}</span>
+          <span v-if="enabledCount" class="chip ok">
+            {{ t('apiKeys.enabledCount', { count: enabledCount }) }}
+          </span>
         </div>
         <div class="actions">
-          <el-button :icon="Refresh" circle :loading="loading" @click="load" aria-label="刷新" title="刷新" />
-          <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">创建密钥</el-button>
+          <el-button
+            :icon="Refresh"
+            circle
+            :loading="loading"
+            @click="load"
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+          />
+          <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">
+            {{ t('apiKeys.create') }}
+          </el-button>
         </div>
       </div>
       <div class="hint tiny dim">
-        外部系统通过请求头 <span class="mono">X-API-Key</span> 调用
-        <span class="mono">/api/open/**</span>（如上传录音、查询处理状态）。
-        密钥只在创建时显示一次明文，服务端仅保存 SHA-256 哈希；停用后立即拒绝请求但保留审计记录。
+        {{ t('apiKeys.hint') }}
+        {{ t('apiKeys.securityHint') }}
       </div>
     </section>
 
@@ -25,20 +35,22 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">重试</el-button>
+        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-table ref="tableRef" v-loading="loading" :data="pagedRows">
-        <el-table-column label="名称" min-width="200">
+        <el-table-column :label="t('common.name')" min-width="200">
           <template #default="{ row }">
             <div class="min-w-0">
-              <div class="strong ellipsis" :title="row.name">{{ row.name || '未命名密钥' }}</div>
+              <div class="strong ellipsis" :title="row.name">
+                {{ row.name || t('apiKeys.untitled') }}
+              </div>
               <div class="tiny dim mono">#{{ row.id ?? '—' }}</div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="密钥" min-width="180">
+        <el-table-column :label="t('apiKeys.key')" min-width="180">
           <template #default="{ row }">
             <div class="key-cell">
               <span class="chip mono key-chip" :title="maskedApiKey(row)">{{ maskedApiKey(row) }}</span>
@@ -46,62 +58,69 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('common.status')" width="100" align="center">
           <template #default="{ row }">
-            <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
-              {{ row.enabled === false ? '已停用' : row.enabled === true ? '启用' : '未知' }}
+            <span
+              class="chip"
+              :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'"
+            >
+              {{
+                row.enabled === false
+                  ? t('apiKeys.statusRevoked')
+                  : row.enabled === true
+                    ? t('common.enabled')
+                    : t('common.unknown')
+              }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!narrowColumns" label="创建人" width="132">
+        <el-table-column v-if="!narrowColumns" :label="t('common.createdBy')" width="132">
           <template #default="{ row }">
             <span v-if="row.createdBy" class="ellipsis" :title="row.createdBy">{{ row.createdBy }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="最近使用" width="176">
+        <el-table-column :label="t('apiKeys.lastUsed')" width="176">
           <template #default="{ row }">
             <span v-if="row.lastUsedAt" class="num" :title="formatRelative(row.lastUsedAt)">
               {{ formatTime(row.lastUsedAt) }}
             </span>
-            <span v-else class="dim">从未使用</span>
+            <span v-else class="dim">{{ t('apiKeys.neverUsed') }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!compactColumns" label="创建时间" width="176">
+        <el-table-column v-if="!compactColumns" :label="t('common.createdAt')" width="176">
           <template #default="{ row }">
             <span v-if="row.createdAt" class="num dim">{{ formatTime(row.createdAt) }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="96" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="96" align="right" fixed="right">
           <template #default="{ row }">
             <el-popconfirm
               v-if="row.enabled !== false && row.id != null"
-              title="停用后使用该密钥的请求会立即返回 401，确认停用？"
+              :title="t('apiKeys.revokeConfirm')"
               width="260"
               @confirm="revoke(row)"
             >
               <template #reference>
                 <el-button size="small" link type="danger" :loading="revokingId === row.id">
-                  停用
+                  {{ t('apiKeys.revoke') }}
                 </el-button>
               </template>
             </el-popconfirm>
-            <span v-else class="tiny dim">已停用</span>
+            <span v-else class="tiny dim">{{ t('apiKeys.statusRevoked') }}</span>
           </template>
         </el-table-column>
 
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><Key /></el-icon>
-            <div class="empty-title">还没有 API 密钥</div>
-            <div class="tiny dim">
-              创建密钥后，外部系统即可用 <span class="mono">X-API-Key</span> 头调用开放接口
-            </div>
+            <div class="empty-title">{{ t('apiKeys.emptyTitle') }}</div>
+            <div class="tiny dim">{{ t('apiKeys.emptyHint') }}</div>
           </div>
         </template>
       </el-table>
@@ -120,19 +139,19 @@
     <!-- 创建密钥 -->
     <el-dialog
       v-model="createVisible"
-      title="创建 API 密钥"
+      :title="t('apiKeys.createTitle')"
       width="470px"
       append-to-body
       :close-on-click-modal="!creating"
       @closed="resetCreate"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="72px" @submit.prevent="submitCreate">
-        <el-form-item label="名称" prop="name">
+        <el-form-item :label="t('common.name')" prop="name">
           <el-input
             v-model="form.name"
             maxlength="64"
             show-word-limit
-            placeholder="用途 / 调用方，如 工单系统"
+            :placeholder="t('apiKeys.namePlaceholder')"
             autocomplete="off"
           />
         </el-form-item>
@@ -140,19 +159,21 @@
           type="info"
           :closable="false"
           show-icon
-          title="创建后明文密钥只显示一次，请当场复制保存；之后列表只能看到前缀掩码。"
+          :title="t('apiKeys.createAlert')"
         />
       </el-form>
       <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="submitCreate">创建密钥</el-button>
+        <el-button @click="createVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="creating" @click="submitCreate">
+          {{ t('apiKeys.create') }}
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 一次性明文 -->
     <el-dialog
       v-model="secretVisible"
-      title="密钥已创建"
+      :title="t('apiKeys.createdTitle')"
       width="580px"
       append-to-body
       :close-on-click-modal="false"
@@ -160,19 +181,19 @@
       <div class="secret-head">
         <div class="secret-icon"><el-icon :size="18"><Key /></el-icon></div>
         <div class="min-w-0">
-          <div class="strong">{{ createdSecret.name || '未命名密钥' }}</div>
-          <div class="tiny dim">仅显示一次：关闭后无法再次查看完整密钥</div>
+          <div class="strong">{{ createdSecret.name || t('apiKeys.untitled') }}</div>
+          <div class="tiny dim">{{ t('apiKeys.createdHint') }}</div>
         </div>
       </div>
       <div class="secret-box">
         <el-input
-          :model-value="createdSecret.key || '（后端未返回明文密钥）'"
+          :model-value="createdSecret.key || t('apiKeys.plaintextMissing')"
           readonly
           class="secret-input"
           :title="createdSecret.key || ''"
         />
         <el-button type="primary" :icon="CopyDocument" :disabled="!createdSecret.key" @click="copySecret">
-          复制密钥
+          {{ t('apiKeys.copyKey') }}
         </el-button>
       </div>
       <el-alert
@@ -180,10 +201,12 @@
         :closable="false"
         show-icon
         class="secret-alert"
-        title="请立即妥善保存：密钥泄露后请停用并重新创建；不要提交到代码仓库或写入日志。"
+        :title="t('apiKeys.saveAlert')"
       />
       <template #footer>
-        <el-button type="primary" @click="secretVisible = false">我已保存</el-button>
+        <el-button type="primary" @click="secretVisible = false">
+          {{ t('apiKeys.savedConfirm') }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -196,8 +219,11 @@ import { CopyDocument, Plus, Refresh } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import { formatRelative, formatTime } from '../constants'
+import { useI18n } from '../i18n'
 import { maskedApiKey } from '../utils/apiKeys'
 import { useElementWidth } from '../utils/elementWidth'
+
+const { t, tn } = useI18n()
 
 const canWrite = computed(() => auth.hasRole('ADMIN'))
 const pageSize = 10
@@ -225,9 +251,9 @@ const enabledCount = computed(() => rows.value.filter((r) => r.enabled !== false
 /** 403 / 404 给出可读降级文案（列表接口 silent，不弹全局错误） */
 function apiKeyErrorMessage(err) {
   const status = err?.status
-  if (status === 403) return '当前账号无权限访问 API 密钥（需要 ADMIN）'
-  if (status === 404) return '后端尚未提供 API 密钥接口（HTTP 404），请确认后端版本'
-  return err?.message || 'API 密钥加载失败，请稍后重试'
+  if (status === 403) return t('apiKeys.forbidden')
+  if (status === 404) return t('apiKeys.notAvailable')
+  return err?.message || t('apiKeys.loadFailed')
 }
 
 async function load() {
@@ -254,12 +280,12 @@ const createVisible = ref(false)
 const creating = ref(false)
 const formRef = ref(null)
 const form = reactive({ name: '' })
-const rules = {
+const rules = computed(() => ({
   name: [
-    { required: true, message: '请输入密钥名称', trigger: 'blur' },
-    { min: 1, max: 64, message: '名称 1-64 个字符', trigger: 'blur' }
+    { required: true, message: t('apiKeys.nameRequired'), trigger: 'blur' },
+    { min: 1, max: 64, message: t('apiKeys.nameLength'), trigger: 'blur' }
   ]
-}
+}))
 
 const secretVisible = ref(false)
 const createdSecret = reactive({ name: '', key: '' })
@@ -310,7 +336,7 @@ async function copySecret() {
   try {
     if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
     await navigator.clipboard.writeText(text)
-    ElMessage.success('密钥已复制到剪贴板')
+    ElMessage.success(t('apiKeys.copied'))
   } catch {
     let area = null
     try {
@@ -321,10 +347,10 @@ async function copySecret() {
       document.body.appendChild(area)
       area.select()
       const ok = document.execCommand('copy')
-      if (ok) ElMessage.success('密钥已复制到剪贴板')
-      else ElMessage.warning('复制失败，请手动选择密钥复制')
+      if (ok) ElMessage.success(t('apiKeys.copied'))
+      else ElMessage.warning(t('apiKeys.copyFailed'))
     } catch {
-      ElMessage.warning('复制失败，请手动选择密钥复制')
+      ElMessage.warning(t('apiKeys.copyFailed'))
     } finally {
       // 失败路径也要清理临时节点，避免残留隐藏 textarea
       if (area?.parentNode) area.parentNode.removeChild(area)
@@ -337,7 +363,7 @@ async function revoke(row) {
   revokingId.value = row.id
   try {
     await api.revokeApiKey(row.id)
-    ElMessage.success(`密钥「${row.name || row.id}」已停用`)
+    ElMessage.success(t('apiKeys.revokedSuccess', { name: row.name || row.id }))
     await load()
   } catch {
     // 请求层已统一提示

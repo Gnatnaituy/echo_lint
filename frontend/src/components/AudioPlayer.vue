@@ -4,8 +4,8 @@
       type="button"
       class="play-toggle"
       :disabled="!src"
-      :aria-label="playing ? '暂停' : '播放'"
-      :title="playing ? '暂停' : '播放'"
+      :aria-label="playing ? t('components.audioPlayer.pause') : t('components.audioPlayer.play')"
+      :title="playing ? t('components.audioPlayer.pause') : t('components.audioPlayer.play')"
       @click="togglePlay"
     >
       <el-icon :size="14">
@@ -24,7 +24,7 @@
       :value="currentTime"
       :disabled="!src || !duration"
       :style="{ '--seek-pct': seekPercent }"
-      aria-label="播放进度"
+      :aria-label="t('components.audioPlayer.seekProgress')"
       @input="onSeekInput"
     />
 
@@ -48,7 +48,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { useI18n } from '../i18n'
 import { formatClock } from '../utils/segments'
+
+const { t } = useI18n()
 
 const props = defineProps({
   src: { type: String, default: '' },

@@ -15,25 +15,27 @@
  */
 
 import { asObject, pick, toBoolean, toNumber, toText, toStringList } from './shape.js'
+import { t } from '../i18n/index.js'
 
 /* ---------- 知识库索引状态 ---------- */
 
 /**
- * 索引状态元数据：中文标签 + 现有 chip 颜色类型。
+ * 索引状态元数据：label 为 getter，读取时按当前语言翻译（key 见 messages/meta.js），
+ * 同时保留现有 chip 颜色类型。
  * READY 为成功（ok），FAILED 为危险（danger），处理中为警告（warn）。
  */
 export const INDEX_STATUS_META = {
-  PENDING: { label: '待处理', type: 'warn' },
-  PARSING: { label: '解析中', type: 'warn' },
-  INDEXING: { label: '索引中', type: 'warn' },
-  READY: { label: '已就绪', type: 'ok' },
-  FAILED: { label: '失败', type: 'danger' }
+  PENDING: { get label() { return t('meta.indexStatus.PENDING') }, type: 'warn' },
+  PARSING: { get label() { return t('meta.indexStatus.PARSING') }, type: 'warn' },
+  INDEXING: { get label() { return t('meta.indexStatus.INDEXING') }, type: 'warn' },
+  READY: { get label() { return t('meta.indexStatus.READY') }, type: 'ok' },
+  FAILED: { get label() { return t('meta.indexStatus.FAILED') }, type: 'danger' }
 }
 
 /** 仍在处理中的索引状态：列表据此自动轮询刷新 */
 export const INDEX_PROGRESS_STATUSES = ['PENDING', 'PARSING', 'INDEXING']
 
-/** 索引状态展示：已知枚举中文展示，未知值原样回退（空值显示占位） */
+/** 索引状态展示：已知枚举按当前语言展示，未知值原样回退（空值显示占位） */
 export function indexStatusMeta(status) {
   const text = toText(status)
   if (!text) return { label: '—', type: 'info' }

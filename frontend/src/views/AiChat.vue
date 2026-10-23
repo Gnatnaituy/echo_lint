@@ -4,19 +4,25 @@
     <section class="panel">
       <div class="toolbar">
         <div class="row-wrap">
-          <div class="section-title">AI 对话记录</div>
-          <span class="tiny dim">默认展示语义复筛对话；可切换阶段查看词挖掘 / embedding 调用</span>
+          <div class="section-title">{{ t('aiChat.title') }}</div>
+          <span class="tiny dim">{{ t('aiChat.subtitle') }}</span>
         </div>
         <div class="actions">
-          <el-button :icon="Refresh" circle aria-label="刷新" title="刷新" @click="reload" />
-          <el-button :icon="Search" @click="reload">查询</el-button>
-          <el-button link @click="reset">重置</el-button>
+          <el-button
+            :icon="Refresh"
+            circle
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+            @click="reload"
+          />
+          <el-button :icon="Search" @click="reload">{{ t('aiChat.search') }}</el-button>
+          <el-button link @click="reset">{{ t('common.reset') }}</el-button>
         </div>
       </div>
       <div class="filters">
         <el-select
           v-model="filters.stage"
-          placeholder="全部阶段"
+          :placeholder="t('aiChat.allStages')"
           clearable
           class="filter-select stage-select"
           @change="reload"
@@ -30,7 +36,7 @@
         </el-select>
         <el-select
           v-model="filters.providerId"
-          placeholder="全部供应商"
+          :placeholder="t('aiChat.allProviders')"
           clearable
           class="filter-select provider-select"
           @change="reload"
@@ -44,7 +50,7 @@
         </el-select>
         <el-select
           v-model="filters.model"
-          placeholder="全部模型"
+          :placeholder="t('aiChat.allModels')"
           clearable
           filterable
           allow-create
@@ -55,17 +61,17 @@
         </el-select>
         <el-select
           v-model="filters.success"
-          placeholder="全部状态"
+          :placeholder="t('aiChat.allStatuses')"
           clearable
           class="filter-select success-select"
           @change="reload"
         >
-          <el-option label="成功" value="true" />
-          <el-option label="失败" value="false" />
+          <el-option :label="t('aiChat.filterSuccess')" value="true" />
+          <el-option :label="t('aiChat.filterFailed')" value="false" />
         </el-select>
         <el-input
           v-model="filters.recordingId"
-          placeholder="录音 ID"
+          :placeholder="t('aiChat.recordingIdPlaceholder')"
           clearable
           class="filter-select id-input"
           @keyup.enter="reload"
@@ -76,14 +82,14 @@
             v-model="dateRange"
             type="daterange"
             value-format="YYYY-MM-DD"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :start-placeholder="t('common.startDate')"
+            :end-placeholder="t('common.endDate')"
             unlink-panels
             @change="reload"
           />
         </div>
       </div>
-      <div class="hint tiny dim">按时间倒序分页；点击任意行查看完整对话与原始 JSON。</div>
+      <div class="hint tiny dim">{{ t('aiChat.listHint') }}</div>
     </section>
 
     <!-- 列表 -->
@@ -91,7 +97,7 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">重试</el-button>
+        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-table
@@ -101,21 +107,21 @@
         :row-class-name="() => 'row-clickable'"
         @row-click="openDetail"
       >
-        <el-table-column label="时间" width="132">
+        <el-table-column :label="t('aiChat.time')" width="132">
           <template #default="{ row }">
             <span class="num" :title="formatTime(row.createdAt)">
               {{ formatSmartTime(row.createdAt) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="阶段" width="112">
+        <el-table-column :label="t('aiChat.stage')" width="190">
           <template #default="{ row }">
             <span class="chip" :class="aiStageMeta(row.stage).type">
               {{ aiStageMeta(row.stage).label }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="录音" width="76">
+        <el-table-column :label="t('aiChat.recording')" width="110">
           <template #default="{ row }">
             <el-button
               v-if="row.recordingId"
@@ -129,7 +135,7 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="供应商 / 模型" min-width="168">
+        <el-table-column :label="t('aiChat.providerModel')" min-width="168">
           <template #default="{ row }">
             <div class="model-cell">
               <span class="model-provider">{{ row.providerLabel || row.providerId || '—' }}</span>
@@ -139,43 +145,43 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="84">
+        <el-table-column :label="t('common.status')" width="84">
           <template #default="{ row }">
             <span class="chip" :class="aiStatusMeta(row).type">{{ aiStatusMeta(row).label }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" label="耗时" width="92" align="right">
+        <el-table-column v-if="!compactColumns" :label="t('aiChat.latency')" width="92" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatLatency(row.latencyMs) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Tokens 入/出" width="112" align="right">
+        <el-table-column :label="t('aiChat.tokens')" width="112" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatTokens(row) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="成本" width="116" align="right">
+        <el-table-column :label="t('aiChat.cost')" width="116" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatCostUsd(row.costMicros) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" label="请求/回复" width="96" align="right">
+        <el-table-column v-if="!compactColumns" :label="t('aiChat.requestResponse')" width="156" align="right">
           <template #default="{ row }">
             <span class="num tiny dim">
               {{ formatChars(row.requestChars) }} / {{ formatChars(row.responseChars) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="72" fixed="right">
+        <el-table-column :label="t('common.actions')" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click.stop="openDetail(row)">查看</el-button>
+            <el-button link type="primary" @click.stop="openDetail(row)">{{ t('common.view') }}</el-button>
           </template>
         </el-table-column>
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><ChatDotRound /></el-icon>
-            <div class="empty-title">暂无 AI 调用记录</div>
-            <div class="tiny dim">语义复筛、敏感词挖掘、embedding 调用都会自动留痕</div>
+            <div class="empty-title">{{ t('aiChat.emptyTitle') }}</div>
+            <div class="tiny dim">{{ t('aiChat.emptyHint') }}</div>
           </div>
         </template>
       </el-table>
@@ -195,15 +201,15 @@
     <el-drawer v-model="detailVisible" size="680px" :with-header="false" append-to-body>
       <div class="drawer-head">
         <div>
-          <div class="section-title">AI 对话详情</div>
-          <div class="tiny dim">完整提示词、模型原始回复与调用用量</div>
+          <div class="section-title">{{ t('aiChat.detailTitle') }}</div>
+          <div class="tiny dim">{{ t('aiChat.detailSubtitle') }}</div>
         </div>
         <el-button
           :icon="Close"
           circle
           size="small"
-          aria-label="关闭"
-          title="关闭"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
           @click="detailVisible = false"
         />
       </div>
@@ -217,18 +223,18 @@
       </div>
       <template v-else-if="detail">
         <el-descriptions :column="compactColumns ? 1 : 2" border size="small" class="detail-desc">
-          <el-descriptions-item label="时间">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="阶段">
+          <el-descriptions-item :label="t('aiChat.time')">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.stage')">
             <span class="chip" :class="aiStageMeta(detail.stage).type">
               {{ aiStageMeta(detail.stage).label }}
             </span>
           </el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-descriptions-item :label="t('common.status')">
             <span class="chip" :class="aiStatusMeta(detail).type">
               {{ aiStatusMeta(detail).label }}
             </span>
           </el-descriptions-item>
-          <el-descriptions-item label="关联录音">
+          <el-descriptions-item :label="t('aiChat.recordingLinked')">
             <el-button
               v-if="detail.recordingId"
               link
@@ -239,17 +245,17 @@
             </el-button>
             <span v-else class="dim">—</span>
           </el-descriptions-item>
-          <el-descriptions-item label="供应商">
+          <el-descriptions-item :label="t('aiChat.provider')">
             {{ detail.providerLabel || detail.providerId || '—' }}
           </el-descriptions-item>
-          <el-descriptions-item label="模型">{{ detail.model || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="耗时">{{ formatLatency(detail.latencyMs) }}</el-descriptions-item>
-          <el-descriptions-item label="Tokens 入/出">{{ formatTokens(detail) }}</el-descriptions-item>
-          <el-descriptions-item label="成本">{{ formatCostUsd(detail.costMicros) }}</el-descriptions-item>
-          <el-descriptions-item label="请求 / 回复">
-            {{ formatChars(detail.requestChars) }} / {{ formatChars(detail.responseChars) }} 字符
+          <el-descriptions-item :label="t('aiChat.model')">{{ detail.model || '—' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.latency')">{{ formatLatency(detail.latencyMs) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.tokens')">{{ formatTokens(detail) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.cost')">{{ formatCostUsd(detail.costMicros) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.requestResponseDetail')">
+            {{ charsPair(detail) }}
           </el-descriptions-item>
-          <el-descriptions-item label="端点" :span="2">
+          <el-descriptions-item :label="t('aiChat.endpoint')" :span="2">
             <span class="mono tiny break-all">{{ detail.endpoint || '—' }}</span>
           </el-descriptions-item>
         </el-descriptions>
@@ -261,28 +267,32 @@
 
         <template v-if="messages.length">
           <div class="block-title">
-            对话消息
-            <span class="tiny dim">共 {{ messages.length }} 条，按请求顺序</span>
+            {{ t('aiChat.messagesTitle') }}
+            <span class="tiny dim">
+              {{ tn('aiChat.messagesCount', messages.length) }}
+            </span>
           </div>
           <div v-for="(message, index) in messages" :key="index" class="ai-part">
             <div class="ai-part-head">
               <span class="ai-role" :class="message.role">{{ roleLabel(message.role) }}</span>
-              <span class="tiny dim">{{ message.content.length }} 字符</span>
+              <span class="tiny dim">
+                {{ tn('aiChat.charsCount', message.content.length) }}
+              </span>
             </div>
             <pre class="ai-raw">{{ message.content }}</pre>
           </div>
         </template>
         <template v-else>
-          <div class="block-title">请求内容</div>
-          <pre class="ai-raw">{{ prettyJson(detail.requestJson) || '（请求体未留痕）' }}</pre>
+          <div class="block-title">{{ t('aiChat.requestContent') }}</div>
+          <pre class="ai-raw">{{ prettyJson(detail.requestJson) || t('aiChat.requestNotRecorded') }}</pre>
         </template>
 
-        <div class="block-title">模型原始回复</div>
+        <div class="block-title">{{ t('aiChat.rawResponse') }}</div>
         <pre v-if="detail.responseJson" class="ai-raw reply">{{ prettyJson(detail.responseJson) }}</pre>
-        <div v-else class="tiny dim">（无回复）</div>
+        <div v-else class="tiny dim">{{ t('aiChat.noResponse') }}</div>
 
         <el-collapse v-if="detail.requestJson && messages.length" class="raw-collapse">
-          <el-collapse-item title="查看原始请求 JSON" name="request">
+          <el-collapse-item :title="t('aiChat.viewRawRequest')" name="request">
             <pre class="ai-raw">{{ prettyJson(detail.requestJson) }}</pre>
           </el-collapse-item>
         </el-collapse>
@@ -298,6 +308,7 @@ import { ElMessage } from 'element-plus'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import { formatSmartTime, formatTime } from '../constants'
+import { useI18n } from '../i18n'
 import { useElementWidth } from '../utils/elementWidth'
 import {
   aiStageMeta,
@@ -310,6 +321,8 @@ import {
   prettyJson,
   roleLabel
 } from '../utils/aiChat'
+
+const { t, tn } = useI18n()
 
 const router = useRouter()
 
@@ -348,6 +361,11 @@ const detailLoading = ref(false)
 const detailError = ref('')
 const messages = computed(() => parseAiMessages(detail.value?.requestJson))
 
+/** 请求 / 回复字符数：两段数值合并为一个插值展示 */
+function charsPair(row) {
+  return tn('aiChat.charsCount', `${formatChars(row?.requestChars)} / ${formatChars(row?.responseChars)}`)
+}
+
 async function loadFacets() {
   try {
     const data = await api.getAiInvocationFacets()
@@ -363,7 +381,7 @@ function normalizedRecordingId() {
   const value = String(filters.recordingId || '').trim()
   if (!value) return undefined
   if (!/^\d+$/.test(value)) {
-    ElMessage.warning('录音 ID 需为数字')
+    ElMessage.warning(t('aiChat.recordingIdNumeric'))
     return null
   }
   return Number(value)
@@ -392,7 +410,7 @@ async function load() {
   } catch (e) {
     rows.value = []
     total.value = 0
-    error.value = e?.message || 'AI 对话记录加载失败'
+    error.value = e?.message || t('aiChat.loadFailed')
   } finally {
     loading.value = false
   }
@@ -422,7 +440,7 @@ async function openDetail(row) {
   try {
     detail.value = await api.getAiInvocation(row.id)
   } catch (e) {
-    detailError.value = e?.message || 'AI 对话详情加载失败'
+    detailError.value = e?.message || t('aiChat.detailLoadFailed')
   } finally {
     detailLoading.value = false
   }
@@ -479,7 +497,7 @@ onMounted(() => {
   height: 32px;
 }
 .stage-select {
-  width: 132px;
+  width: 186px;
 }
 .provider-select {
   width: 150px;

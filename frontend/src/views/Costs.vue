@@ -3,8 +3,8 @@
     <!-- 筛选 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">AI 用量与成本</div>
-        <span class="tiny dim">基于 AI 调用留痕统计，成本为调用时单价的快照估算</span>
+        <div class="section-title">{{ t('costs.title') }}</div>
+        <span class="tiny dim">{{ t('costs.subtitle') }}</span>
       </div>
       <div class="panel-body">
         <div class="filter-row">
@@ -13,21 +13,20 @@
             type="daterange"
             value-format="YYYY-MM-DD"
             unlink-panels
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="t('costs.rangeSeparator')"
+            :start-placeholder="t('common.startDate')"
+            :end-placeholder="t('common.endDate')"
             :shortcuts="dateShortcuts"
             class="date-range"
             @change="load"
           />
           <div class="filter-actions">
-            <el-button type="primary" :icon="Search" :loading="loading" @click="load">查询</el-button>
-            <el-button link @click="resetFilters">重置</el-button>
+            <el-button type="primary" :icon="Search" :loading="loading" @click="load">{{ t('costs.query') }}</el-button>
+            <el-button link @click="resetFilters">{{ t('common.reset') }}</el-button>
           </div>
         </div>
         <div class="hint tiny dim">
-          数据来自语义复筛与敏感词挖掘的真实调用（含失败重试）；单价在调用发生时快照，
-          之后修改供应商价格不会回溯历史成本。清空日期范围表示全部时间。
+          {{ t('costs.hint') }}
         </div>
       </div>
     </section>
@@ -35,32 +34,32 @@
     <!-- 汇总卡 -->
     <div v-loading="loading" class="kpi-grid">
       <StatCard
-        label="请求次数"
+        :label="t('costs.kpiRequests')"
         :value="stats ? formatInt(stats.requests) : '—'"
         icon="DataLine"
         tone="brand"
         :sub="rangeText"
       />
       <StatCard
-        label="输入 Tokens"
+        :label="t('costs.kpiInputTokens')"
         :value="stats ? formatInt(stats.inputTokens) : '—'"
         icon="Download"
         tone="info"
         sub="prompt tokens"
       />
       <StatCard
-        label="输出 Tokens"
+        :label="t('costs.kpiOutputTokens')"
         :value="stats ? formatInt(stats.outputTokens) : '—'"
         icon="Upload"
         tone="warn"
         sub="completion tokens"
       />
       <StatCard
-        label="预估成本"
+        :label="t('costs.kpiEstimatedCost')"
         :value="stats ? formatUsd(stats.costUsd) : '—'"
         icon="Money"
         tone="brand"
-        sub="按调用时单价快照估算"
+        :sub="t('costs.costSnapshotSub')"
       />
     </div>
 
@@ -69,41 +68,41 @@
       <div class="error-block">
         <div class="error-icon"><el-icon :size="17"><WarningFilled /></el-icon></div>
         <div class="error-text">
-          <div class="strong">统计加载失败</div>
+          <div class="strong">{{ t('costs.statsLoadFailed') }}</div>
           <div class="tiny dim">{{ error }}</div>
         </div>
-        <el-button size="small" :icon="Refresh" @click="load">重试</el-button>
+        <el-button size="small" :icon="Refresh" @click="load">{{ t('common.retry') }}</el-button>
       </div>
     </section>
 
     <!-- 按日 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">按日用量</div>
-        <span class="tiny dim">按调用日期汇总</span>
+        <div class="section-title">{{ t('costs.byDay') }}</div>
+        <span class="tiny dim">{{ t('costs.byDayNote') }}</span>
       </div>
       <el-table v-loading="loading" :data="byDayRows" size="small">
-        <el-table-column label="日期" min-width="150">
+        <el-table-column :label="t('costs.colDate')" min-width="150">
           <template #default="{ row }">
             <span class="num strong">{{ row.date }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="请求" width="110" align="right">
+        <el-table-column :label="t('costs.colRequests')" width="110" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatInt(row.requests) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="输入 Tokens" width="140" align="right">
+        <el-table-column :label="t('costs.colInputTokens')" width="140" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatInt(row.inputTokens) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="输出 Tokens" width="140" align="right">
+        <el-table-column :label="t('costs.colOutputTokens')" width="140" align="right">
           <template #default="{ row }">
             <span class="num">{{ formatInt(row.outputTokens) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="成本" width="130" align="right">
+        <el-table-column :label="t('costs.colCost')" width="130" align="right">
           <template #default="{ row }">
             <span class="num strong">{{ formatUsd(row.costUsd) }}</span>
           </template>
@@ -111,9 +110,9 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="32" class="empty-icon"><DataLine /></el-icon>
-            <div class="empty-title">{{ error ? '统计暂不可用' : '所选时间范围内暂无 AI 调用' }}</div>
+            <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noDailyData') }}</div>
             <div class="tiny dim">
-              {{ error ? '请点击上方「重试」重新加载' : '录音进入 AI 语义复筛后，这里会按日汇总调用量与成本' }}
+              {{ error ? t('costs.retryHint') : t('costs.noDailyHint') }}
             </div>
           </div>
         </template>
@@ -123,11 +122,11 @@
     <div class="two-col">
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">按供应商</div>
-          <span class="tiny dim">成本从高到低</span>
+          <div class="section-title">{{ t('costs.byProvider') }}</div>
+          <span class="tiny dim">{{ t('costs.costHighToLow') }}</span>
         </div>
         <el-table v-loading="loading" :data="byProviderRows" size="small">
-          <el-table-column label="供应商" min-width="148">
+          <el-table-column :label="t('costs.colProvider')" min-width="148">
             <template #default="{ row }">
               <div class="cell-name">
                 <span class="strong ellipsis" :title="row.label">{{ row.label || '—' }}</span>
@@ -135,17 +134,17 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="请求" width="64" align="right">
+          <el-table-column :label="t('costs.colRequests')" width="104" align="right">
             <template #default="{ row }">
               <span class="num">{{ formatInt(row.requests) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Tokens 入/出" width="140" align="right">
+          <el-table-column :label="t('costs.colTokensInOut')" width="140" align="right">
             <template #default="{ row }">
               <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="成本" width="100" align="right">
+          <el-table-column :label="t('costs.colCost')" width="100" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ formatUsd(row.costUsd) }}</span>
             </template>
@@ -153,8 +152,8 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><Box /></el-icon>
-              <div class="empty-title">{{ error ? '统计暂不可用' : '暂无供应商用量' }}</div>
-              <div class="tiny dim">{{ error ? '请点击上方「重试」重新加载' : '启用并调用供应商后这里会按供应商汇总' }}</div>
+              <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noProviderData') }}</div>
+              <div class="tiny dim">{{ error ? t('costs.retryHint') : t('costs.noProviderHint') }}</div>
             </div>
           </template>
         </el-table>
@@ -162,11 +161,11 @@
 
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">按模型</div>
-          <span class="tiny dim">成本从高到低</span>
+          <div class="section-title">{{ t('costs.byModel') }}</div>
+          <span class="tiny dim">{{ t('costs.costHighToLow') }}</span>
         </div>
         <el-table v-loading="loading" :data="byModelRows" size="small">
-          <el-table-column label="模型" min-width="156">
+          <el-table-column :label="t('costs.colModel')" min-width="156">
             <template #default="{ row }">
               <div class="cell-name">
                 <span class="mono ellipsis" :title="row.model">{{ row.model || '—' }}</span>
@@ -174,17 +173,17 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="请求" width="64" align="right">
+          <el-table-column :label="t('costs.colRequests')" width="104" align="right">
             <template #default="{ row }">
               <span class="num">{{ formatInt(row.requests) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Tokens 入/出" width="140" align="right">
+          <el-table-column :label="t('costs.colTokensInOut')" width="140" align="right">
             <template #default="{ row }">
               <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="成本" width="100" align="right">
+          <el-table-column :label="t('costs.colCost')" width="100" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ formatUsd(row.costUsd) }}</span>
             </template>
@@ -192,8 +191,8 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><Cpu /></el-icon>
-              <div class="empty-title">{{ error ? '统计暂不可用' : '暂无模型用量' }}</div>
-              <div class="tiny dim">{{ error ? '请点击上方「重试」重新加载' : '模型产生调用后这里会按模型汇总' }}</div>
+              <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noModelData') }}</div>
+              <div class="tiny dim">{{ error ? t('costs.retryHint') : t('costs.noModelHint') }}</div>
             </div>
           </template>
         </el-table>
@@ -207,6 +206,9 @@ import { computed, onMounted, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import StatCard from '../components/StatCard.vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 /* ---------- 日期范围：默认最近 30 天 ---------- */
 
@@ -231,11 +233,11 @@ function defaultRange() {
 
 const dateRange = ref(defaultRange())
 
-const dateShortcuts = [
-  { text: '最近 7 天', value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: '最近 30 天', value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: '最近 90 天', value: () => [dayOffset(-89), dayOffset(0)] }
-]
+const dateShortcuts = computed(() => [
+  { text: t('costs.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
+  { text: t('costs.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
+  { text: t('costs.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
+])
 
 const statsParams = computed(() => {
   const from = toDateParam(dateRange.value?.[0])
@@ -246,8 +248,8 @@ const statsParams = computed(() => {
 const rangeText = computed(() => {
   const from = toDateParam(dateRange.value?.[0])
   const to = toDateParam(dateRange.value?.[1])
-  if (!from && !to) return '全部时间'
-  return `${from || '最早'} ~ ${to || '至今'}`
+  if (!from && !to) return t('costs.allTime')
+  return `${from || t('costs.rangeEarliest')} ~ ${to || t('costs.rangeUntilNow')}`
 })
 
 /* ---------- 统计 ---------- */
@@ -281,9 +283,9 @@ function formatUsd(value) {
 /** 403 / 404 给出可读降级文案（接口未上线时不弹全局错误） */
 function usageErrorMessage(err) {
   const status = err?.status
-  if (status === 403) return '当前账号无权限查看成本看板（需要 ADMIN）'
-  if (status === 404) return '后端尚未提供 AI 用量接口（HTTP 404），请确认后端版本'
-  return err?.message || '统计加载失败，请稍后重试'
+  if (status === 403) return t('costs.errorForbidden')
+  if (status === 404) return t('costs.errorEndpointMissing')
+  return err?.message || t('costs.errorFallback')
 }
 
 async function load() {

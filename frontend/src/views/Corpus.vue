@@ -3,28 +3,28 @@
     <!-- 概览 -->
     <div class="kpi-grid">
       <StatCard
-        label="语料总数"
+        :label="t('corpus.kpi.total')"
         :value="(stats.violation || 0) + (stats.compliant || 0)"
         icon="Notebook"
         tone="brand"
-        sub="人工复检自动沉淀"
+        :sub="t('corpus.kpi.totalSub')"
       />
       <StatCard
-        label="违规样本"
+        :label="t('corpus.kpi.violation')"
         :value="stats.violation"
         icon="WarningFilled"
         tone="danger"
-        sub="few-shot 正例"
+        :sub="t('corpus.kpi.violationSub')"
         clickable
         :active="labelFilter === 'VIOLATION'"
         @click="setLabel('VIOLATION')"
       />
       <StatCard
-        label="合规样本"
+        :label="t('corpus.kpi.compliant')"
         :value="stats.compliant"
         icon="CircleCheckFilled"
         tone="ok"
-        sub="few-shot 反例"
+        :sub="t('corpus.kpi.compliantSub')"
         clickable
         :active="labelFilter === 'COMPLIANT'"
         @click="setLabel('COMPLIANT')"
@@ -36,14 +36,14 @@
       <div class="panel-body loop-body">
         <div class="loop-icon"><el-icon :size="18"><Refresh /></el-icon></div>
         <div class="loop-text">
-          <div class="loop-title">人工复检 → 语料库 → AI 复筛 的自增强闭环</div>
+          <div class="loop-title">{{ t('corpus.loop.title') }}</div>
           <div class="loop-steps">
-            <span class="step"><b>1</b> 人工复检提交结论，自动写入语料库</span>
-            <span class="step"><b>2</b> AI 复筛时取最新违规 / 合规样例作为 few-shot 提示</span>
-            <span class="step"><b>3</b> 确认违规的录音另由 AI 挖掘新敏感词（停用待审核）</span>
+            <span class="step"><b>1</b> {{ t('corpus.loop.step1') }}</span>
+            <span class="step"><b>2</b> {{ t('corpus.loop.step2') }}</span>
+            <span class="step"><b>3</b> {{ t('corpus.loop.step3') }}</span>
           </div>
         </div>
-        <el-button :icon="Download" @click="doExport">导出 JSON</el-button>
+        <el-button :icon="Download" @click="doExport">{{ t('corpus.exportJson') }}</el-button>
       </div>
     </section>
 
@@ -52,33 +52,40 @@
       <div class="toolbar">
         <div class="filters">
           <button class="filter-chip" :class="{ on: labelFilter === '' }" @click="setLabel('')">
-            全部
+            {{ t('common.all') }}
           </button>
           <button class="filter-chip" :class="{ on: labelFilter === 'VIOLATION' }" @click="setLabel('VIOLATION')">
-            违规样本
+            {{ t('corpus.kpi.violation') }}
           </button>
           <button class="filter-chip" :class="{ on: labelFilter === 'COMPLIANT' }" @click="setLabel('COMPLIANT')">
-            合规样本
+            {{ t('corpus.kpi.compliant') }}
           </button>
         </div>
         <div class="actions">
-          <el-input v-model="keyword" placeholder="搜索语料文本 / 理由" clearable class="search" @keyup.enter="reload" @clear="reload">
+          <el-input
+            v-model="keyword"
+            :placeholder="t('corpus.searchPlaceholder')"
+            clearable
+            class="search"
+            @keyup.enter="reload"
+            @clear="reload"
+          >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" aria-label="刷新" title="刷新" />
-          <el-button type="primary" :icon="Plus" @click="openCreate">新增语料</el-button>
+          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
+          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('corpus.create') }}</el-button>
         </div>
       </div>
 
       <el-table ref="tableRef" v-loading="loading" :data="rows">
-        <el-table-column label="标注" width="88" align="center">
+        <el-table-column :label="t('corpus.table.label')" width="88" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.label === 'VIOLATION' ? 'danger' : 'ok'">
-              {{ row.label === 'VIOLATION' ? '违规' : '合规' }}
+              {{ row.label === 'VIOLATION' ? t('meta.evaluationLabel.VIOLATION') : t('meta.evaluationLabel.COMPLIANT') }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="违规类型" width="124" align="center">
+        <el-table-column :label="t('corpus.table.violationType')" width="140" align="center">
           <template #default="{ row }">
             <span v-if="row.violationType && VIOLATION_TYPES[row.violationType]" class="chip warn">
               {{ VIOLATION_TYPES[row.violationType] }}
@@ -86,14 +93,14 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="语料文本" min-width="250">
+        <el-table-column :label="t('corpus.table.transcript')" min-width="250">
           <template #default="{ row }">
             <el-tooltip :content="row.transcript" placement="top" :show-after="400">
               <div class="corpus-text">{{ row.transcript }}</div>
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" label="标注理由" min-width="180">
+        <el-table-column v-if="!compactColumns" :label="t('corpus.table.reason')" min-width="180">
           <template #default="{ row }">
             <span
               :class="{ dim: !row.reason }"
@@ -102,24 +109,24 @@
             >{{ row.reason || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="120" align="center">
+        <el-table-column :label="t('corpus.table.source')" width="132" align="center">
           <template #default="{ row }">
             <span class="chip" :class="SOURCE_CLASS[row.source] || 'info'">
               {{ SOURCE_LABEL[row.source] || row.source }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="124">
+        <el-table-column :label="t('common.createdAt')" width="124">
           <template #default="{ row }">
             <span class="num dim">{{ formatTimeShort(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="78" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="78" align="right" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-popconfirm v-if="canDelete" title="确认删除该条语料？" @confirm="remove(row)">
+              <el-popconfirm v-if="canDelete" :title="t('corpus.confirmDelete')" @confirm="remove(row)">
                 <template #reference>
-                  <el-button size="small" link type="danger">删除</el-button>
+                  <el-button size="small" link type="danger">{{ t('common.delete') }}</el-button>
                 </template>
               </el-popconfirm>
               <span v-else class="dim">—</span>
@@ -128,8 +135,8 @@
         </el-table-column>
         <template #empty>
           <div class="empty-block">
-            <div class="empty-title">暂无语料</div>
-            <div class="tiny dim">完成人工复检后，结论会自动沉淀到这里</div>
+            <div class="empty-title">{{ t('corpus.empty.title') }}</div>
+            <div class="tiny dim">{{ t('corpus.empty.hint') }}</div>
           </div>
         </template>
       </el-table>
@@ -146,23 +153,23 @@
     </section>
 
     <!-- 新增 -->
-    <el-dialog v-model="dialogVisible" title="新增语料" width="560px">
+    <el-dialog v-model="dialogVisible" :title="t('corpus.dialog.createTitle')" width="560px">
       <el-form :model="form" label-width="82px">
-        <el-form-item label="标注">
+        <el-form-item :label="t('corpus.table.label')">
           <div class="seg">
             <button
               class="seg-item"
               :class="{ on: form.label === 'VIOLATION' }"
               @click="form.label = 'VIOLATION'"
-            >违规样本</button>
+            >{{ t('corpus.kpi.violation') }}</button>
             <button
               class="seg-item"
               :class="{ on: form.label === 'COMPLIANT' }"
               @click="form.label = 'COMPLIANT'"
-            >合规样本</button>
+            >{{ t('corpus.kpi.compliant') }}</button>
           </div>
         </el-form-item>
-        <el-form-item v-if="form.label === 'VIOLATION'" label="违规类型">
+        <el-form-item v-if="form.label === 'VIOLATION'" :label="t('corpus.table.violationType')">
           <div class="types-grid">
             <button
               v-for="(label, code) in VIOLATION_TYPES"
@@ -173,16 +180,21 @@
             >{{ label }}</button>
           </div>
         </el-form-item>
-        <el-form-item label="语料文本">
-          <el-input v-model="form.transcript" type="textarea" :rows="4" placeholder="粘贴一段客服录音转写文本" />
+        <el-form-item :label="t('corpus.table.transcript')">
+          <el-input
+            v-model="form.transcript"
+            type="textarea"
+            :rows="4"
+            :placeholder="t('corpus.form.transcriptPlaceholder')"
+          />
         </el-form-item>
-        <el-form-item label="标注理由">
-          <el-input v-model="form.reason" placeholder="为什么这么判（可选，作为 AI 参考依据）" />
+        <el-form-item :label="t('corpus.table.reason')">
+          <el-input v-model="form.reason" :placeholder="t('corpus.form.reasonPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -197,6 +209,9 @@ import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import { VIOLATION_TYPES, formatTimeShort } from '../constants'
 import { useElementWidth } from '../utils/elementWidth'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 // 语料删除仅 ADMIN（见权限矩阵），其余角色只读
 const canDelete = computed(() => auth.hasRole('ADMIN'))
@@ -219,7 +234,11 @@ const dialogVisible = ref(false)
 const saving = ref(false)
 const form = ref({ label: 'VIOLATION', violationType: 'INSULT', transcript: '', reason: '' })
 
-const SOURCE_LABEL = { REVIEW: '人工复检', SEED: '初始合成', MANUAL: '手工录入' }
+const SOURCE_LABEL = computed(() => ({
+  REVIEW: t('corpus.source.REVIEW'),
+  SEED: t('corpus.source.SEED'),
+  MANUAL: t('corpus.source.MANUAL')
+}))
 const SOURCE_CLASS = { REVIEW: 'brand', SEED: 'info', MANUAL: 'ok' }
 
 const stats = computed(() => ({
@@ -268,13 +287,13 @@ function openCreate() {
 
 async function save() {
   if (!form.value.transcript?.trim()) {
-    ElMessage.warning('请输入语料文本')
+    ElMessage.warning(t('corpus.messages.transcriptRequired'))
     return
   }
   saving.value = true
   try {
     await api.createCorpus(form.value)
-    ElMessage.success('已新增语料')
+    ElMessage.success(t('corpus.messages.created'))
     dialogVisible.value = false
     reload()
     loadOverview()
@@ -285,7 +304,7 @@ async function save() {
 
 async function remove(row) {
   await api.deleteCorpus(row.id)
-  ElMessage.success('已删除')
+  ElMessage.success(t('corpus.messages.deleted'))
   load()
   loadOverview()
 }
@@ -300,7 +319,7 @@ async function doExport() {
     a.click()
     URL.revokeObjectURL(url)
   } catch {
-    ElMessage.error('导出失败')
+    ElMessage.error(t('corpus.messages.exportFailed'))
   }
 }
 

@@ -50,7 +50,7 @@
         :title="t('a11y.language')"
         @click="onToggleLocale"
       >
-        {{ locale === 'zh' ? 'EN' : '中文' }}
+        {{ locale === 'zh' ? t('header.languageEn') : t('header.languageZh') }}
       </button>
 
       <div class="divider"></div>

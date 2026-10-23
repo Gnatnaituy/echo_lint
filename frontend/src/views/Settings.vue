@@ -3,8 +3,8 @@
     <!-- ① 当前生效 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">当前 AI 复筛模型</div>
-        <span class="tiny dim">作用于语义复筛与敏感词挖掘</span>
+        <div class="section-title">{{ t('settings.active.title') }}</div>
+        <span class="tiny dim">{{ t('settings.active.subtitle') }}</span>
       </div>
       <div class="panel-body">
         <div v-if="view" class="active-card">
@@ -18,15 +18,15 @@
                 <span class="active-sep">·</span>
                 <span class="active-model mono">{{ view.model }}</span>
                 <span class="chip" :class="view.source === 'DATABASE' ? 'brand' : 'info'">
-                  {{ view.source === 'DATABASE' ? '界面切换' : '配置默认' }}
+                  {{ view.source === 'DATABASE' ? t('settings.source.uiSwitch') : t('settings.source.configDefault') }}
                 </span>
               </div>
               <div class="active-status">
                 <span class="dot" :style="{ background: view.apiKeyConfigured ? 'var(--ok)' : 'var(--warn)' }"></span>
                 <span :class="view.apiKeyConfigured ? 'dim' : 'warn-text'">
                   {{ view.apiKeyConfigured
-                    ? 'API Key 已配置，可正常调用'
-                    : 'API Key 未配置：DFA 命中的录音会降级转人工复检，不会漏审' }}
+                    ? t('settings.active.keyConfigured')
+                    : t('settings.active.keyMissing') }}
                 </span>
               </div>
             </div>
@@ -38,10 +38,10 @@
             @click="testActive"
           >
             <el-icon v-if="testing !== 'active'" class="el-icon--left"><Connection /></el-icon>
-            测试连通性
+            {{ t('settings.active.testConnection') }}
           </el-button>
         </div>
-        <div v-else class="empty-block">加载中…</div>
+        <div v-else class="empty-block">{{ t('common.loading') }}</div>
 
         <div v-if="testResult" class="test-result" :class="testResult.ok ? 'ok' : 'bad'">
           <el-icon :size="16">
@@ -49,11 +49,11 @@
           </el-icon>
           <div class="test-text">
             <div class="test-head">
-              <b>{{ testResult.ok ? '连通正常' : '连通失败' }}</b>
+              <b>{{ testResult.ok ? t('settings.test.ok') : t('settings.test.fail') }}</b>
               <span class="mono dim">{{ testResult.providerLabel }} · {{ testResult.model }}</span>
-              <span v-if="testResult.ok" class="num dim">耗时 {{ testResult.latencyMs }} ms</span>
+              <span v-if="testResult.ok" class="num dim">{{ t('settings.test.latency', { ms: testResult.latencyMs }) }}</span>
             </div>
-            <div class="test-msg">{{ testResult.ok ? (testResult.reply || '（无返回内容）') : testResult.message }}</div>
+            <div class="test-msg">{{ testResult.ok ? (testResult.reply || t('settings.test.emptyReply')) : testResult.message }}</div>
           </div>
         </div>
       </div>
@@ -62,8 +62,8 @@
     <!-- ② 切换 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">切换模型</div>
-        <span class="tiny dim">保存后立即生效，无需重启；选择会持久化保存</span>
+        <div class="section-title">{{ t('settings.model.title') }}</div>
+        <span class="tiny dim">{{ t('settings.model.subtitle') }}</span>
       </div>
       <div class="panel-body">
         <template v-if="canWrite">
@@ -75,18 +75,18 @@
             class="provider-card"
             :class="{ on: p.id === draft.providerId, off: isProviderDisabled(p.id) }"
             :disabled="isProviderDisabled(p.id)"
-            :title="isProviderDisabled(p.id) ? '该供应商已在「AI 供应商」中停用，启用后才能切换' : p.baseUrl"
+            :title="isProviderDisabled(p.id) ? t('settings.model.providerDisabled') : p.baseUrl"
             @click="pickProvider(p)"
           >
             <div class="pc-head">
               <span class="pc-name">{{ p.label }}</span>
-              <span v-if="p.active" class="chip brand">当前</span>
+              <span v-if="p.active" class="chip brand">{{ t('settings.provider.current') }}</span>
             </div>
             <div class="pc-url mono">{{ p.baseUrl }}</div>
             <div class="pc-foot">
               <span class="dot" :style="{ background: p.apiKeyConfigured ? 'var(--ok)' : 'var(--warn)' }"></span>
               <span class="tiny">
-                {{ p.apiKeyConfigured ? 'Key 已配置' : (p.apiKeyEnv ? '缺少 ' + p.apiKeyEnv : 'Key 未配置') }}
+                {{ p.apiKeyConfigured ? t('settings.model.keyConfigured') : (p.apiKeyEnv ? t('settings.model.keyMissingEnv', { env: p.apiKeyEnv }) : t('settings.model.keyMissing')) }}
               </span>
             </div>
           </button>
@@ -94,30 +94,30 @@
 
         <div class="switch-row">
           <div class="field">
-            <label class="field-label">模型</label>
+            <label class="field-label">{{ t('settings.model.label') }}</label>
             <el-select
               v-model="draft.model"
               class="model-select"
               filterable
               allow-create
               default-first-option
-              placeholder="选择或直接输入模型名"
+              :placeholder="t('settings.model.placeholder')"
             >
               <el-option v-for="m in currentProvider?.models || []" :key="m" :label="m" :value="m" />
             </el-select>
           </div>
           <div class="switch-actions">
             <el-button :loading="testing === 'draft'" :disabled="!draft.providerId" @click="testDraft">
-              测试
+              {{ t('settings.model.test') }}
             </el-button>
             <el-button type="primary" :loading="saving" :disabled="!dirty" @click="save">
-              保存并生效
+              {{ t('settings.model.save') }}
             </el-button>
           </div>
         </div>
         <div class="hint tiny dim">
-          可下拉选择，也可直接输入候选之外的新模型名（供应商上新模型时无需改配置重启）。
-          切换立即影响之后的所有复筛与词挖掘，已有结论的历史录音不会被重新判定。
+          {{ t('settings.model.hintSelect') }}
+          {{ t('settings.model.hintEffect') }}
         </div>
         </template>
         <el-alert
@@ -125,7 +125,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="只读角色可查看当前生效模型；切换模型与连通性测试仅管理员可用。"
+          :title="t('settings.model.readonlyAlert')"
         />
       </div>
     </section>
@@ -133,13 +133,13 @@
     <!-- ③ AI 供应商（ADMIN）：注册表管理，仍可切换当前生效供应商 / 模型 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
-        <div class="section-title">AI 供应商</div>
+        <div class="section-title">{{ t('settings.provider.title') }}</div>
         <div class="provider-head">
-          <span class="tiny dim">内置供应商由后端配置首次启动落库；密钥加密存储，仅显示掩码</span>
-          <el-button size="small" :loading="providersLoading" @click="loadProviders">刷新</el-button>
+          <span class="tiny dim">{{ t('settings.provider.subtitle') }}</span>
+          <el-button size="small" :loading="providersLoading" @click="loadProviders">{{ t('common.refresh') }}</el-button>
           <el-button size="small" type="primary" @click="openProviderCreate">
             <el-icon class="el-icon--left"><Plus /></el-icon>
-            新增供应商
+            {{ t('settings.provider.create') }}
           </el-button>
         </div>
       </div>
@@ -148,66 +148,66 @@
         <div v-if="providersError" class="provider-fallback">
           <el-icon :size="16"><WarningFilled /></el-icon>
           <div class="provider-fallback-text">
-            <div class="strong">供应商列表暂不可用</div>
+            <div class="strong">{{ t('settings.provider.unavailable') }}</div>
             <div class="tiny dim">{{ providersError }}</div>
           </div>
-          <el-button size="small" @click="loadProviders">重试</el-button>
+          <el-button size="small" @click="loadProviders">{{ t('common.retry') }}</el-button>
         </div>
 
         <template v-else>
           <!-- 表格贴齐卡片左右边缘：首列文字与 panel-head 标题在 18px 基线上对齐（避免 18+18 双重缩进） -->
           <div ref="providerTableWrap" class="table-bleed">
             <el-table :data="providers" size="small">
-              <el-table-column label="供应商" min-width="180">
+              <el-table-column :label="t('settings.provider.columnName')" min-width="180">
                 <template #default="{ row }">
                   <div class="provider-cell">
                     <div class="provider-name">
-                      <span class="strong">{{ row.label || row.key || '未命名' }}</span>
-                      <span v-if="providerIsActive(row)" class="chip brand">当前</span>
-                      <span v-if="row.builtIn" class="chip info">内置</span>
+                      <span class="strong">{{ row.label || row.key || t('common.untitled') }}</span>
+                      <span v-if="providerIsActive(row)" class="chip brand">{{ t('settings.provider.current') }}</span>
+                      <span v-if="row.builtIn" class="chip info">{{ t('settings.provider.builtIn') }}</span>
                     </div>
                     <div class="mono tiny dim">{{ row.key || '—' }}</div>
                   </div>
                 </template>
               </el-table-column>
 
-              <el-table-column label="接入地址" min-width="190">
+              <el-table-column :label="t('settings.provider.baseUrl')" min-width="190">
                 <template #default="{ row }">
                   <div class="provider-cell">
                     <div class="mono tiny ellipsis" :title="row.baseUrl">{{ row.baseUrl || '—' }}</div>
                     <div class="mono tiny dim ellipsis" :title="row.chatPath">
-                      {{ row.chatPath || '默认 chatPath' }}
+                      {{ row.chatPath || t('settings.provider.defaultChatPath') }}
                     </div>
                   </div>
                 </template>
               </el-table-column>
 
-              <el-table-column label="默认模型" min-width="142">
+              <el-table-column :label="t('settings.provider.defaultModel')" min-width="142">
                 <template #default="{ row }">
                   <div class="mono tiny ellipsis" :title="row.defaultModel">{{ row.defaultModel || '—' }}</div>
-                  <div class="tiny dim">{{ row.models.length }} 个候选模型</div>
+                  <div class="tiny dim">{{ t('settings.provider.modelCount', { count: row.models.length }) }}</div>
                 </template>
               </el-table-column>
 
-              <el-table-column v-if="!compactProviderTable" label="价格 / 1K" width="126" align="right">
+              <el-table-column v-if="!compactProviderTable" :label="t('settings.provider.pricePer1k')" width="126" align="right">
                 <template #header>
-                  <span title="单位 USD / 1K tokens；入 = 输入价格，出 = 输出价格">价格 / 1K</span>
+                  <span :title="t('settings.provider.priceTooltip')">{{ t('settings.provider.pricePer1k') }}</span>
                 </template>
                 <template #default="{ row }">
                   <div class="price-cell">
                     <span class="price-row">
-                      <span class="price-label">入</span>
+                      <span class="price-label">{{ t('settings.provider.priceIn') }}</span>
                       <span class="mono">{{ formatPricePer1k(row.inputPricePer1k) }}</span>
                     </span>
                     <span class="price-row">
-                      <span class="price-label">出</span>
+                      <span class="price-label">{{ t('settings.provider.priceOut') }}</span>
                       <span class="mono">{{ formatPricePer1k(row.outputPricePer1k) }}</span>
                     </span>
                   </div>
                 </template>
               </el-table-column>
 
-              <el-table-column label="密钥" width="108">
+              <el-table-column :label="t('settings.provider.keyColumn')" width="108">
                 <template #default="{ row }">
                   <span class="chip mono key-chip" :class="providerKeyChip(row).type">
                     {{ providerKeyChip(row).label }}
@@ -215,33 +215,33 @@
                 </template>
               </el-table-column>
 
-              <el-table-column label="状态" width="82" align="right">
+              <el-table-column :label="t('common.status')" width="82" align="right">
                 <template #default="{ row }">
                   <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
-                    {{ row.enabled === false ? '停用' : row.enabled === true ? '启用' : '未知' }}
+                    {{ row.enabled === false ? t('common.disabled') : row.enabled === true ? t('common.enabled') : t('common.unknown') }}
                   </span>
                 </template>
               </el-table-column>
 
-              <el-table-column label="操作" width="138" align="right">
+              <el-table-column :label="t('common.actions')" width="138" align="right">
                 <template #default="{ row }">
-                  <el-button size="small" link type="primary" @click="openProviderTest(row)">测试</el-button>
-                  <el-button size="small" link type="primary" @click="openProviderEdit(row)">编辑</el-button>
+                  <el-button size="small" link type="primary" @click="openProviderTest(row)">{{ t('settings.provider.test') }}</el-button>
+                  <el-button size="small" link type="primary" @click="openProviderEdit(row)">{{ t('common.edit') }}</el-button>
                   <el-tooltip
                     v-if="!row.builtIn"
                     :disabled="!providerIsActive(row)"
-                    content="当前生效供应商不可删除，请先切换模型"
+                    :content="t('settings.provider.activeDeleteTooltip')"
                     placement="top"
                   >
                     <span class="delete-wrap">
                       <el-popconfirm
-                        title="删除后该供应商配置与密钥将被移除（不可恢复），确认删除？"
+                        :title="t('settings.provider.deleteConfirm')"
                         width="270"
                         @confirm="removeProvider(row)"
                       >
                         <template #reference>
                           <el-button size="small" link type="danger" :disabled="providerIsActive(row)">
-                            删除
+                            {{ t('common.delete') }}
                           </el-button>
                         </template>
                       </el-popconfirm>
@@ -253,9 +253,9 @@
               <template #empty>
                 <div class="empty-block">
                   <el-icon :size="34" class="empty-icon"><Cpu /></el-icon>
-                  <div class="empty-title">暂无供应商</div>
+                  <div class="empty-title">{{ t('settings.provider.empty') }}</div>
                   <div class="tiny dim">
-                    内置供应商会在后端首次启动时自动落库；也可点击右上角「新增供应商」接入自定义网关
+                    {{ t('settings.provider.emptyHint') }}
                   </div>
                 </div>
               </template>
@@ -263,8 +263,8 @@
           </div>
 
           <div class="hint tiny dim">
-            内置供应商可编辑接入信息、价格与密钥，但不可删除；自定义供应商可增删。
-            停用或删除不会影响历史录音结论与已产生的调用留痕。
+            {{ t('settings.provider.hintA') }}
+            {{ t('settings.provider.hintB') }}
           </div>
         </template>
       </div>
@@ -273,49 +273,49 @@
     <!-- ④ A/B 与模型评测（ADMIN）：A/B 配置只读展示 + 手动评测 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
-        <div class="section-title">A/B 与模型评测</div>
-        <span class="tiny dim">A/B 配置只读展示；评测为手动触发，单次最多 20 条语料</span>
+        <div class="section-title">{{ t('settings.ab.title') }}</div>
+        <span class="tiny dim">{{ t('settings.ab.subtitle') }}</span>
       </div>
       <div class="panel-body">
         <!-- A/B 配置 -->
         <div v-if="abConfig" class="ab-grid">
           <div class="ab-item">
-            <div class="ab-label">A/B 分流</div>
+            <div class="ab-label">{{ t('settings.ab.split') }}</div>
             <div class="ab-value">
               <span class="chip" :class="abState.type">{{ abState.label }}</span>
             </div>
             <div class="ab-sub tiny dim">{{ abState.note }}</div>
           </div>
           <div class="ab-item">
-            <div class="ab-label">B 组流量占比</div>
+            <div class="ab-label">{{ t('settings.ab.percent') }}</div>
             <div class="ab-value num">{{ formatAbPercent(abConfig.percent) }}</div>
             <div class="ab-sub tiny dim">
-              按概率进入 B 组；关闭或备用供应商不可用时回退当前生效模型
+              {{ t('settings.ab.percentNote') }}
             </div>
           </div>
           <div class="ab-item">
-            <div class="ab-label">B 组供应商 / 模型</div>
+            <div class="ab-label">{{ t('settings.ab.group') }}</div>
             <div class="ab-value ab-b">
               <span class="strong ellipsis">{{ abProviderLabel }}</span>
-              <span class="chip info mono">{{ abConfig.model || '供应商默认' }}</span>
+              <span class="chip info mono">{{ abConfig.model || t('settings.ab.providerDefault') }}</span>
             </div>
-            <div class="ab-sub tiny dim">仅语义复筛参与分流；敏感词挖掘始终使用当前生效模型</div>
+            <div class="ab-sub tiny dim">{{ t('settings.ab.groupNote') }}</div>
           </div>
         </div>
         <div v-else class="eval-empty tiny dim">
           {{ view
-            ? '接口未返回 A/B 配置（后端可能为旧版本，或 A/B 未配置）'
-            : 'A/B 配置随「当前 AI 复筛模型」加载，暂不可用' }}
+            ? t('settings.ab.missing')
+            : t('settings.ab.pending') }}
         </div>
 
         <!-- 评测表单 -->
         <div class="eval-form">
           <div class="eval-field">
-            <label class="eval-label">供应商</label>
+            <label class="eval-label">{{ t('settings.eval.provider') }}</label>
             <el-select
               v-model="evalForm.providerId"
               :disabled="evaluating"
-              placeholder="选择供应商"
+              :placeholder="t('settings.eval.providerPlaceholder')"
               @change="onEvalProviderChange"
             >
               <el-option
@@ -327,7 +327,7 @@
             </el-select>
           </div>
           <div class="eval-field">
-            <label class="eval-label">模型（可选）</label>
+            <label class="eval-label">{{ t('settings.eval.modelLabel') }}</label>
             <el-select
               v-model="evalForm.model"
               :disabled="evaluating"
@@ -335,13 +335,13 @@
               allow-create
               clearable
               default-first-option
-              placeholder="留空使用供应商默认模型"
+              :placeholder="t('settings.eval.modelPlaceholder')"
             >
               <el-option v-for="m in evalModelOptions" :key="m" :label="m" :value="m" />
             </el-select>
           </div>
           <div class="eval-field eval-size">
-            <label class="eval-label">样本数</label>
+            <label class="eval-label">{{ t('settings.eval.sampleSize') }}</label>
             <el-input-number
               v-model="evalForm.sampleSize"
               :min="1"
@@ -360,28 +360,28 @@
               @click="runEvaluation"
             >
               <el-icon v-if="!evaluating" class="el-icon--left"><DataAnalysis /></el-icon>
-              运行评测
+              {{ t('settings.eval.run') }}
             </el-button>
             <span v-if="!evalProviderOptions.length" class="tiny dim">
-              供应商列表不可用：请前往上方「AI 供应商」检查配置
+              {{ t('settings.eval.providerUnavailable') }}
             </span>
           </div>
         </div>
 
         <div v-if="evaluating" class="eval-running tiny dim">
           <el-icon class="is-loading"><Loading /></el-icon>
-          正在逐条调用模型评测（1~20 条，可能需要数十秒）…
+          {{ t('settings.eval.running') }}
         </div>
 
         <!-- 卡内错误 / 403/404 降级：已有结果时保留旧结果并提示 -->
         <div v-if="evaluationError" class="eval-error">
           <el-icon :size="16"><WarningFilled /></el-icon>
           <div class="eval-error-text">
-            <div class="strong">评测未完成</div>
+            <div class="strong">{{ t('settings.eval.incomplete') }}</div>
             <div class="tiny dim">{{ evaluationError }}</div>
           </div>
           <el-button size="small" :disabled="evaluating || !evalForm.providerId" @click="runEvaluation">
-            重试
+            {{ t('common.retry') }}
           </el-button>
         </div>
 
@@ -401,10 +401,10 @@
               <div class="ab-value num">{{ formatRatioPercent(evaluation.recall) }}</div>
             </div>
             <div class="eval-kpi">
-              <div class="ab-label">已评测 / 总数</div>
+              <div class="ab-label">{{ t('settings.eval.evaluatedRatio') }}</div>
               <div class="ab-value num">{{ evaluatedText }}</div>
               <div class="ab-sub tiny dim">
-                正确 {{ evaluation.correct ?? '—' }} · 失败 {{ evaluation.failed ?? '—' }}
+                {{ t('settings.eval.correctFailed', { correct: evaluation.correct ?? '—', failed: evaluation.failed ?? '—' }) }}
               </div>
             </div>
           </div>
@@ -425,83 +425,83 @@
               </div>
             </div>
             <div class="conf-legend tiny dim">
-              <span>总计 {{ evaluation.total ?? '—' }}</span>
+              <span>{{ t('settings.eval.total', { total: evaluation.total ?? '—' }) }}</span>
               <span class="sep">·</span>
-              <span>耗时 {{ formatLatencyMs(evaluation.latencyMs) }}</span>
+              <span>{{ t('settings.eval.latency', { value: formatLatencyMs(evaluation.latencyMs) }) }}</span>
               <span class="sep">·</span>
-              <span>失败样本不参与指标分母</span>
+              <span>{{ t('settings.eval.failedExcluded') }}</span>
             </div>
           </div>
 
           <div class="eval-section-head">
-            <div class="block-title">按标注类型</div>
-            <span class="tiny dim">按语料标注（违规 / 合规）统计</span>
+            <div class="block-title">{{ t('settings.eval.byLabelTitle') }}</div>
+            <span class="tiny dim">{{ t('settings.eval.byLabelNote') }}</span>
           </div>
           <div class="table-bleed">
             <el-table :data="evaluation.byLabel" size="small">
-              <el-table-column label="标注类型" min-width="140">
+              <el-table-column :label="t('settings.eval.labelColumn')" min-width="140">
                 <template #default="{ row }">
                   <span class="chip" :class="evaluationLabelMeta(row.label).type">
                     {{ evaluationLabelMeta(row.label).label }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="样本数" width="110" align="right">
+              <el-table-column :label="t('settings.eval.sampleSize')" width="110" align="right">
                 <template #default="{ row }">
                   <span class="num">{{ row.total }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="正确" width="110" align="right">
+              <el-table-column :label="t('settings.eval.correct')" width="110" align="right">
                 <template #default="{ row }">
                   <span class="num">{{ row.correct }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="准确率" width="130" align="right">
+              <el-table-column :label="t('settings.eval.accuracy')" width="130" align="right">
                 <template #default="{ row }">
                   <span class="num">{{ formatRatioPercent(labelAccuracy(row)) }}</span>
                 </template>
               </el-table-column>
               <template #empty>
                 <div class="empty-block">
-                  <div class="empty-title">暂无分类统计</div>
-                  <div class="tiny dim">后端返回 byLabel 后展示</div>
+                  <div class="empty-title">{{ t('settings.eval.byLabelEmpty') }}</div>
+                  <div class="tiny dim">{{ t('settings.eval.byLabelEmptyHint') }}</div>
                 </div>
               </template>
           </el-table>
           </div>
 
           <div class="eval-section-head">
-            <div class="block-title">逐条结果</div>
-            <span class="tiny dim">共 {{ evaluation.results.length }} 条，失败行标注 error</span>
+            <div class="block-title">{{ t('settings.eval.resultsTitle') }}</div>
+            <span class="tiny dim">{{ t('settings.eval.resultsNote', { count: evaluation.results.length }) }}</span>
           </div>
           <div class="table-bleed">
             <el-table :data="evaluation.results" size="small" max-height="420">
-              <el-table-column label="语料 ID" width="110">
+              <el-table-column :label="t('settings.eval.corpusId')" width="110">
                 <template #default="{ row }">
                   <span class="mono">{{ row.corpusId || '—' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="期望" width="100" align="center">
+              <el-table-column :label="t('settings.eval.expected')" width="100" align="center">
                 <template #default="{ row }">
                   <span class="chip" :class="evaluationLabelMeta(row.expected).type">
                     {{ evaluationLabelMeta(row.expected).label }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="预测" width="100" align="center">
+              <el-table-column :label="t('settings.eval.predicted')" width="100" align="center">
                 <template #default="{ row }">
-                  <span v-if="row.error" class="chip danger">失败</span>
+                  <span v-if="row.error" class="chip danger">{{ t('common.failed') }}</span>
                   <span v-else class="chip" :class="evaluationLabelMeta(row.predicted).type">
                     {{ evaluationLabelMeta(row.predicted).label }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="置信度" width="100" align="right">
+              <el-table-column :label="t('settings.eval.confidence')" width="100" align="right">
                 <template #default="{ row }">
                   <span class="num">{{ row.confidence == null ? '—' : formatRatioPercent(row.confidence) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="理由" min-width="280">
+              <el-table-column :label="t('settings.eval.reason')" min-width="280">
                 <template #default="{ row }">
                   <el-tooltip
                     v-if="row.error || row.reason"
@@ -517,17 +517,17 @@
                   <span v-else class="dim">—</span>
                 </template>
               </el-table-column>
-              <el-table-column label="状态" width="88" align="center">
+              <el-table-column :label="t('common.status')" width="88" align="center">
                 <template #default="{ row }">
                   <span class="chip" :class="row.error ? 'danger' : 'ok'">
-                    {{ row.error ? '失败' : '成功' }}
+                    {{ row.error ? t('common.failed') : t('common.success') }}
                   </span>
                 </template>
               </el-table-column>
               <template #empty>
                 <div class="empty-block">
-                  <div class="empty-title">暂无逐条结果</div>
-                  <div class="tiny dim">后端返回 results 后展示期望 / 预测 / 置信度 / 理由</div>
+                  <div class="empty-title">{{ t('settings.eval.resultsEmpty') }}</div>
+                  <div class="tiny dim">{{ t('settings.eval.resultsEmptyHint') }}</div>
                 </div>
               </template>
           </el-table>
@@ -536,13 +536,13 @@
 
         <!-- 空态 -->
         <div v-else-if="!evaluating && !evaluationError" class="eval-empty tiny dim">
-          还没有评测结果：选择供应商（可选模型）与样本数后点击「运行评测」。
-          评测会从语料库均衡抽取已标注样本，单次最多 20 条。
+          {{ t('settings.eval.empty') }}
+          {{ t('settings.eval.emptyHint') }}
         </div>
 
         <div class="hint tiny dim">
-          A/B 分流与评测接口均为 ADMIN 权限；评测调用真实模型并计入 AI 用量与配额，
-          单条失败计入失败数但不参与 accuracy / precision / recall 分母。
+          {{ t('settings.eval.hintA') }}
+          {{ t('settings.eval.hintB') }}
         </div>
       </div>
     </section>
@@ -550,10 +550,10 @@
     <!-- ⑤ RAG 检索增强（ADMIN）：embedding 复用 AI 供应商；检索参数、索引统计与效果评测 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
-        <div class="section-title">RAG 检索增强</div>
+        <div class="section-title">{{ t('settings.rag.title') }}</div>
         <div class="provider-head">
-          <span class="tiny dim">关闭时复筛行为与旧版完全一致；embedding 复用「AI 供应商」的接入地址与密钥</span>
-          <el-button size="small" :loading="ragLoading" @click="loadRag">刷新</el-button>
+          <span class="tiny dim">{{ t('settings.rag.subtitle') }}</span>
+          <el-button size="small" :loading="ragLoading" @click="loadRag">{{ t('common.refresh') }}</el-button>
         </div>
       </div>
       <div v-loading="ragLoading" class="panel-body">
@@ -561,10 +561,10 @@
         <div v-if="ragError" class="notify-fallback">
           <el-icon :size="16"><WarningFilled /></el-icon>
           <div class="notify-fallback-text">
-            <div class="strong">RAG 设置暂不可用</div>
+            <div class="strong">{{ t('settings.rag.unavailable') }}</div>
             <div class="tiny dim">{{ ragError }}</div>
           </div>
-          <el-button size="small" @click="loadRag">重试</el-button>
+          <el-button size="small" @click="loadRag">{{ t('common.retry') }}</el-button>
         </div>
 
         <template v-else-if="rag">
@@ -572,15 +572,15 @@
           <div class="rag-switch-row">
             <div class="rag-switch-main">
               <div class="rag-switch-line">
-                <span class="strong">启用 RAG 检索增强</span>
+                <span class="strong">{{ t('settings.rag.enableLabel') }}</span>
                 <span class="chip" :class="ragForm.enabled ? 'ok' : 'info'">
-                  {{ ragForm.enabled ? '已启用' : '未启用' }}
+                  {{ ragForm.enabled ? t('settings.state.enabled') : t('settings.state.disabled') }}
                 </span>
-                <span v-if="rag.source" class="chip info">配置来源：{{ ragSourceLabel(rag.source) }}</span>
+                <span v-if="rag.source" class="chip info">{{ t('settings.rag.source', { source: ragSourceLabel(rag.source) }) }}</span>
               </div>
               <div class="tiny dim rag-note">
-                启用后复筛会召回知识库片段注入 prompt，并用语义 few-shot 补充语料示例；
-                关闭时不发起任何 embedding 调用，行为与旧版一致。
+                {{ t('settings.rag.enableNoteA') }}
+                {{ t('settings.rag.enableNoteB') }}
               </div>
             </div>
             <el-switch
@@ -593,27 +593,27 @@
 
           <!-- embedding 只读信息 -->
           <div class="rag-section-head">
-            <div class="block-title">Embedding 配置（只读）</div>
+            <div class="block-title">{{ t('settings.rag.embeddingTitle') }}</div>
             <el-button size="small" :loading="ragTesting" :disabled="ragTesting" @click="testRagEmbedding">
               <el-icon v-if="!ragTesting" class="el-icon--left"><Connection /></el-icon>
-              连通性测试
+              {{ t('settings.rag.testConnection') }}
             </el-button>
           </div>
           <div class="rag-kv-grid">
             <div class="rag-kv">
-              <div class="notify-label">供应商 / 模型</div>
+              <div class="notify-label">{{ t('settings.rag.providerModel') }}</div>
               <div class="rag-kv-value strong">{{ rag.embedding.providerLabel || '—' }}</div>
               <div class="mono tiny dim ellipsis" :title="rag.embedding.model">{{ rag.embedding.model || '—' }}</div>
             </div>
             <div class="rag-kv">
-              <div class="notify-label">请求路径</div>
+              <div class="notify-label">{{ t('settings.rag.requestPath') }}</div>
               <div class="rag-kv-value mono">{{ rag.embedding.path || '—' }}</div>
-              <div class="tiny dim">复用 AI 供应商的 Base URL 与密钥</div>
+              <div class="tiny dim">{{ t('settings.rag.reuseHint') }}</div>
             </div>
             <div class="rag-kv">
-              <div class="notify-label">向量维度</div>
+              <div class="notify-label">{{ t('settings.rag.dimensions') }}</div>
               <div class="rag-kv-value num">{{ rag.embedding.dimensions ?? '—' }}</div>
-              <div class="tiny dim">超时 {{ rag.embedding.timeoutSeconds ?? '—' }} 秒</div>
+              <div class="tiny dim">{{ t('settings.rag.timeout', { seconds: rag.embedding.timeoutSeconds ?? '—' }) }}</div>
             </div>
             <div class="rag-kv">
               <div class="notify-label">API Key</div>
@@ -622,7 +622,7 @@
                   {{ embeddingKeyChip(rag.embedding.apiKeyConfigured).label }}
                 </span>
               </div>
-              <div class="tiny dim">密钥由后端加密存储，前端只读状态</div>
+              <div class="tiny dim">{{ t('settings.rag.keyNote') }}</div>
             </div>
           </div>
 
@@ -632,34 +632,34 @@
             </el-icon>
             <div class="test-text">
               <div class="test-head">
-                <b>{{ ragTestResult.ok === true ? 'Embedding 连通正常' : 'Embedding 连通失败' }}</b>
+                <b>{{ ragTestResult.ok === true ? t('settings.rag.testOk') : t('settings.rag.testFail') }}</b>
                 <span v-if="ragTestResult.providerLabel || ragTestResult.model" class="mono dim">
                   {{ ragTestResult.providerLabel || '—' }} · {{ ragTestResult.model || '—' }}
                 </span>
                 <span v-if="ragTestResult.dimensions != null" class="num dim">
-                  维度 {{ ragTestResult.dimensions }}
+                  {{ t('settings.rag.dimensionValue', { dimensions: ragTestResult.dimensions }) }}
                 </span>
                 <span v-if="ragTestResult.latencyMs != null" class="num dim">
-                  耗时 {{ ragTestResult.latencyMs }} ms
+                  {{ t('settings.test.latency', { ms: ragTestResult.latencyMs }) }}
                 </span>
               </div>
               <div class="test-msg">
                 {{ ragTestResult.message ||
                   (ragTestResult.ok === true
-                    ? 'Embedding 调用成功'
-                    : '请检查供应商 Base URL、密钥与模型名') }}
+                    ? t('settings.rag.testSuccess')
+                    : t('settings.rag.testFailHint')) }}
               </div>
             </div>
           </div>
 
           <!-- 检索参数 -->
           <div class="rag-section-head">
-            <div class="block-title">检索参数</div>
-            <span class="tiny dim">保存后写入数据库并立即生效</span>
+            <div class="block-title">{{ t('settings.rag.paramsTitle') }}</div>
+            <span class="tiny dim">{{ t('settings.rag.paramsNote') }}</span>
           </div>
           <div class="eval-form">
             <div class="eval-field rag-field">
-              <label class="eval-label">Top K（1~10）</label>
+              <label class="eval-label">{{ t('settings.rag.topK') }}</label>
               <el-input-number
                 v-model="ragForm.topK"
                 :min="1"
@@ -671,7 +671,7 @@
               />
             </div>
             <div class="eval-field rag-field">
-              <label class="eval-label">最低相似度（0~1）</label>
+              <label class="eval-label">{{ t('settings.rag.minScore') }}</label>
               <el-input-number
                 v-model="ragForm.minScore"
                 :min="0"
@@ -684,7 +684,7 @@
               />
             </div>
             <div class="eval-field rag-field">
-              <label class="eval-label">上下文上限（字符）</label>
+              <label class="eval-label">{{ t('settings.rag.maxContextChars') }}</label>
               <el-input-number
                 v-model="ragForm.maxContextChars"
                 :min="500"
@@ -697,7 +697,7 @@
               />
             </div>
             <div class="eval-field rag-field">
-              <label class="eval-label">语料 few-shot（0~10）</label>
+              <label class="eval-label">{{ t('settings.rag.corpusExamples') }}</label>
               <el-input-number
                 v-model="ragForm.corpusExamples"
                 :min="0"
@@ -710,38 +710,37 @@
             </div>
             <div class="eval-actions">
               <el-button type="primary" :loading="ragSaving" :disabled="ragSaving" @click="saveRagSettings">
-                保存检索参数
+                {{ t('settings.rag.save') }}
               </el-button>
             </div>
           </div>
 
           <!-- 索引统计 -->
           <div class="rag-section-head">
-            <div class="block-title">索引统计</div>
+            <div class="block-title">{{ t('settings.rag.indexTitle') }}</div>
             <span class="tiny dim">
-              最近重建：{{ rag.index.lastReindexAt ? formatTime(rag.index.lastReindexAt) : '—' }}
+              {{ t('settings.rag.lastReindex', { time: rag.index.lastReindexAt ? formatTime(rag.index.lastReindexAt) : '—' }) }}
             </span>
           </div>
           <div class="notify-grid">
             <div class="notify-item">
-              <div class="notify-label">知识库已就绪</div>
+              <div class="notify-label">{{ t('settings.rag.knowledgeReady') }}</div>
               <div class="notify-value num">
                 {{ readyCountText(rag.index.knowledgeReady, rag.index.knowledgeTotal) }}
               </div>
               <div class="notify-sub tiny dim">
-                待处理 {{ rag.index.knowledgePending ?? '—' }} ·
-                失败 {{ rag.index.knowledgeFailed ?? '—' }}
+                {{ t('settings.rag.knowledgePendingFailed', { pending: rag.index.knowledgePending ?? '—', failed: rag.index.knowledgeFailed ?? '—' }) }}
               </div>
             </div>
             <div class="notify-item">
-              <div class="notify-label">语料已向量化</div>
+              <div class="notify-label">{{ t('settings.rag.corpusReady') }}</div>
               <div class="notify-value num">
                 {{ readyCountText(rag.index.corpusReady, rag.index.corpusTotal) }}
               </div>
-              <div class="notify-sub tiny dim">语义 few-shot 召回依赖语料 embedding</div>
+              <div class="notify-sub tiny dim">{{ t('settings.rag.corpusReadyNote') }}</div>
             </div>
             <div class="notify-item">
-              <div class="notify-label">向量能力</div>
+              <div class="notify-label">{{ t('settings.rag.vectorCapability') }}</div>
               <div class="notify-value">
                 <span class="chip" :class="vectorState.type">{{ vectorState.label }}</span>
               </div>
@@ -755,7 +754,7 @@
             type="warning"
             :closable="false"
             show-icon
-            title="向量能力不可用：RAG 会自动降级为不注入检索结果，不阻塞复筛；请检查 PostgreSQL pgvector 扩展。"
+            :title="t('settings.rag.vectorAlert')"
           />
 
           <div class="rag-actions">
@@ -764,14 +763,14 @@
               :disabled="ragReindexing !== null"
               @click="runReindex('knowledge')"
             >
-              重建知识库索引
+              {{ t('settings.rag.reindexKnowledge') }}
             </el-button>
             <el-button
               :loading="ragReindexing === 'corpus'"
               :disabled="ragReindexing !== null"
               @click="runReindex('corpus')"
             >
-              重建语料索引
+              {{ t('settings.rag.reindexCorpus') }}
             </el-button>
             <el-button
               type="warning"
@@ -780,19 +779,19 @@
               :disabled="ragReindexing !== null"
               @click="runReindex('all')"
             >
-              全量重建
+              {{ t('settings.rag.reindexAll') }}
             </el-button>
-            <span class="tiny dim">后台异步执行，可稍后「刷新」查看进度</span>
+            <span class="tiny dim">{{ t('settings.rag.reindexNote') }}</span>
           </div>
 
           <!-- 效果评测 -->
           <div class="rag-section-head">
-            <div class="block-title">RAG 效果评测</div>
-            <span class="tiny dim">同一批语料对比「基线（无检索）」与「RAG（带检索）」的复筛指标</span>
+            <div class="block-title">{{ t('settings.rag.evalTitle') }}</div>
+            <span class="tiny dim">{{ t('settings.rag.evalNote') }}</span>
           </div>
           <div class="eval-form">
             <div class="eval-field eval-size">
-              <label class="eval-label">样本数（5~20）</label>
+              <label class="eval-label">{{ t('settings.rag.evalSampleSize') }}</label>
               <el-input-number
                 v-model="ragSampleSize"
                 :min="5"
@@ -811,24 +810,24 @@
                 @click="runRagEvaluation"
               >
                 <el-icon v-if="!ragEvaluating" class="el-icon--left"><DataAnalysis /></el-icon>
-                评测 RAG 效果
+                {{ t('settings.rag.evalRun') }}
               </el-button>
-              <span class="tiny dim">评测调用真实模型，会计入 AI 用量与配额</span>
+              <span class="tiny dim">{{ t('settings.rag.evalCostHint') }}</span>
             </div>
           </div>
 
           <div v-if="ragEvaluating" class="eval-running tiny dim">
             <el-icon class="is-loading"><Loading /></el-icon>
-            正在逐条对比基线 / RAG 复筛（5~20 条，可能需要数十秒）…
+            {{ t('settings.rag.evalRunning') }}
           </div>
 
           <div v-if="ragEvaluationError" class="eval-error">
             <el-icon :size="16"><WarningFilled /></el-icon>
             <div class="eval-error-text">
-              <div class="strong">评测未完成</div>
+              <div class="strong">{{ t('settings.eval.incomplete') }}</div>
               <div class="tiny dim">{{ ragEvaluationError }}</div>
             </div>
-            <el-button size="small" :disabled="ragEvaluating" @click="runRagEvaluation">重试</el-button>
+            <el-button size="small" :disabled="ragEvaluating" @click="runRagEvaluation">{{ t('common.retry') }}</el-button>
           </div>
 
           <template v-if="ragEvaluation">
@@ -837,27 +836,25 @@
                 <div class="ab-label">{{ row.label }}</div>
                 <div class="ab-value num">{{ formatRatioPercent(row.rag) }}</div>
                 <div class="ab-sub tiny dim">
-                  基线 {{ formatRatioPercent(row.baseline) }} · Δ {{ row.deltaText }}
+                  {{ t('settings.rag.baselineDelta', { baseline: formatRatioPercent(row.baseline), delta: row.deltaText }) }}
                 </div>
               </div>
               <div class="eval-kpi">
-                <div class="ab-label">样本数</div>
+                <div class="ab-label">{{ t('settings.eval.sampleSize') }}</div>
                 <div class="ab-value num">{{ ragEvaluation.sampleSize ?? '—' }}</div>
-                <div class="ab-sub tiny dim">模型 {{ ragEvaluation.model || '—' }}</div>
+                <div class="ab-sub tiny dim">{{ t('settings.rag.evalModel', { model: ragEvaluation.model || '—' }) }}</div>
               </div>
             </div>
 
             <div class="rag-eval-meta tiny dim">
-              基线失败 {{ ragEvaluation.baseline.failed ?? '—' }} ·
-              RAG 失败 {{ ragEvaluation.rag.failed ?? '—' }}
+              {{ t('settings.rag.evalFailed', { baseline: ragEvaluation.baseline.failed ?? '—', rag: ragEvaluation.rag.failed ?? '—' }) }}
               <span class="sep">·</span>
-              正确数 基线 {{ ragEvaluation.baseline.correct ?? '—' }} /
-              RAG {{ ragEvaluation.rag.correct ?? '—' }}
+              {{ t('settings.rag.evalCorrect', { baseline: ragEvaluation.baseline.correct ?? '—', rag: ragEvaluation.rag.correct ?? '—' }) }}
             </div>
 
             <div class="rag-section-head">
-              <div class="block-title">逐条对比</div>
-              <span class="tiny dim">共 {{ ragEvaluation.cases.length }} 条</span>
+              <div class="block-title">{{ t('settings.rag.evalCasesTitle') }}</div>
+              <span class="tiny dim">{{ t('settings.rag.casesCount', { count: ragEvaluation.cases.length }) }}</span>
             </div>
             <div class="table-bleed">
               <el-table :data="ragEvaluation.cases" size="small" max-height="380">
@@ -866,28 +863,28 @@
                     <span class="mono">{{ row.id ?? '—' }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="标注" width="96" align="center">
+                <el-table-column :label="t('settings.rag.colLabel')" width="96" align="center">
                   <template #default="{ row }">
                     <span class="chip" :class="evaluationLabelMeta(row.label).type">
                       {{ evaluationLabelMeta(row.label).label }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column label="基线预测" width="96" align="center">
+                <el-table-column :label="t('settings.rag.colBaselinePrediction')" width="96" align="center">
                   <template #default="{ row }">
                     <span class="chip" :class="evaluationLabelMeta(row.baselinePrediction).type">
                       {{ evaluationLabelMeta(row.baselinePrediction).label }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column label="RAG 预测" width="96" align="center">
+                <el-table-column :label="t('settings.rag.colRagPrediction')" width="96" align="center">
                   <template #default="{ row }">
                     <span class="chip" :class="evaluationLabelMeta(row.ragPrediction).type">
                       {{ evaluationLabelMeta(row.ragPrediction).label }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column label="置信度（基线 → RAG）" width="166" align="right">
+                <el-table-column :label="t('settings.rag.colConfidence')" width="166" align="right">
                   <template #default="{ row }">
                     <span class="num tiny">
                       {{ formatRatioPercent(row.baselineConfidence) }} →
@@ -895,13 +892,13 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column label="引用" min-width="150">
+                <el-table-column :label="t('settings.rag.colRefs')" min-width="150">
                   <template #default="{ row }">
-                    <span v-if="row.refs.length" class="tiny">{{ row.refs.join('、') }}</span>
+                    <span v-if="row.refs.length" class="tiny">{{ row.refs.join(t('settings.rag.refSeparator')) }}</span>
                     <span v-else class="dim">—</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="错误" min-width="140">
+                <el-table-column :label="t('settings.rag.colError')" min-width="140">
                   <template #default="{ row }">
                     <el-tooltip
                       v-if="row.error"
@@ -917,20 +914,20 @@
                 </el-table-column>
                 <template #empty>
                   <div class="empty-block">
-                    <div class="empty-title">暂无逐条结果</div>
-                    <div class="tiny dim">后端返回 cases 后展示基线 / RAG 预测与引用</div>
+                    <div class="empty-title">{{ t('settings.rag.casesEmpty') }}</div>
+                    <div class="tiny dim">{{ t('settings.rag.casesEmptyHint') }}</div>
                   </div>
                 </template>
               </el-table>
             </div>
           </template>
           <div v-else-if="!ragEvaluating && !ragEvaluationError" class="eval-empty tiny dim">
-            还没有 RAG 评测结果：设置样本数（5~20）后点击「评测 RAG 效果」。
+            {{ t('settings.rag.evalEmpty') }}
           </div>
 
           <div class="hint tiny dim">
-            Embedding 供应商复用「AI 供应商」中的 Base URL 与密钥；未配置 / 不可用时 RAG 自动降级为
-            不注入检索结果，不阻塞复筛。索引重建与评测均为 ADMIN 接口，重建任务在后台异步执行。
+            {{ t('settings.rag.hintA') }}
+            {{ t('settings.rag.hintB') }}
           </div>
         </template>
       </div>
@@ -939,7 +936,7 @@
     <!-- ⑥ 生效范围 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">生效范围与密钥配置</div>
+        <div class="section-title">{{ t('settings.scope.title') }}</div>
       </div>
       <div class="panel-body">
         <ul class="scope-list">
@@ -953,11 +950,11 @@
         </ul>
 
         <div class="code-block mono">
-          <div class="code-title">在 .env 中补充密钥（docker compose 自动读取）</div>
-          <pre># DeepSeek 密钥（切换前必须先配置）
+          <div class="code-title">{{ t('settings.scope.envTitle') }}</div>
+          <pre># {{ t('settings.scope.envKeyComment') }}
 DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 
-# 可选：让 DeepSeek 成为首次启动的默认模型
+# {{ t('settings.scope.envOptionalComment') }}
 # APP_SCREEN_PROVIDER=deepseek
 # DEEPSEEK_SCREEN_MODEL=deepseek-flash</pre>
         </div>
@@ -967,10 +964,10 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
     <!-- ⑦ 抽样与通知（ADMIN）：合规抽样比例 + Webhook 告警 -->
     <section v-if="canWrite" class="panel">
       <div class="panel-head">
-        <div class="section-title">抽样与通知</div>
+        <div class="section-title">{{ t('settings.notify.title') }}</div>
         <div class="notify-head">
-          <span class="tiny dim">合规抽样与 Webhook 告警，仅管理员可查看</span>
-          <el-button size="small" :loading="notifyLoading" @click="loadNotifications">刷新</el-button>
+          <span class="tiny dim">{{ t('settings.notify.subtitle') }}</span>
+          <el-button size="small" :loading="notifyLoading" @click="loadNotifications">{{ t('common.refresh') }}</el-button>
         </div>
       </div>
       <div v-loading="notifyLoading" class="panel-body">
@@ -978,22 +975,22 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
         <div v-if="notifyError" class="notify-fallback">
           <el-icon :size="16"><WarningFilled /></el-icon>
           <div class="notify-fallback-text">
-            <div class="strong">通知设置暂不可用</div>
+            <div class="strong">{{ t('settings.notify.unavailable') }}</div>
             <div class="tiny dim">{{ notifyError }}</div>
           </div>
-          <el-button size="small" @click="loadNotifications">重试</el-button>
+          <el-button size="small" @click="loadNotifications">{{ t('common.retry') }}</el-button>
         </div>
 
         <template v-else-if="notify">
           <div class="notify-grid">
             <div class="notify-item">
-              <div class="notify-label">DFA 未命中抽样比例</div>
+              <div class="notify-label">{{ t('settings.notify.sampleRate') }}</div>
               <div class="notify-value num">{{ samplingRateText }}</div>
               <div class="notify-sub tiny dim">{{ samplingRateNote }}</div>
             </div>
 
             <div class="notify-item">
-              <div class="notify-label">Webhook 通知</div>
+              <div class="notify-label">{{ t('settings.notify.webhook') }}</div>
               <div class="notify-value">
                 <span class="chip" :class="webhookState.type">{{ webhookState.label }}</span>
               </div>
@@ -1001,14 +998,14 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
             </div>
 
             <div class="notify-item">
-              <div class="notify-label">待复核积压阈值</div>
+              <div class="notify-label">{{ t('settings.notify.backlog') }}</div>
               <div class="notify-value num">{{ backlogThresholdText }}</div>
-              <div class="notify-sub tiny dim">待人工复检数超过阈值时每日告警（Asia/Shanghai）</div>
+              <div class="notify-sub tiny dim">{{ t('settings.notify.backlogNote') }}</div>
             </div>
           </div>
 
           <div class="notify-events">
-            <span class="notify-label">通知事件</span>
+            <span class="notify-label">{{ t('settings.notify.events') }}</span>
             <div class="event-chips">
               <span
                 v-for="event in notify.events"
@@ -1016,14 +1013,14 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
                 class="chip"
                 :class="notifyEventMeta(event).type"
               >{{ notifyEventMeta(event).label }}</span>
-              <span v-if="!notify.events.length" class="tiny dim">接口未返回事件列表（后端可能为旧版本）</span>
+              <span v-if="!notify.events.length" class="tiny dim">{{ t('settings.notify.eventsEmpty') }}</span>
             </div>
           </div>
 
           <div class="notify-test">
             <el-button type="primary" :loading="notifyTesting" :disabled="!canTestWebhook" @click="testWebhook">
               <el-icon v-if="!notifyTesting" class="el-icon--left"><Connection /></el-icon>
-              发送测试 Webhook
+              {{ t('settings.notify.sendTest') }}
             </el-button>
             <span class="tiny dim">{{ testHint }}</span>
           </div>
@@ -1034,24 +1031,24 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
             </el-icon>
             <div class="test-text">
               <div class="test-head">
-                <b>{{ notifyTestResult.ok ? '测试通知发送成功' : '测试通知发送失败' }}</b>
+                <b>{{ notifyTestResult.ok ? t('settings.notify.testOk') : t('settings.notify.testFail') }}</b>
                 <span v-if="notifyTestResult.latencyMs != null" class="num dim">
-                  耗时 {{ notifyTestResult.latencyMs }} ms
+                  {{ t('settings.test.latency', { ms: notifyTestResult.latencyMs }) }}
                 </span>
               </div>
               <div class="test-msg">
                 {{ notifyTestResult.message ||
                   (notifyTestResult.ok
-                    ? 'Webhook 已接收测试事件'
-                    : '请检查 Webhook 地址、签名密钥与网络连通性') }}
+                    ? t('settings.notify.testSuccessMsg')
+                    : t('settings.notify.testFailMsg')) }}
               </div>
             </div>
           </div>
 
           <div class="hint tiny dim">
-            抽样比例、Webhook 地址 / 密钥 / 超时、积压阈值均由后端环境变量配置
-            （APP_SAMPLE_DFA_MISS_RATE、APP_NOTIFY_*），修改后需重启后端。
-            通知只发送到后端配置的地址，前端不接触 URL 与签名密钥。
+            {{ t('settings.notify.hintA') }}
+            {{ t('settings.notify.hintB') }}
+            {{ t('settings.notify.hintC') }}
           </div>
         </template>
       </div>
@@ -1060,7 +1057,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
     <!-- 新增 / 编辑供应商（ADMIN） -->
     <el-dialog
       v-model="providerDialogVisible"
-      :title="providerEditing ? '编辑供应商' : '新增供应商'"
+      :title="providerEditing ? t('settings.provider.editTitle') : t('settings.provider.create')"
       width="600px"
       top="6vh"
       append-to-body
@@ -1074,18 +1071,22 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
         label-width="126px"
         @submit.prevent="submitProvider"
       >
-        <el-form-item label="唯一标识" prop="key">
+        <el-form-item :label="t('settings.provider.formKey')" prop="key">
           <el-input
             v-if="!providerEditing"
             v-model="providerForm.key"
-            placeholder="如 my-gateway（小写字母 / 数字 / . _ -）"
+            :placeholder="t('settings.provider.formKeyPlaceholder')"
             autocomplete="off"
           />
           <el-input v-else :model-value="providerEditing.key" class="mono" disabled />
         </el-form-item>
 
-        <el-form-item label="名称" prop="label">
-          <el-input v-model="providerForm.label" maxlength="40" placeholder="展示名称，如 自建网关" />
+        <el-form-item :label="t('common.name')" prop="label">
+          <el-input
+            v-model="providerForm.label"
+            maxlength="40"
+            :placeholder="t('settings.provider.formLabelPlaceholder')"
+          />
         </el-form-item>
 
         <el-form-item label="Base URL" prop="baseUrl">
@@ -1096,27 +1097,30 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
           <el-input v-model="providerForm.chatPath" placeholder="/v1/chat/completions" />
         </el-form-item>
 
-        <el-form-item label="默认模型" prop="defaultModel">
-          <el-input v-model="providerForm.defaultModel" placeholder="如 gpt-4o-mini" />
+        <el-form-item :label="t('settings.provider.defaultModel')" prop="defaultModel">
+          <el-input
+            v-model="providerForm.defaultModel"
+            :placeholder="t('settings.provider.formDefaultModelPlaceholder')"
+          />
         </el-form-item>
 
-        <el-form-item label="模型列表">
+        <el-form-item :label="t('settings.provider.formModels')">
           <el-select
             v-model="providerForm.models"
             multiple
             filterable
             allow-create
             default-first-option
-            placeholder="输入模型名后回车添加"
+            :placeholder="t('settings.provider.formModelsPlaceholder')"
             style="width: 100%"
           />
-          <div class="tiny dim form-hint">用于切换模型下拉与连通性测试；默认模型会自动包含。</div>
+          <div class="tiny dim form-hint">{{ t('settings.provider.formModelsHint') }}</div>
         </el-form-item>
 
-        <el-form-item label="价格 / 1K">
+        <el-form-item :label="t('settings.provider.pricePer1k')">
           <div class="price-fields">
             <div class="price-field">
-              <span class="tiny dim">输入</span>
+              <span class="tiny dim">{{ t('settings.provider.formInputPrice') }}</span>
               <el-input-number
                 v-model="providerForm.inputPricePer1k"
                 :min="0"
@@ -1127,7 +1131,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
               />
             </div>
             <div class="price-field">
-              <span class="tiny dim">输出</span>
+              <span class="tiny dim">{{ t('settings.provider.formOutputPrice') }}</span>
               <el-input-number
                 v-model="providerForm.outputPricePer1k"
                 :min="0"
@@ -1139,30 +1143,30 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
             </div>
           </div>
           <div class="tiny dim form-hint">
-            单位 USD / 1K tokens，调用时按此单价快照计算成本；0 表示不参与费用统计。
+            {{ t('settings.provider.formPriceHint') }}
           </div>
         </el-form-item>
 
-        <el-form-item label="最大输出 Tokens">
+        <el-form-item :label="t('settings.provider.formMaxTokens')">
           <el-input-number
             v-model="providerForm.maxTokens"
             :min="0"
             :step="256"
             :precision="0"
             controls-position="right"
-            placeholder="留空使用供应商默认"
+            :placeholder="t('settings.provider.formMaxTokensPlaceholder')"
             style="width: 100%"
           />
         </el-form-item>
 
-        <el-form-item label="JSON 模式">
+        <el-form-item :label="t('settings.provider.formJsonMode')">
           <el-switch v-model="providerForm.jsonMode" />
-          <span class="tiny dim form-inline-hint">要求模型返回 JSON 对象</span>
+          <span class="tiny dim form-inline-hint">{{ t('settings.provider.formJsonModeHint') }}</span>
         </el-form-item>
 
-        <el-form-item label="启用">
+        <el-form-item :label="t('settings.provider.formEnabled')">
           <el-switch v-model="providerForm.enabled" />
-          <span class="tiny dim form-inline-hint">停用后不可切换为当前模型</span>
+          <span class="tiny dim form-inline-hint">{{ t('settings.provider.formEnabledHint') }}</span>
         </el-form-item>
 
         <el-form-item label="API Key">
@@ -1172,10 +1176,10 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
             show-password
             autocomplete="new-password"
             :placeholder="providerEditing
-              ? `留空不修改（当前：${providerEditing.apiKeyMasked || '未配置'}）`
-              : '可留空，稍后补充'"
+              ? t('settings.provider.formApiKeyKeep', { masked: providerEditing.apiKeyMasked || t('settings.state.notConfigured') })
+              : t('settings.provider.formApiKeyOptional')"
           />
-          <div class="tiny dim form-hint">仅提交给后端加密存储，接口与前端永远只回掩码。</div>
+          <div class="tiny dim form-hint">{{ t('settings.provider.formApiKeyHint') }}</div>
         </el-form-item>
 
         <el-alert
@@ -1183,13 +1187,13 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
           type="info"
           :closable="false"
           show-icon
-          title="内置供应商可编辑接入信息、价格与密钥，但不可删除；密钥留空表示保持不变。"
+          :title="t('settings.provider.formBuiltInAlert')"
         />
       </el-form>
       <template #footer>
-        <el-button @click="providerDialogVisible = false">取消</el-button>
+        <el-button @click="providerDialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="providerSaving" @click="submitProvider">
-          {{ providerEditing ? '保存修改' : '创建供应商' }}
+          {{ providerEditing ? t('settings.provider.saveEdit') : t('settings.provider.createSubmit') }}
         </el-button>
       </template>
     </el-dialog>
@@ -1197,7 +1201,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
     <!-- 供应商连通性测试（可选模型） -->
     <el-dialog
       v-model="providerTestVisible"
-      title="测试供应商连通性"
+      :title="t('settings.providerTest.title')"
       width="520px"
       append-to-body
       @closed="resetProviderTest"
@@ -1205,19 +1209,19 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
       <div v-if="providerTestTarget" class="test-target">
         <div class="test-target-name">
           {{ providerTestTarget.label || providerTestTarget.key }}
-          <span v-if="providerTestTarget.builtIn" class="chip info">内置</span>
-          <span v-if="providerTestTarget.enabled === false" class="chip warn">已停用</span>
+          <span v-if="providerTestTarget.builtIn" class="chip info">{{ t('settings.provider.builtIn') }}</span>
+          <span v-if="providerTestTarget.enabled === false" class="chip warn">{{ t('settings.providerTest.disabledChip') }}</span>
         </div>
         <div class="mono tiny dim">
           {{ providerTestTarget.baseUrl }}{{ providerTestTarget.chatPath }}
         </div>
       </div>
       <el-form label-width="86px" @submit.prevent="runProviderTest">
-        <el-form-item label="测试模型">
+        <el-form-item :label="t('settings.providerTest.model')">
           <el-input
             v-model="providerTestModel"
             clearable
-            :placeholder="`留空使用默认模型：${providerTestTarget?.defaultModel || '—'}`"
+            :placeholder="t('settings.providerTest.modelPlaceholder', { model: providerTestTarget?.defaultModel || '—' })"
             @keyup.enter="runProviderTest"
           />
         </el-form-item>
@@ -1228,23 +1232,23 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
         </el-icon>
         <div class="test-text">
           <div class="test-head">
-            <b>{{ providerTestResult.ok ? '连通正常' : '连通失败' }}</b>
+            <b>{{ providerTestResult.ok ? t('settings.test.ok') : t('settings.test.fail') }}</b>
             <span v-if="providerTestResult.model" class="mono dim">{{ providerTestResult.model }}</span>
             <span v-if="providerTestResult.latencyMs != null" class="num dim">
-              耗时 {{ providerTestResult.latencyMs }} ms
+              {{ t('settings.test.latency', { ms: providerTestResult.latencyMs }) }}
             </span>
           </div>
           <div class="test-msg">
             {{ providerTestResult.ok
-              ? (providerTestResult.reply || providerTestResult.message || '（无返回内容）')
-              : (providerTestResult.message || '请检查 Base URL / 密钥 / 模型名') }}
+              ? (providerTestResult.reply || providerTestResult.message || t('settings.test.emptyReply'))
+              : (providerTestResult.message || t('settings.providerTest.failHint')) }}
           </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="providerTestVisible = false">关闭</el-button>
+        <el-button @click="providerTestVisible = false">{{ t('common.close') }}</el-button>
         <el-button type="primary" :loading="providerTestRunning" @click="runProviderTest">
-          发送测试请求
+          {{ t('settings.providerTest.send') }}
         </el-button>
       </template>
     </el-dialog>
@@ -1256,6 +1260,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import auth from '../auth'
+import { useI18n } from '../i18n'
 import { formatTime, notifyEventMeta } from '../constants'
 import { formatSamplingRate } from '../utils/notifications'
 import { formatPricePer1k, isProviderEnabled } from '../utils/providers'
@@ -1267,6 +1272,9 @@ import {
   formatRatioPercent,
   normalizeScreenModel
 } from '../utils/evaluation'
+
+// 文案统一走 i18n：模板 / computed / 校验规则内调用 t()，切换语言后自动重渲染
+const { t } = useI18n()
 
 // 系统设置写操作仅 ADMIN：非管理员只读查看，后端仍会独立校验
 const canWrite = computed(() => auth.hasRole('ADMIN'))
@@ -1340,12 +1348,17 @@ const dirty = computed(
   () => !!view.value && (draft.providerId !== view.value.providerId || draft.model !== view.value.model)
 )
 
-const scope = [
-  { name: 'AI 语义复筛', follow: true, note: 'DFA 命中后的语境判断，结论决定是否转人工' },
-  { name: '敏感词挖掘', follow: true, note: '确认违规后由 AI 提炼新词入库（默认停用待审核）' },
-  { name: '语音转写（Whisper）', follow: false, note: '固定走本机 whisper.cpp；chat 类供应商不提供转写能力' },
-  { name: 'DFA 初筛', follow: false, note: '本地 Aho-Corasick 匹配，不调用外部模型' }
-]
+/** 生效范围：文案随语言切换（t 放在 computed 里，避免顶层固化语言） */
+const scope = computed(() => [
+  { name: t('settings.scope.aiScreening'), follow: true, note: t('settings.scope.aiScreeningNote') },
+  { name: t('settings.scope.mining'), follow: true, note: t('settings.scope.miningNote') },
+  {
+    name: t('settings.scope.transcription'),
+    follow: false,
+    note: t('settings.scope.transcriptionNote')
+  },
+  { name: t('settings.scope.dfa'), follow: false, note: t('settings.scope.dfaNote') }
+])
 
 async function load() {
   try {
@@ -1371,7 +1384,9 @@ async function save() {
     view.value = normalizeScreenModel(data)
     draft.providerId = data.providerId
     draft.model = data.model
-    ElMessage.success(`已切换到 ${data.providerLabel} · ${data.model}`)
+    ElMessage.success(
+      t('settings.active.switched', { provider: data.providerLabel, model: data.model })
+    )
   } catch {
     // 请求层已统一提示
   } finally {
@@ -1409,8 +1424,8 @@ const samplingRateText = computed(() => formatSamplingRate(notify.value?.samplin
 
 const samplingRateNote = computed(() =>
   notify.value?.samplingRate != null
-    ? 'DFA 无命中的录音按该比例进入 AI 语义复筛 / 人工复检'
-    : '后端未返回当前值：由环境变量 APP_SAMPLE_DFA_MISS_RATE 配置（0~1，重启生效）'
+    ? t('settings.notify.sampleRateNote')
+    : t('settings.notify.sampleRateMissing')
 )
 
 /** Webhook 状态：接口字段缺失时显示「未知」，不臆造启用状态 */
@@ -1418,26 +1433,52 @@ const webhookState = computed(() => {
   const data = notify.value
   if (!data) return { label: '—', type: 'info', note: '' }
   if (data.enabled === false) {
-    return { label: '未启用', type: 'info', note: 'APP_NOTIFY_ENABLED 未开启，不会发送任何通知' }
+    return {
+      label: t('settings.state.disabled'),
+      type: 'info',
+      note: t('settings.notify.disabledNote')
+    }
   }
   if (data.enabled === true) {
     if (data.urlConfigured === false) {
-      return { label: '待配置 URL', type: 'warn', note: '已启用但 Webhook URL 未配置，事件不会送达' }
+      return {
+        label: t('settings.state.urlMissing'),
+        type: 'warn',
+        note: t('settings.notify.urlMissingNote')
+      }
     }
     if (data.urlConfigured === true) {
-      return { label: '已启用', type: 'ok', note: '地址与签名密钥由后端环境变量配置，前端只读' }
+      return {
+        label: t('settings.state.enabled'),
+        type: 'ok',
+        note: t('settings.notify.enabledNote')
+      }
     }
-    return { label: '已启用', type: 'ok', note: '接口未返回 URL 配置状态' }
+    return {
+      label: t('settings.state.enabled'),
+      type: 'ok',
+      note: t('settings.notify.urlUnknownNote')
+    }
   }
   if (data.urlConfigured === true) {
-    return { label: '已配置', type: 'ok', note: '接口未返回启用状态' }
+    return {
+      label: t('settings.state.configured'),
+      type: 'ok',
+      note: t('settings.notify.enabledUnknownNote')
+    }
   }
-  return { label: '未知', type: 'info', note: '接口未返回通知状态，可能是后端版本较旧' }
+  return {
+    label: t('common.unknown'),
+    type: 'info',
+    note: t('settings.notify.unknownNote')
+  }
 })
 
 const backlogThresholdText = computed(() => {
   const threshold = notify.value?.backlogThreshold
-  return threshold === null || threshold === undefined ? '—' : `${threshold} 条`
+  return threshold === null || threshold === undefined
+    ? '—'
+    : t('settings.notify.backlogValue', { count: threshold })
 })
 
 /** 仅当能确认未启用 / URL 未配置时禁用测试，字段缺失时仍允许尝试（后端为准） */
@@ -1450,16 +1491,16 @@ const canTestWebhook = computed(() => {
 const testHint = computed(() => {
   const data = notify.value
   if (!data) return ''
-  if (data.enabled === false) return '通知未启用：需在后端开启 APP_NOTIFY_ENABLED'
-  if (data.urlConfigured === false) return 'Webhook URL 未配置：需在后端配置 APP_NOTIFY_WEBHOOK_URL'
-  return '发送一条 NOTIFY_TEST 事件，验证地址连通性与签名，结果会写入操作审计'
+  if (data.enabled === false) return t('settings.notify.hintDisabled')
+  if (data.urlConfigured === false) return t('settings.notify.hintUrlMissing')
+  return t('settings.notify.hintTest')
 })
 
 /** 接口错误文案：区分 403/404，避免把后端未上线误报成普通失败（通知 / 供应商共用） */
 function adminErrorMessage(error, fallback) {
   const status = error?.status
-  if (status === 403) return '当前账号无权限执行该操作（需要 ADMIN）'
-  if (status === 404) return '后端尚未提供该接口（HTTP 404），请确认后端版本'
+  if (status === 403) return t('settings.error.forbidden')
+  if (status === 404) return t('settings.error.notFound')
   return error?.message || fallback
 }
 
@@ -1471,7 +1512,7 @@ async function loadNotifications() {
     notify.value = await api.notificationSettings()
   } catch (e) {
     notify.value = null
-    notifyError.value = adminErrorMessage(e, '通知设置加载失败，请稍后重试')
+    notifyError.value = adminErrorMessage(e, t('settings.notify.loadFailed'))
   } finally {
     notifyLoading.value = false
   }
@@ -1487,7 +1528,7 @@ async function testWebhook() {
     notifyTestResult.value = {
       ok: false,
       latencyMs: null,
-      message: adminErrorMessage(e, '测试通知发送失败，请检查 Webhook 配置与网络')
+      message: adminErrorMessage(e, t('settings.notify.testFailedMsg'))
     }
   } finally {
     notifyTesting.value = false
@@ -1513,23 +1554,36 @@ function emptyProviderForm() {
   }
 }
 
-const providerRules = {
+/** 校验规则：文案随语言切换，用 computed 保证换语言后重新校验时拿到新文案 */
+const providerRules = computed(() => ({
   key: [{ validator: validateProviderKey, trigger: 'blur' }],
-  label: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  baseUrl: [
-    { required: true, message: '请输入 Base URL', trigger: 'blur' },
-    { pattern: /^https?:\/\/\S+$/i, message: '需为 http(s):// 开头的地址', trigger: 'blur' }
+  label: [
+    { required: true, message: t('settings.provider.ruleLabelRequired'), trigger: 'blur' }
   ],
-  defaultModel: [{ required: true, message: '请输入默认模型', trigger: 'blur' }]
-}
+  baseUrl: [
+    { required: true, message: t('settings.provider.ruleBaseUrlRequired'), trigger: 'blur' },
+    {
+      pattern: /^https?:\/\/\S+$/i,
+      message: t('settings.provider.ruleBaseUrlPattern'),
+      trigger: 'blur'
+    }
+  ],
+  defaultModel: [
+    {
+      required: true,
+      message: t('settings.provider.ruleDefaultModelRequired'),
+      trigger: 'blur'
+    }
+  ]
+}))
 
 /** 唯一标识只在新建时校验（编辑时 key 不可改，兼容后端已有命名） */
 function validateProviderKey(rule, value, callback) {
   if (providerEditing.value) return callback()
   const text = String(value || '').trim()
-  if (!text) return callback(new Error('请输入唯一标识'))
+  if (!text) return callback(new Error(t('settings.provider.ruleKeyRequired')))
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(text)) {
-    return callback(new Error('1-64 位小写字母 / 数字 / . _ -，以字母或数字开头'))
+    return callback(new Error(t('settings.provider.ruleKeyPattern')))
   }
   callback()
 }
@@ -1554,9 +1608,13 @@ function isProviderDisabled(key) {
 /** 密钥状态：只展示后端掩码，不接触明文 */
 function providerKeyChip(row) {
   const masked = row?.apiKeyMasked || ''
-  if (row?.apiKeyConfigured === true) return { label: masked || '已配置', type: 'ok' }
-  if (row?.apiKeyConfigured === false) return { label: '未配置', type: 'warn' }
-  return { label: masked || '未知', type: 'info' }
+  if (row?.apiKeyConfigured === true) {
+    return { label: masked || t('settings.state.configured'), type: 'ok' }
+  }
+  if (row?.apiKeyConfigured === false) {
+    return { label: t('settings.state.notConfigured'), type: 'warn' }
+  }
+  return { label: masked || t('common.unknown'), type: 'info' }
 }
 
 async function loadProviders() {
@@ -1567,7 +1625,7 @@ async function loadProviders() {
     providers.value = await api.listProviders()
   } catch (e) {
     providers.value = []
-    providersError.value = adminErrorMessage(e, '供应商列表加载失败，请稍后重试')
+    providersError.value = adminErrorMessage(e, t('settings.provider.loadFailed'))
   } finally {
     providersLoading.value = false
   }
@@ -1639,11 +1697,11 @@ async function submitProvider() {
 
     if (editing) {
       await api.updateProvider(editing.key, payload)
-      ElMessage.success(`供应商 ${payload.label} 已更新`)
+      ElMessage.success(t('settings.provider.updated', { label: payload.label }))
     } else {
       payload.key = providerForm.key.trim()
       await api.createProvider(payload)
-      ElMessage.success(`供应商 ${payload.label} 已创建`)
+      ElMessage.success(t('settings.provider.created', { label: payload.label }))
     }
     providerDialogVisible.value = false
     await refreshAll()
@@ -1657,7 +1715,7 @@ async function submitProvider() {
 async function removeProvider(row) {
   try {
     await api.deleteProvider(row.key)
-    ElMessage.success(`供应商 ${row.label || row.key} 已删除`)
+    ElMessage.success(t('settings.provider.deleted', { label: row.label || row.key }))
     await refreshAll()
   } catch {
     // 请求层已统一提示（仅自定义、非当前生效可删）
@@ -1692,7 +1750,7 @@ async function runProviderTest() {
       model: '',
       providerLabel: '',
       reply: '',
-      message: adminErrorMessage(e, '测试请求失败，请检查网关与后端日志')
+      message: adminErrorMessage(e, t('settings.provider.testFailed'))
     }
   } finally {
     providerTestRunning.value = false
@@ -1705,24 +1763,37 @@ const abConfig = computed(() => view.value?.ab || null)
 
 /** A/B 状态：接口未返回 ab 时显示占位，不臆造启用状态 */
 const abState = computed(() => {
-  if (!view.value) return { label: '加载中…', type: 'info', note: '' }
+  if (!view.value) return { label: t('common.loading'), type: 'info', note: '' }
   const ab = abConfig.value
   if (!ab) {
-    return { label: '未配置', type: 'info', note: '接口未返回 A/B 配置，后端可能为旧版本' }
+    return {
+      label: t('settings.ab.stateNotConfigured'),
+      type: 'info',
+      note: t('settings.ab.noteNoConfig')
+    }
   }
   if (ab.enabled === false) {
-    return { label: '未启用', type: 'info', note: 'A/B 分流已关闭，全部流量走当前生效模型' }
+    return {
+      label: t('settings.state.disabled'),
+      type: 'info',
+      note: t('settings.ab.noteDisabled')
+    }
   }
   if (ab.enabled === true) {
     return {
-      label: '已启用',
+      label: t('settings.state.enabled'),
       type: 'ok',
-      note: ab.percent == null
-        ? '已开启，但接口未返回流量占比'
-        : `约 ${formatAbPercent(ab.percent)} 的语义复筛流量进入 B 组`
+      note:
+        ab.percent == null
+          ? t('settings.ab.notePercentMissing')
+          : t('settings.ab.notePercent', { percent: formatAbPercent(ab.percent) })
     }
   }
-  return { label: '状态未知', type: 'warn', note: '接口未返回启用状态' }
+  return {
+    label: t('settings.ab.stateUnknown'),
+    type: 'warn',
+    note: t('settings.ab.noteUnknown')
+  }
 })
 
 /** B 组供应商：优先用注册表里的展示名，缺失时回退原始 key */
@@ -1775,12 +1846,24 @@ const evaluatedText = computed(() => {
 const vectorState = computed(() => {
   const available = rag.value?.index?.vectorAvailable
   if (available === true) {
-    return { label: '可用', type: 'ok', note: 'pgvector 可用，语义检索正常参与复筛' }
+    return {
+      label: t('settings.state.available'),
+      type: 'ok',
+      note: t('settings.rag.vectorAvailableNote')
+    }
   }
   if (available === false) {
-    return { label: '不可用', type: 'warn', note: 'RAG 将自动降级为不注入检索结果，不阻塞复筛' }
+    return {
+      label: t('settings.state.unavailable'),
+      type: 'warn',
+      note: t('settings.rag.vectorUnavailableNote')
+    }
   }
-  return { label: '未知', type: 'info', note: '接口未返回向量能力状态（后端可能为旧版本）' }
+  return {
+    label: t('common.unknown'),
+    type: 'info',
+    note: t('settings.rag.vectorUnknownNote')
+  }
 })
 
 /** 评测三项指标：RAG 为主值，附基线值与 delta（delta 缺失时由两者差值推导） */
@@ -1849,7 +1932,7 @@ async function loadRag() {
   } catch (e) {
     // 请求层 silent：卡内展示 403/404 降级提示
     rag.value = null
-    ragError.value = adminErrorMessage(e, 'RAG 设置加载失败，请稍后重试')
+    ragError.value = adminErrorMessage(e, t('settings.rag.loadFailed'))
   } finally {
     ragLoading.value = false
   }
@@ -1861,7 +1944,7 @@ async function saveRagSettings() {
   try {
     rag.value = await api.updateRagSettings(ragPayload())
     syncRagForm(rag.value)
-    ElMessage.success('RAG 检索参数已保存，立即生效')
+    ElMessage.success(t('settings.rag.saved'))
   } catch {
     // 请求层已统一提示
   } finally {
@@ -1877,9 +1960,7 @@ async function saveRagEnabled(value) {
     rag.value = await api.updateRagSettings(ragPayload(value))
     syncRagForm(rag.value)
     ElMessage.success(
-      value
-        ? 'RAG 检索增强已启用，立即生效'
-        : 'RAG 检索增强已停用，复筛行为与旧版一致'
+      value ? t('settings.rag.enabledToast') : t('settings.rag.disabledToast')
     )
   } catch {
     ragForm.enabled = rag.value?.enabled === true
@@ -1901,7 +1982,7 @@ async function testRagEmbedding() {
       model: '',
       dimensions: null,
       latencyMs: null,
-      message: adminErrorMessage(e, 'Embedding 连通性测试失败，请检查供应商配置与网络')
+      message: adminErrorMessage(e, t('settings.rag.testFailed'))
     }
   } finally {
     ragTesting.value = false
@@ -1909,9 +1990,9 @@ async function testRagEmbedding() {
 }
 
 function reindexLabel(scope) {
-  if (scope === 'knowledge') return '知识库'
-  if (scope === 'corpus') return '语料'
-  return '全量'
+  if (scope === 'knowledge') return t('settings.rag.scopeKnowledge')
+  if (scope === 'corpus') return t('settings.rag.scopeCorpus')
+  return t('settings.rag.scopeAll')
 }
 
 async function runReindex(scope) {
@@ -1919,9 +2000,13 @@ async function runReindex(scope) {
   if (scope === 'all') {
     try {
       await ElMessageBox.confirm(
-        '将重新解析并索引全部知识库文档与语料条目，耗时可能较长，确认继续？',
-        '全量重建索引',
-        { type: 'warning', confirmButtonText: '开始重建', cancelButtonText: '取消' }
+        t('settings.rag.reindexConfirmMessage'),
+        t('settings.rag.reindexConfirmTitle'),
+        {
+          type: 'warning',
+          confirmButtonText: t('settings.rag.reindexConfirmStart'),
+          cancelButtonText: t('common.cancel')
+        }
       )
     } catch {
       return
@@ -1931,13 +2016,20 @@ async function runReindex(scope) {
   try {
     const result = await api.reindexRag(scope)
     const counts = []
-    if (result.queued !== null) counts.push(`排队 ${result.queued} 条`)
-    if (result.skipped !== null) counts.push(`跳过 ${result.skipped} 条`)
+    if (result.queued !== null) counts.push(t('settings.rag.queued', { count: result.queued }))
+    if (result.skipped !== null) {
+      counts.push(t('settings.rag.skipped', { count: result.skipped }))
+    }
     ElMessage.success(
       result.message ||
-        `${reindexLabel(scope)}重建已提交${
-          counts.length ? `：${counts.join('，')}` : ''
-        }（后台异步执行）`
+        t('settings.rag.reindexSubmitted', {
+          scope: reindexLabel(scope),
+          detail: counts.length
+            ? t('settings.rag.reindexCountsDetail', {
+                counts: counts.join(t('settings.rag.countSeparator'))
+              })
+            : ''
+        })
     )
   } catch {
     // 请求层已统一提示
@@ -1956,10 +2048,7 @@ async function runRagEvaluation() {
     ragEvaluation.value = await api.evaluateRag(sampleSize)
   } catch (e) {
     // 请求层 silent：保留上一次结果，仅在卡内提示失败原因
-    ragEvaluationError.value = adminErrorMessage(
-      e,
-      'RAG 评测失败，请检查模型配置、AI 配额与后端日志'
-    )
+    ragEvaluationError.value = adminErrorMessage(e, t('settings.rag.evalFailedMsg'))
   } finally {
     ragEvaluating.value = false
   }
@@ -1983,9 +2072,9 @@ function readyCountText(ready, total) {
 
 /** Embedding API Key 状态：只展示后端是否已配置，不接触明文 */
 function embeddingKeyChip(configured) {
-  if (configured === true) return { label: '已配置', type: 'ok' }
-  if (configured === false) return { label: '未配置', type: 'warn' }
-  return { label: '未知', type: 'info' }
+  if (configured === true) return { label: t('settings.state.configured'), type: 'ok' }
+  if (configured === false) return { label: t('settings.state.notConfigured'), type: 'warn' }
+  return { label: t('common.unknown'), type: 'info' }
 }
 
 /** 配置来源：与「当前 AI 复筛模型」一致的中文展示，未知值原样回退 */
@@ -1993,8 +2082,8 @@ function ragSourceLabel(source) {
   const text = String(source || '')
   if (!text) return ''
   const key = text.toLowerCase()
-  if (key === 'defaults' || key === 'default') return '配置默认'
-  if (key === 'database' || key === 'db') return '界面保存'
+  if (key === 'defaults' || key === 'default') return t('settings.source.configDefault')
+  if (key === 'database' || key === 'db') return t('settings.source.uiSaved')
   return text
 }
 
@@ -2012,16 +2101,16 @@ function labelAccuracy(row) {
 /** 评测接口错误：403/404 给出可读降级，其余保留后端 message（如配额不足） */
 function evalErrorMessage(error) {
   const status = error?.status
-  if (status === 403) return '当前账号无权限运行模型评测（需要 ADMIN）'
-  if (status === 404) return '后端尚未提供模型评测接口（HTTP 404），请确认后端版本'
-  return error?.message || '评测失败，请检查模型配置、AI 配额与后端日志'
+  if (status === 403) return t('settings.eval.errorForbidden')
+  if (status === 404) return t('settings.eval.errorNotFound')
+  return error?.message || t('settings.eval.errorGeneric')
 }
 
 async function runEvaluation() {
   if (evaluating.value) return
   const providerId = evalForm.providerId
   if (!providerId) {
-    ElMessage.warning('请先选择评测供应商')
+    ElMessage.warning(t('settings.eval.selectProviderFirst'))
     return
   }
   const sampleSize = Math.min(20, Math.max(1, Math.round(Number(evalForm.sampleSize) || 10)))

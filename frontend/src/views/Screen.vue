@@ -206,9 +206,9 @@ function nowText() {
 
 function errorMessage(reason) {
   const status = reason?.status
-  if (status === 403) return '当前账号无权限查看数据大屏（请重新登录）'
-  if (status === 404) return '后端统计接口不可用（HTTP 404），请确认后端版本'
-  return reason?.message || '数据加载失败，请稍后重试'
+  if (status === 403) return t('screen.forbidden')
+  if (status === 404) return t('screen.apiUnavailable')
+  return reason?.message || t('screen.loadFailed')
 }
 
 async function load({ background = false } = {}) {

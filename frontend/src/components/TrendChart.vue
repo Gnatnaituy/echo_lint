@@ -2,10 +2,10 @@
   <div class="chart">
     <div class="chart-head">
       <span class="peak">
-        峰值 <b class="num">{{ maxCount }}</b> 条
+        {{ t('reports.trendPeak') }} <b class="num">{{ maxCount }}</b> {{ t('reports.trendCountUnit') }}
       </span>
       <span class="total tiny dim">
-        近 7 日合计 <b class="num">{{ totalCount }}</b> 条
+        {{ t('reports.trend7dTotal') }} <b class="num">{{ totalCount }}</b> {{ t('reports.trendCountUnit') }}
       </span>
     </div>
 
@@ -64,7 +64,9 @@
       ></div>
       <div v-if="hover >= 0" class="tooltip" :style="tooltipStyle">
         <div class="tt-date">{{ data[hover].date }}</div>
-        <div class="tt-value"><b class="num">{{ data[hover].count }}</b> 条录音</div>
+        <div class="tt-value">
+          <b class="num">{{ data[hover].count }}</b> {{ t('reports.trendTooltipUnit') }}
+        </div>
       </div>
     </div>
 
@@ -78,11 +80,14 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useI18n } from '../i18n'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
   height: { type: Number, default: 190 }
 })
+
+const { t } = useI18n()
 
 const W = 700
 const pad = { t: 18, r: 16, b: 10, l: 16 }

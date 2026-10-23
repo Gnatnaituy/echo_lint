@@ -3,10 +3,10 @@
     <!-- 筛选与导出 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">报表与导出</div>
+        <div class="section-title">{{ t('reports.title') }}</div>
         <div class="export-actions">
           <el-button
-            v-for="job in EXPORT_JOBS"
+            v-for="job in exportJobs"
             :key="job.key"
             size="small"
             :icon="Download"
@@ -23,16 +23,16 @@
             type="daterange"
             value-format="YYYY-MM-DD"
             unlink-panels
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="t('reports.rangeSeparator')"
+            :start-placeholder="t('common.startDate')"
+            :end-placeholder="t('common.endDate')"
             :shortcuts="dateShortcuts"
             class="date-range"
             @change="loadStats"
           />
           <el-input
             v-model="agentFilter"
-            placeholder="坐席"
+            :placeholder="t('reports.filterAgent')"
             clearable
             class="filter-input"
             @keyup.enter="loadStats"
@@ -40,7 +40,7 @@
           />
           <el-input
             v-model="teamFilter"
-            placeholder="团队"
+            :placeholder="t('reports.filterTeam')"
             clearable
             class="filter-input"
             @keyup.enter="loadStats"
@@ -48,7 +48,7 @@
           />
           <el-select
             v-model="directionFilter"
-            placeholder="全部方向"
+            :placeholder="t('reports.allDirections')"
             clearable
             class="direction-select"
             @change="loadStats"
@@ -62,14 +62,13 @@
           </el-select>
           <div class="filter-actions">
             <el-button type="primary" :icon="Search" :loading="statsLoading" @click="loadStats">
-              查询
+              {{ t('reports.query') }}
             </el-button>
-            <el-button link @click="resetFilters">重置</el-button>
+            <el-button link @click="resetFilters">{{ t('common.reset') }}</el-button>
           </div>
         </div>
         <div class="hint tiny">
-          汇总卡与明细表按<span class="strong">日期范围</span>统计（GET /stats/report）；坐席 / 团队 / 方向筛选作用于上方
-          <span class="strong">CSV 导出</span>（导出为 UTF-8 BOM，Excel 可直接打开中文）。清空日期范围表示全部时间。
+          {{ t('reports.hintPrefix') }}<span class="strong">{{ t('reports.hintDateRange') }}</span>{{ t('reports.hintMiddle') }}<span class="strong">{{ t('reports.hintCsvExport') }}</span>{{ t('reports.hintSuffix') }}
         </div>
       </div>
     </section>
@@ -77,35 +76,35 @@
     <!-- 汇总卡 -->
     <div v-loading="statsLoading" class="kpi-grid">
       <StatCard
-        label="录音总量"
+        :label="t('reports.kpiTotal')"
         :value="stats ? totalCount : '—'"
         icon="Files"
         tone="brand"
         :sub="rangeText"
       />
       <StatCard
-        label="确认违规"
+        :label="t('reports.kpiConfirmed')"
         :value="stats ? confirmed : '—'"
         icon="WarningFilled"
         tone="danger"
-        :sub="`违规率 ${violationRate}%`"
+        :sub="t('reports.violationRateSub', { rate: violationRate })"
       />
       <StatCard
-        label="待人工复检"
+        :label="t('reports.kpiNeedsReview')"
         :value="stats ? needsReview : '—'"
         icon="DocumentChecked"
         tone="warn"
-        sub="初筛与复筛均判违规"
+        :sub="t('reports.needsReviewSub')"
       />
       <StatCard
-        label="合规通过"
+        :label="t('reports.kpiCompliant')"
         :value="stats ? compliant : '—'"
         icon="CircleCheckFilled"
         tone="ok"
-        :sub="`误判放行 ${falsePositive} 条`"
+        :sub="t('reports.falsePositiveSub', { count: falsePositive })"
       />
       <StatCard
-        label="抽样数"
+        :label="t('reports.kpiSampled')"
         :value="stats ? sampledCount : '—'"
         icon="Aim"
         tone="info"
@@ -118,10 +117,10 @@
       <div class="error-block">
         <div class="error-icon"><el-icon :size="17"><WarningFilled /></el-icon></div>
         <div class="error-text">
-          <div class="strong">统计加载失败</div>
+          <div class="strong">{{ t('reports.statsLoadFailed') }}</div>
           <div class="tiny dim">{{ error }}</div>
         </div>
-        <el-button size="small" :icon="Refresh" @click="loadStats">重试</el-button>
+        <el-button size="small" :icon="Refresh" @click="loadStats">{{ t('common.retry') }}</el-button>
       </div>
     </section>
 
@@ -129,21 +128,21 @@
     <div class="two-col">
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">按坐席</div>
-          <span class="tiny dim">按录音量排序，最多 10 条</span>
+          <div class="section-title">{{ t('reports.byAgent') }}</div>
+          <span class="tiny dim">{{ t('reports.sortNote') }}</span>
         </div>
         <el-table v-loading="statsLoading" :data="agentRows" size="small">
-          <el-table-column label="坐席" min-width="150">
+          <el-table-column :label="t('reports.colAgent')" min-width="150">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="录音数" width="86" align="right">
+          <el-table-column :label="t('reports.colRecordings')" width="110" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ row.count }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="占比" min-width="150">
+          <el-table-column :label="t('reports.colShare')" min-width="150">
             <template #default="{ row }">
               <div class="bar">
                 <div class="bar-fill" :style="{ width: barWidth(row.count, agentMax) }"></div>
@@ -153,9 +152,9 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><User /></el-icon>
-              <div class="empty-title">{{ error ? '统计暂不可用' : '暂无坐席数据' }}</div>
+              <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noAgentData') }}</div>
               <div class="tiny dim">
-                {{ error ? '请点击上方「重试」重新加载' : '上传录音时填写「坐席」后即可按坐席统计' }}
+                {{ error ? t('reports.retryHint') : t('reports.noAgentHint') }}
               </div>
             </div>
           </template>
@@ -164,21 +163,21 @@
 
       <section class="panel">
         <div class="panel-head">
-          <div class="section-title">按团队</div>
-          <span class="tiny dim">按录音量排序，最多 10 条</span>
+          <div class="section-title">{{ t('reports.byTeam') }}</div>
+          <span class="tiny dim">{{ t('reports.sortNote') }}</span>
         </div>
         <el-table v-loading="statsLoading" :data="teamRows" size="small">
-          <el-table-column label="团队" min-width="150">
+          <el-table-column :label="t('reports.colTeam')" min-width="150">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="录音数" width="86" align="right">
+          <el-table-column :label="t('reports.colRecordings')" width="110" align="right">
             <template #default="{ row }">
               <span class="num strong">{{ row.count }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="占比" min-width="150">
+          <el-table-column :label="t('reports.colShare')" min-width="150">
             <template #default="{ row }">
               <div class="bar">
                 <div class="bar-fill" :style="{ width: barWidth(row.count, teamMax) }"></div>
@@ -188,9 +187,9 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><OfficeBuilding /></el-icon>
-              <div class="empty-title">{{ error ? '统计暂不可用' : '暂无团队数据' }}</div>
+              <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noTeamData') }}</div>
               <div class="tiny dim">
-                {{ error ? '请点击上方「重试」重新加载' : '上传录音时填写「团队」后即可按团队统计' }}
+                {{ error ? t('reports.retryHint') : t('reports.noTeamHint') }}
               </div>
             </div>
           </template>
@@ -201,21 +200,21 @@
     <!-- 按违规类型 -->
     <section class="panel">
       <div class="panel-head">
-        <div class="section-title">按违规类型</div>
-        <span class="tiny dim">仅统计人工确认违规（已复核）</span>
+        <div class="section-title">{{ t('reports.byViolationType') }}</div>
+        <span class="tiny dim">{{ t('reports.byViolationTypeNote') }}</span>
       </div>
       <el-table v-loading="statsLoading" :data="violationRows" size="small">
-        <el-table-column label="违规类型" min-width="170">
+        <el-table-column :label="t('reports.colViolationType')" min-width="170">
           <template #default="{ row }">
             <span class="chip warn">{{ row.label }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="86" align="right">
+        <el-table-column :label="t('reports.colCount')" width="86" align="right">
           <template #default="{ row }">
             <span class="num strong">{{ row.count }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="占确认违规比例" min-width="260">
+        <el-table-column :label="t('reports.colShareOfConfirmed')" min-width="260">
           <template #default="{ row }">
             <div class="bar-row">
               <div class="bar">
@@ -228,9 +227,9 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="30" class="empty-icon"><WarningFilled /></el-icon>
-            <div class="empty-title">{{ error ? '统计暂不可用' : '暂无违规类型数据' }}</div>
+            <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noViolationData') }}</div>
             <div class="tiny dim">
-              {{ error ? '请点击上方「重试」重新加载' : '人工复检确认违规后，这里会按违规类型汇总' }}
+              {{ error ? t('reports.retryHint') : t('reports.noViolationHint') }}
             </div>
           </div>
         </template>
@@ -246,7 +245,10 @@ import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import StatCard from '../components/StatCard.vue'
 import { DIRECTION_OPTIONS, VIOLATION_TYPES } from '../constants'
+import { useI18n } from '../i18n'
 import { saveBlob } from '../utils/download'
+
+const { t } = useI18n()
 
 /* ---------- 筛选 ---------- */
 
@@ -278,11 +280,11 @@ function dayOffset(days) {
   return d
 }
 
-const dateShortcuts = [
-  { text: '最近 7 天', value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: '最近 30 天', value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: '最近 90 天', value: () => [dayOffset(-89), dayOffset(0)] }
-]
+const dateShortcuts = computed(() => [
+  { text: t('reports.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
+  { text: t('reports.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
+  { text: t('reports.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
+])
 
 function resetFilters() {
   dateRange.value = defaultRange()
@@ -326,8 +328,8 @@ const compliant = computed(() => num(stats.value?.byStatus?.COMPLIANT))
 const sampledCount = computed(() => num(stats.value?.sampled ?? stats.value?.sampledCount))
 const sampledSub = computed(() =>
   totalCount.value > 0
-    ? `占录音总量 ${pct(sampledCount.value, totalCount.value)}%`
-    : 'DFA 未命中的抽样抽检'
+    ? t('reports.sampledShareSub', { percent: pct(sampledCount.value, totalCount.value) })
+    : t('reports.sampledFallbackSub')
 )
 
 const violationRate = computed(() =>
@@ -337,12 +339,12 @@ const violationRate = computed(() =>
 const rangeText = computed(() => {
   const from = toDateParam(dateRange.value?.[0])
   const to = toDateParam(dateRange.value?.[1])
-  if (!from && !to) return '全部时间'
+  if (!from && !to) return t('reports.allTime')
   // 汇总卡副标题空间有限：同年份时省略年份，跨年时保留完整日期
   if (from && to && from.slice(0, 4) === to.slice(0, 4)) {
     return `${from.slice(5)} ~ ${to.slice(5)}`
   }
-  return `${from || '最早'} ~ ${to || '至今'}`
+  return `${from || t('reports.rangeEarliest')} ~ ${to || t('reports.rangeUntilNow')}`
 })
 
 const statsParams = computed(() => {
@@ -354,18 +356,22 @@ const statsParams = computed(() => {
 /** topAgents/topTeams：[{name,count}] */
 function normalizeTop(raw) {
   if (!Array.isArray(raw)) return []
+  // 先取兜底文案，保证 computed 订阅语言变化（仅在缺名时才调用 t 会漏订阅）
+  const notFilled = t('common.notFilled')
   return raw
-    .map((r) => ({ name: String(r?.name || '未填写'), count: num(r?.count) }))
+    .map((r) => ({ name: String(r?.name || notFilled), count: num(r?.count) }))
     .filter((r) => r.count > 0)
 }
 
 /** byViolationType：后端为 [{type,label,count}]，兼容对象 map 形态 */
 function normalizeViolationTypes(raw) {
   let rows = []
+  // 先取枚举兜底，保证 computed 订阅语言变化（后端带 label 时也要跟随切换）
+  const otherLabel = VIOLATION_TYPES.OTHER
   if (Array.isArray(raw)) {
     rows = raw.map((r) => ({
       type: r?.type || '',
-      label: r?.label || VIOLATION_TYPES[r?.type] || r?.type || '其他',
+      label: r?.label || VIOLATION_TYPES[r?.type] || r?.type || otherLabel,
       count: num(r?.count)
     }))
   } else if (raw && typeof raw === 'object') {
@@ -404,7 +410,7 @@ async function loadStats() {
     stats.value = await api.statsReport(statsParams.value)
   } catch (e) {
     stats.value = null
-    error.value = e?.message || '请求失败，请稍后重试'
+    error.value = e?.message || t('reports.statsErrorFallback')
   } finally {
     statsLoading.value = false
   }
@@ -412,24 +418,24 @@ async function loadStats() {
 
 /* ---------- 导出 ---------- */
 
-const EXPORT_JOBS = [
+const exportJobs = computed(() => [
   {
     key: 'recordings',
-    label: '录音清单',
+    label: t('reports.exportRecordings'),
     run: (params) => api.exportRecordingsCsv(params)
   },
   {
     key: 'violations',
-    label: '违规明细',
+    label: t('reports.exportViolations'),
     run: (params) => api.exportViolationsCsv(params)
   },
   {
     // 复核记录按复核时间过滤，只接受 from/to
     key: 'reviews',
-    label: '复核记录',
+    label: t('reports.exportReviews'),
     run: (params) => api.exportReviewsCsv({ from: params.from, to: params.to })
   }
-]
+])
 
 const exporting = ref('')
 
@@ -439,7 +445,7 @@ async function exportCsv(job) {
   try {
     const { blob, filename } = await job.run(exportParams.value)
     saveBlob(blob, filename)
-    ElMessage.success(`${job.label}已开始下载：${filename}`)
+    ElMessage.success(t('reports.exportStarted', { label: job.label, filename }))
   } catch {
     // 请求层 / 接口层已统一提示，这里保持按钮可用以便重试
   } finally {

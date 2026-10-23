@@ -597,12 +597,15 @@
 - 前端 build 通过、106 个单测全绿（新增 25 个）；后端无改动（386 测试保持）。
 - 构建：入口 chunk 1,297.44 kB → 55.04 kB（gzip 419.32 → 19.10）；拆出 vue/element-plus/icons/vendor/charts，
   第三方依赖可长期缓存；新增 /screen 懒加载路由。nginx 增加 gzip、/assets/ immutable、index.html no-cache。
-- i18n：中/英基础设施 + 页头/侧栏/登录/路由标题/通用按钮/大屏文案迁移，语言切换持久化，未翻译 key 回退中文；
-  覆盖范围与新增 key 流程记录在 `frontend/src/i18n/README.md`。
+- i18n：中/英**全站覆盖**——页头/侧栏/登录/路由标题/大屏 + 全部内容页（工作台/录音/复检/报表/敏感词库/语料库/
+  知识库/设置/成本/任务/AI 对话/API 密钥/用户/审计）及共享组件与工具；Element Plus 内置文案随语言切换；
+  语言选择持久化，未翻译 key 回退中文。文案按业务域拆在 `frontend/src/i18n/messages/*.js`，
+  `scripts/i18n-audit.mjs` + i18n 单测守卫 key 对齐 / 英文无中文残留 / 无硬编码中文；
+  约定与新增 key 流程见 `frontend/src/i18n/README.md`。
 - 响应式/无障碍：≤900px 侧栏抽屉（遮罩/ESC/焦点归还）、紧凑页头、表格横向滚动、focus-visible、skip-to-content、aria-label。
 - 数据大屏 `/screen`：KPI、7 日趋势、违规类型分布、Top 坐席/团队、15s 刷新、时钟、退出；登录可用、全屏无壳层。
 - 批量上传：多文件选择、元数据应用全批、顺序上传 + 逐文件进度 + 取消剩余 + 汇总，保留单文件流程。
-- 已知限制：i18n 为增量迁移（业务页仍中文）；抽屉未实现完整 Tab 焦点陷阱；取消剩余不中断当前文件；Element Plus/图标仍全量注册，首屏 gzip 总量基本持平。
+- 已知限制：后端返回的业务数据与 AI 生成文案不随前端语言切换；抽屉未实现完整 Tab 焦点陷阱；取消剩余不中断当前文件；Element Plus/图标仍全量注册，首屏 gzip 总量基本持平。
 
 ## Batch 5 · P2 外部依赖项（适配器先行）
 

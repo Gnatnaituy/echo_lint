@@ -4,19 +4,19 @@
     <section class="panel">
       <div class="toolbar">
         <div class="row-wrap">
-          <div class="section-title">任务队列</div>
-          <span class="chip info">共 {{ total }} 条</span>
+          <div class="section-title">{{ t('tasks.title') }}</div>
+          <span class="chip info">{{ t('common.total', { total }) }}</span>
           <span v-if="statusFilter" class="chip" :class="taskStatusMeta(statusFilter).type">
             {{ taskStatusMeta(statusFilter).label }}
           </span>
           <el-tooltip v-if="backgroundError" :content="backgroundError" placement="bottom">
-            <span class="chip warn">刷新失败</span>
+            <span class="chip warn">{{ t('tasks.refreshFailed') }}</span>
           </el-tooltip>
         </div>
         <div class="actions">
           <el-select
             v-model="statusFilter"
-            placeholder="全部状态"
+            :placeholder="t('tasks.allStatuses')"
             clearable
             class="status-select"
             @change="applyFilters"
@@ -30,7 +30,7 @@
           </el-select>
           <el-input
             v-model="recordingIdFilter"
-            placeholder="录音 ID"
+            :placeholder="t('tasks.recordingIdPlaceholder')"
             clearable
             maxlength="18"
             class="id-input"
@@ -40,20 +40,21 @@
           >
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
-          <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">查询</el-button>
-          <el-button link @click="resetFilters">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">
+            {{ t('tasks.search') }}
+          </el-button>
+          <el-button link @click="resetFilters">{{ t('common.reset') }}</el-button>
         </div>
       </div>
       <div class="toolbar-foot">
         <div class="auto-refresh">
           <el-switch v-model="autoRefresh" size="small" @change="onAutoRefreshChange" />
-          <span class="tiny dim">每 {{ REFRESH_SECONDS }} 秒自动刷新</span>
-          <span v-if="lastLoadedAt" class="tiny dim">· 最后更新 {{ lastLoadedAt }}</span>
+          <span class="tiny dim">{{ t('tasks.autoRefresh', { seconds: REFRESH_SECONDS }) }}</span>
+          <span v-if="lastLoadedAt" class="tiny dim">
+            · {{ t('tasks.lastUpdated', { time: lastLoadedAt }) }}
+          </span>
         </div>
-        <div class="tiny dim queue-tip">
-          上传 / 重试录音会入队执行；失败按 30s / 120s / 300s 退避重试，
-          达到最大次数进入死信（最终失败），可手动重试。
-        </div>
+        <div class="tiny dim queue-tip">{{ t('tasks.queueTip') }}</div>
       </div>
     </section>
 
@@ -62,29 +63,36 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load()">重试</el-button>
+        <el-button link type="primary" size="small" @click="load()">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="rows">
-        <el-table-column label="录音" min-width="172">
+        <el-table-column :label="t('tasks.recording')" min-width="172">
           <template #default="{ row }">
             <div class="rec-cell">
               <div class="file-icon"><el-icon><Microphone /></el-icon></div>
               <div class="rec-text">
                 <div class="strong ellipsis" :title="row.fileName">
-                  {{ row.fileName || (row.recordingId != null ? `录音 #${row.recordingId}` : '—') }}
+                  {{
+                    row.fileName ||
+                    (row.recordingId != null
+                      ? t('tasks.recordingNumber', { id: row.recordingId })
+                      : '—')
+                  }}
                 </div>
                 <div class="tiny dim ellipsis">
-                  <span class="mono">任务 #{{ row.id ?? '—' }}</span>
+                  <span class="mono">{{ t('tasks.taskNumber', { id: row.id ?? '—' }) }}</span>
                   <span class="sep">·</span>
-                  <span class="mono">录音 #{{ row.recordingId ?? '—' }}</span>
+                  <span class="mono">
+                    {{ t('tasks.recordingNumber', { id: row.recordingId ?? '—' }) }}
+                  </span>
                 </div>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('common.status')" width="100" align="center">
           <template #default="{ row }">
             <span class="chip" :class="taskStatusMeta(row.status).type">
               {{ taskStatusMeta(row.status).label }}
@@ -92,13 +100,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="尝试" width="76" align="center">
+        <el-table-column :label="t('tasks.attempts')" width="94" align="center">
           <template #default="{ row }">
             <span class="num" :class="{ 'attempt-hot': row.attempts > 0 }">{{ taskAttemptsText(row) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="下次尝试" width="176">
+        <el-table-column :label="t('tasks.nextAttempt')" width="176">
           <template #default="{ row }">
             <span
               v-if="row.nextAttemptAt"
@@ -109,7 +117,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="最近错误" min-width="150">
+        <el-table-column :label="t('tasks.lastError')" min-width="150">
           <template #default="{ row }">
             <el-tooltip
               v-if="row.lastError"
@@ -124,7 +132,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="更新时间" width="176">
+        <el-table-column :label="t('common.updatedAt')" width="176">
           <template #default="{ row }">
             <span v-if="row.updatedAt" class="num dim" :title="formatRelative(row.updatedAt)">
               {{ formatTime(row.updatedAt) }}
@@ -133,17 +141,17 @@
           </template>
         </el-table-column>
 
-        <el-table-column v-if="hasRetryable" label="操作" width="96" align="right" fixed="right">
+        <el-table-column v-if="hasRetryable" :label="t('common.actions')" width="96" align="right" fixed="right">
           <template #default="{ row }">
             <el-popconfirm
               v-if="isTaskRetryable(row.status) && row.id != null"
-              title="重试会重新排队并将尝试次数归零，确认重试？"
+              :title="t('tasks.retryConfirm')"
               width="250"
               @confirm="retry(row)"
             >
               <template #reference>
                 <el-button size="small" link type="primary" :loading="retryingId === row.id">
-                  重试
+                  {{ t('tasks.retry') }}
                 </el-button>
               </template>
             </el-popconfirm>
@@ -154,11 +162,11 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><Operation /></el-icon>
-            <div class="empty-title">{{ hasFilters ? '没有匹配的任务' : '暂无任务' }}</div>
+            <div class="empty-title">
+              {{ hasFilters ? t('tasks.emptyFilteredTitle') : t('tasks.emptyTitle') }}
+            </div>
             <div class="tiny dim">
-              {{ hasFilters
-                ? '试试清空状态或录音 ID 筛选'
-                : '上传或重试录音后，流水线任务会在这里排队执行' }}
+              {{ hasFilters ? t('tasks.emptyFilteredHint') : t('tasks.emptyHint') }}
             </div>
           </div>
         </template>
@@ -189,7 +197,10 @@ import {
   taskStatusMeta,
   TASK_STATUS_OPTIONS
 } from '../constants'
+import { useI18n } from '../i18n'
 import { taskAttemptsText } from '../utils/tasks'
+
+const { t } = useI18n()
 
 const REFRESH_SECONDS = 5
 const pageSize = 20
@@ -216,10 +227,10 @@ const hasRetryable = computed(() =>
 )
 
 /** 403 / 404 给出可读降级文案（列表接口 silent，不弹全局错误） */
-function taskErrorMessage(err, fallback = '任务列表加载失败，请稍后重试') {
+function taskErrorMessage(err, fallback = t('tasks.loadFailed')) {
   const status = err?.status
-  if (status === 403) return '当前账号无权限访问任务队列（需要 ADMIN）'
-  if (status === 404) return '后端尚未提供任务队列接口（HTTP 404），请确认后端版本'
+  if (status === 403) return t('tasks.forbidden')
+  if (status === 404) return t('tasks.notAvailable')
   return err?.message || fallback
 }
 
@@ -269,7 +280,7 @@ async function load(options = {}) {
   } catch (e) {
     if (background) {
       // 自动刷新失败：保留已加载数据，仅在头部提示，避免每 5 秒清空列表
-      backgroundError.value = taskErrorMessage(e, '自动刷新失败，请检查后端服务')
+      backgroundError.value = taskErrorMessage(e, t('tasks.backgroundFailed'))
     } else {
       rows.value = []
       total.value = 0
@@ -313,11 +324,11 @@ async function retry(row) {
   retryingId.value = row.id
   try {
     await api.retryTask(row.id)
-    ElMessage.success(`任务 #${row.id} 已重新排队`)
+    ElMessage.success(t('tasks.retried', { id: row.id }))
     await load({ background: true })
   } catch (e) {
     // 请求层已 silent：409（非失败任务）/403/404 等在此统一提示
-    ElMessage.error(taskErrorMessage(e, '重试失败，请稍后重试'))
+    ElMessage.error(taskErrorMessage(e, t('tasks.retryFailed')))
   } finally {
     retryingId.value = null
   }

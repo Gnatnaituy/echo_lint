@@ -9,6 +9,7 @@
 import { reactive } from 'vue'
 import api from './api'
 import { ROLE_META } from './constants'
+import { t } from './i18n/index.js'
 
 const state = reactive({
   /** 当前登录用户：{id, username, displayName, role}；null 表示未登录 */
@@ -54,7 +55,7 @@ export const auth = {
     return ROLE_META[state.user?.role] || null
   },
   get roleLabel() {
-    return ROLE_META[state.user?.role]?.label || (state.user?.role ? String(state.user.role) : '未登录')
+    return ROLE_META[state.user?.role]?.label || (state.user?.role ? String(state.user.role) : t('auth.notLoggedIn'))
   },
   get isAuthenticated() {
     return !!state.user

@@ -12,12 +12,24 @@
  */
 
 import { asObject, pick, toBoolean, toNumber, toText } from './shape.js'
+import { t } from '../i18n/index.js'
 
 /* ---------- 标注标签 ---------- */
 
+/** label 用 getter：读取时按当前语言翻译，视图重渲染即生效 */
 const EVAL_LABEL_META = {
-  VIOLATION: { label: '违规', type: 'danger' },
-  COMPLIANT: { label: '合规', type: 'ok' }
+  VIOLATION: {
+    get label() {
+      return t('meta.evaluationLabel.VIOLATION')
+    },
+    type: 'danger'
+  },
+  COMPLIANT: {
+    get label() {
+      return t('meta.evaluationLabel.COMPLIANT')
+    },
+    type: 'ok'
+  }
 }
 
 /** 语料标注 / 模型预测标签：已知枚举中文展示，未知值原样回退 */
@@ -78,7 +90,7 @@ function normalizeByLabel(raw) {
     .map((row) => {
       const data = asObject(row)
       return {
-        label: toText(pick(data, ['label', 'type', 'category', 'expected'])) || '未标注',
+        label: toText(pick(data, ['label', 'type', 'category', 'expected'])) || t('common.unlabeled'),
         total: nonNegative(pick(data, ['total', 'count', 'samples'])),
         correct: nonNegative(pick(data, ['correct', 'passed', 'hits']))
       }
@@ -94,7 +106,7 @@ function normalizeResults(raw) {
       const data = asObject(row)
       const errorRaw = pick(data, ['error', 'errorMessage', 'failure', 'failed'])
       const error = typeof errorRaw === 'boolean'
-        ? (errorRaw ? '调用失败' : '')
+        ? (errorRaw ? t('settings.eval.callFailed') : '')
         : toText(errorRaw)
       return {
         corpusId: toText(pick(data, ['corpusId', 'corpus_id', 'id'])),

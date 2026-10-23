@@ -1,18 +1,18 @@
 <template>
   <div class="seg-transcript">
     <div v-if="!view.sentences.length" class="empty-block">
-      <div class="tiny dim">（无转写文本）</div>
+      <div class="tiny dim">{{ t('components.transcript.empty') }}</div>
     </div>
 
     <template v-else>
       <div class="summary">
-        <span class="chip">{{ view.sentences.length }} 句</span>
-        <span v-if="view.totalHits" class="chip danger">{{ view.totalHits }} 处命中</span>
-        <span v-if="view.markedCount" class="chip warn">{{ view.markedCount }} 句有标记</span>
-        <span v-if="!view.timed" class="chip info">无分段时长，点击跳转不可用</span>
+        <span class="chip">{{ countLabel('components.transcript.sentenceCount', view.sentences.length) }}</span>
+        <span v-if="view.totalHits" class="chip danger">{{ countLabel('components.transcript.hitCount', view.totalHits) }}</span>
+        <span v-if="view.markedCount" class="chip warn">{{ countLabel('components.transcript.markedCount', view.markedCount) }}</span>
+        <span v-if="!view.timed" class="chip info">{{ t('components.transcript.untimed') }}</span>
         <span class="spacer"></span>
         <span v-if="view.timed" class="tiny dim">
-          <el-icon :size="11"><Mouse /></el-icon> 点击任意句子跳转到对应音频位置
+          <el-icon :size="11"><Mouse /></el-icon> {{ t('components.transcript.seekHint') }}
         </span>
       </div>
 
@@ -20,14 +20,14 @@
       <div v-if="layout === 'dialogue' && view.dialogue" class="channel-legend">
         <div class="legend-side left">
           <span class="ch-badge">L</span>
-          <span class="ch-name">{{ view.speakers.left || '左声道' }}</span>
-          <span class="ch-hint">左声道</span>
+          <span class="ch-name">{{ view.speakers.left || t('components.transcript.channelLeft') }}</span>
+          <span class="ch-hint">{{ t('components.transcript.channelLeft') }}</span>
         </div>
         <div class="legend-line"></div>
         <div class="legend-side right">
           <span class="ch-badge">R</span>
-          <span class="ch-name">{{ view.speakers.right || '右声道' }}</span>
-          <span class="ch-hint">右声道</span>
+          <span class="ch-name">{{ view.speakers.right || t('components.transcript.channelRight') }}</span>
+          <span class="ch-hint">{{ t('components.transcript.channelRight') }}</span>
         </div>
       </div>
 
@@ -57,14 +57,14 @@
           <div class="bubble">
             <div v-if="layout === 'dialogue' && s.side" class="bubble-head">
               <span class="ch-badge sm">{{ s.channel }}</span>
-              <span class="speaker">{{ s.speaker || (s.side === 'left' ? '左声道' : '右声道') }}</span>
+              <span class="speaker">{{ s.speaker || (s.side === 'left' ? t('components.transcript.channelLeft') : t('components.transcript.channelRight')) }}</span>
             </div>
 
             <div class="bubble-main">
               <button
                 class="time"
                 :disabled="s.start == null"
-                :title="s.start == null ? '该句无时间轴' : `跳转到 ${formatClock(s.start)}`"
+                :title="s.start == null ? t('components.transcript.untimedTitle') : t('components.transcript.seekTo', { time: formatClock(s.start) })"
                 @click.stop="onSeek(s)"
               >
                 <el-icon class="time-icon" :size="12">
@@ -81,8 +81,8 @@
                   </template>
                 </p>
                 <div v-if="s.hasMarks" class="marks">
-                  <span v-for="w in s.hitWords" :key="w" class="chip danger">命中 · {{ w }}</span>
-                  <span v-if="s.isTarget" class="chip warn">AI 判违规原句</span>
+                  <span v-for="w in s.hitWords" :key="w" class="chip danger">{{ t('components.transcript.hitChip', { word: w }) }}</span>
+                  <span v-if="s.isTarget" class="chip warn">{{ t('components.transcript.targetChip') }}</span>
                 </div>
               </div>
             </div>
@@ -95,7 +95,15 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from '../i18n'
 import { buildSentenceView, findActiveIndex, formatClock } from '../utils/segments'
+
+const { t } = useI18n()
+
+/** 带数量的文案：英文按单复数取词典里的 `.one` / `.other` */
+function countLabel(key, count, params = {}) {
+  return t(`${key}.${count === 1 ? 'one' : 'other'}`, { ...params, count })
+}
 
 const props = defineProps({
   text: { type: String, default: '' },
