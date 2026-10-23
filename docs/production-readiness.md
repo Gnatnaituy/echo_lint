@@ -855,3 +855,23 @@
 - **HTTPS/域名**：仍为 HTTP 明文公网 80。
 - **Flyway 10.10 对 PG 17 仅版本告警**（官方支持到 16），本次迁移正常执行，不影响功能。
 - **备份/监控**：仍为手工备份；建议 cron 每日 `pg_dump` + uploads 卷备份。
+
+---
+
+## 部署记录（2026-10-23，前端 i18n 全站补全）
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `3f9a425`（内容页中英双语全站补全） |
+| 部署时间 | 2026-10-23 12:42–12:44（Asia/Shanghai）；**仅前端**，后端/数据库未变，无停机 |
+| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
+| 访问地址 | http://8.137.123.233/ |
+| 变更范围 | 仅前端：替换 `/opt/echolint/frontend/dist` → `docker compose build frontend && up -d frontend`；`nginx.conf`、后端、数据库均未改动 |
+| 构建产物 | 本机 `npm run build`，入口 `assets/index-CTgObqZo.js`（旧入口 `assets/index-cGre2tOD.js`） |
+| 回滚点 | 镜像 `echolint-frontend:rollback-20261023-124240`；旧 dist `backups/frontend-dist-20261023-124240.tgz` |
+| 验证 | 线上入口 hash 与本地构建一致；frontend 容器 Up、nginx 无 error；API 同源代理匿名 401、backend healthy；Playwright 对公网入口做 15 条路由 EN 扫描：0 console/page error、0 raw key、中英切换正常（生产中文数据按约定保持原文） |
+
+回滚命令（镜像已含旧 dist，直接回退镜像即可）：
+
+    docker tag echolint-frontend:rollback-20261023-124240 echolint-frontend:deploy
+    cd /opt/echolint && docker compose up -d --force-recreate frontend
