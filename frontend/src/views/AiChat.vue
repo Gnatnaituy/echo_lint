@@ -59,16 +59,12 @@
         >
           <el-option v-for="model in facets.models" :key="model" :label="model" :value="model" />
         </el-select>
-        <el-select
+        <SegmentedControl
           v-model="filters.success"
-          :placeholder="t('aiChat.allStatuses')"
-          clearable
-          class="filter-select success-select"
+          :options="successOptions"
+          :aria-label="t('aiChat.allStatuses')"
           @change="reload"
-        >
-          <el-option :label="t('aiChat.filterSuccess')" value="true" />
-          <el-option :label="t('aiChat.filterFailed')" value="false" />
-        </el-select>
+        />
         <el-input
           v-model="filters.recordingId"
           :placeholder="t('aiChat.recordingIdPlaceholder')"
@@ -307,6 +303,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { formatSmartTime, formatTime } from '../constants'
 import { useI18n } from '../i18n'
 import { useElementWidth } from '../utils/elementWidth'
@@ -338,6 +335,13 @@ const filters = reactive({
 })
 const dateRange = ref([])
 const facets = reactive({ stages: [], providers: [], models: [] })
+
+/* 枚举型过滤统一用分段控件：全部 / 成功 / 失败 */
+const successOptions = computed(() => [
+  { value: '', label: t('aiChat.allStatuses') },
+  { value: 'true', label: t('aiChat.filterSuccess') },
+  { value: 'false', label: t('aiChat.filterFailed') }
+])
 
 const stageOptions = computed(() => {
   const values = new Set([...DEFAULT_STAGES, ...(facets.stages || [])])
@@ -505,9 +509,6 @@ onMounted(() => {
 .model-select {
   width: 172px;
 }
-.success-select {
-  width: 112px;
-}
 .id-input {
   width: 110px;
 }
@@ -673,7 +674,6 @@ onMounted(() => {
   .stage-select,
   .provider-select,
   .model-select,
-  .success-select,
   .id-input {
     width: calc(50% - 5px);
   }

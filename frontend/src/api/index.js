@@ -20,6 +20,7 @@ import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
 import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
 import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys'
 import { normalizeKnowledgeEntry, normalizeKnowledgePage } from '../utils/knowledge'
+import { normalizeKnowledgeChunks } from '../utils/knowledgeIndex'
 import {
   normalizeKnowledgeSearch,
   normalizeRagEvaluation,
@@ -554,20 +555,37 @@ export const api = {
   },
 
   // 知识库（登录可读；写操作 ADMIN / REVIEWER，后端独立鉴权）
-  /** GET /api/knowledge?keyword=&category=&enabled=&page=&size= -> 归一化 Spring Page */
-  listKnowledge({ keyword, category, enabled, page, size } = {}) {
+  /**
+   * GET /api/knowledge?keyword=&category=&enabled=&indexStatus=&sourceType=&page=&size=
+   * -> 归一化 Spring Page（keyword 同时模糊匹配标题 / 正文 / 标签 / 来源文件）
+   */
+  listKnowledge({ keyword, category, enabled, indexStatus, sourceType, page, size } = {}) {
     return http
       .get('/knowledge', {
         params: {
           keyword: param(keyword),
           category: param(category),
           enabled: param(enabled),
+          indexStatus: param(indexStatus),
+          sourceType: param(sourceType),
           page,
           size
         },
         silent: true
       })
       .then((data) => normalizeKnowledgePage(data))
+  },
+  /**
+   * GET /api/knowledge/{id}/chunks?page=&size=（ADMIN）-> 归一化条目信息 + 当前页分块
+   * silent：分块对话框内展示 403/404 降级与失败原因，不弹全局提示。
+   */
+  listKnowledgeChunks(id, { page, size } = {}) {
+    return http
+      .get(`/knowledge/${encodeURIComponent(id)}/chunks`, {
+        params: { page, size },
+        silent: true
+      })
+      .then((data) => normalizeKnowledgeChunks(data))
   },
   createKnowledge(payload) {
     return http.post('/knowledge', payload).then((data) => normalizeKnowledgeEntry(data))

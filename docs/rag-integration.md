@@ -194,6 +194,8 @@ app:
 3. 在系统设置页点「测试 embedding」验证连通性与维度。
 4. 打开「RAG 总开关」，对历史知识库/语料执行「重建索引」（或重启并依赖启动回填）。
 5. 看索引统计：知识库 `READY/FAILED/PENDING`、语料 `corpusReady`；失败条目按 `index_error` 处理。
+   需要逐文档核对时打开后台知识库页「索引明细」Tab（仅 ADMIN）：可按索引状态 / 来源 / 关键字筛选，点「分块明细」
+   查看该文档实际写入的每个 chunk（内容、内容哈希、向量模型/维度、时间）与索引指纹。
 
 ---
 
@@ -613,6 +615,7 @@ CREATE INDEX idx_knowledge_chunks_hnsw
 - [ ] AI 供应商已配置且测试通过（base-url / 密钥 / 模型名 / 维度 1024）
 - [ ] `GET /api/settings/rag` 中 `apiKeyConfigured=true`、`vectorAvailable=true`
 - [ ] 打开 RAG 开关 → 重建索引 → 知识库 `knowledgeReady` 增长、`knowledgeFailed=0`
+- [ ] 知识库页「索引明细」Tab（仅 ADMIN）能按状态筛选；任选一条文档能看到分块数、向量模型/维度与 chunk 明细
 - [ ] `/api/knowledge/search` 能返回合理结果（预览忽略开关）
 - [ ] 上传一条测试录音，确认 `aiResultJson.rag.status=ok`，`ai_invocations` 有 `EMBED_QUERY`
 - [ ] 关闭 RAG 后再跑一条，确认无 embedding 调用、复筛行为与旧版一致
@@ -654,6 +657,7 @@ $PSQL -c "SELECT id, title, left(index_error, 120)
 | 现象 | 可能原因 | 处理 |
 |---|---|---|
 | `GET /api/settings/rag` 返回 403 | 非 ADMIN | 换管理员账号 |
+| 知识库页「索引明细」Tab 403 / 接口 404 | 非 ADMIN，或后端版本过旧未包含该接口 | 用管理员登录；升级后端到含 `/api/knowledge/{id}/chunks` 的版本 |
 | 设置页提示 embedding 未配置 | 供应商不存在/停用/缺密钥/base-url 为空 | 到「AI 供应商」补全并测试 |
 | `test` 返回维度不匹配 | 模型维度 ≠ `APP_RAG_EMBEDDING_DIMENSIONS` | 改配置或重建索引（§5.4） |
 | 知识库一直 `PENDING` | RAG 关闭 / embedding 不可用 / 队列满 | 打开开关、修供应商、手动重建 |
@@ -688,6 +692,10 @@ curl -b cookies.txt -X POST -H 'Content-Type: application/json' \
 curl -b cookies.txt -F "file=@docs/退款SOP.md" -F "category=服务规范" \
   $BASE/api/knowledge/documents
 curl -b cookies.txt -X POST $BASE/api/knowledge/3/reindex
+
+# 索引明细（ADMIN）：按状态筛选 / 查看某条目的分块明细（page 0 基、size 1~100）
+curl -b cookies.txt "$BASE/api/knowledge?indexStatus=FAILED&sourceType=DOCUMENT&page=0&size=20"
+curl -b cookies.txt "$BASE/api/knowledge/3/chunks?page=0&size=10"
 ```
 
 ---
@@ -698,5 +706,6 @@ curl -b cookies.txt -X POST $BASE/api/knowledge/3/reindex
 - **复用 AI 治理**：供应商、密钥加密、A/B 分流、配额、成本看板、评测框架都沿用；
 - **复用知识库 CRUD**：原有 `/api/knowledge` 读写、权限、审计不变，只增加索引状态与 RAG 扩展接口；
 - **复用数据库**：pgvector 与业务表同库（PostgreSQL 17），迁移与回滚见 `postgres-migration.md`；
-- **前端入口**：知识库页面显示索引状态/导入文档/重建；系统设置页「RAG 检索增强」卡片负责开关、
-  参数、embedding 测试、重建与评测。
+- **前端入口**：知识库页面显示索引状态/导入文档/重建，其「索引明细」Tab（仅 ADMIN）汇总全部文档的
+  索引状态、分块数、索引时间与失败原因，支持筛选、单条重建和分块下钻；
+  系统设置页「RAG 检索增强」卡片负责开关、参数、embedding 测试、重建与评测。

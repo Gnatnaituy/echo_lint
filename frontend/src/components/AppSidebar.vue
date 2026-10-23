@@ -112,7 +112,9 @@ const groups = computed(() => {
   ]
 })
 
-const isActive = (path) => (path === '/' ? route.path === '/' : route.path.startsWith(path))
+// 前缀匹配要求路径段边界：/knowledge 不能把 /knowledge-xxx 误判为激活
+const isActive = (path) =>
+  path === '/' ? route.path === '/' : route.path === path || route.path.startsWith(`${path}/`)
 
 const badgeCount = computed(() => props.badgeCount)
 </script>

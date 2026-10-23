@@ -35,14 +35,24 @@ public class KnowledgeService {
     private final RagIndexService ragIndexService;
 
     /**
-     * 分页查询：keyword 模糊匹配标题/正文/标签；category 精确（忽略大小写）；enabled 可空。
+     * 分页查询：keyword 模糊匹配标题/正文/标签/来源文件名；category 精确（忽略大小写）；
+     * enabled 可空；indexStatus / sourceType 精确（trim + 大写，空忽略）。
      */
-    public Page<KnowledgeEntry> query(String keyword, String category, Boolean enabled, Pageable pageable) {
-        return repository.findAll(specification(keyword, category, enabled), pageable);
+    public Page<KnowledgeEntry> query(String keyword, String category, Boolean enabled,
+                                      String indexStatus, String sourceType, Pageable pageable) {
+        return repository.findAll(specification(keyword, category, enabled, indexStatus, sourceType),
+                pageable);
     }
 
-    /** 过滤条件：keyword 模糊匹配标题/正文/标签，category 精确（忽略大小写），enabled 可空 */
-    static Specification<KnowledgeEntry> specification(String keyword, String category, Boolean enabled) {
+    /**
+     * 过滤条件：keyword 模糊匹配标题/正文/标签/来源文件名，category 精确（忽略大小写），
+     * enabled 可空，indexStatus / sourceType 精确（trim + 大写，空忽略）。
+     *
+     * <p>保持 static 便于单测直接拼装 Predicate；sourceFilename 为 NULL 的手工条目在
+     * {@code cb.lower(null)} 下不会命中关键字，属预期行为（不使用 native SQL）。</p>
+     */
+    static Specification<KnowledgeEntry> specification(String keyword, String category, Boolean enabled,
+                                                       String indexStatus, String sourceType) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (StringUtils.hasText(keyword)) {
@@ -50,7 +60,8 @@ public class KnowledgeService {
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("title")), like),
                         cb.like(cb.lower(root.get("content")), like),
-                        cb.like(cb.lower(root.get("tags")), like)));
+                        cb.like(cb.lower(root.get("tags")), like),
+                        cb.like(cb.lower(root.get("sourceFilename")), like)));
             }
             if (StringUtils.hasText(category)) {
                 predicates.add(cb.equal(cb.lower(root.get("category")),
@@ -58,6 +69,14 @@ public class KnowledgeService {
             }
             if (enabled != null) {
                 predicates.add(cb.equal(root.get("enabled"), enabled));
+            }
+            if (StringUtils.hasText(indexStatus)) {
+                predicates.add(cb.equal(root.get("indexStatus"),
+                        indexStatus.trim().toUpperCase(Locale.ROOT)));
+            }
+            if (StringUtils.hasText(sourceType)) {
+                predicates.add(cb.equal(root.get("sourceType"),
+                        sourceType.trim().toUpperCase(Locale.ROOT)));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };

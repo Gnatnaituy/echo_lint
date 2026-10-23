@@ -6,28 +6,17 @@
         <div class="row-wrap">
           <div class="section-title">{{ t('tasks.title') }}</div>
           <span class="chip info">{{ t('common.total', { total }) }}</span>
-          <span v-if="statusFilter" class="chip" :class="taskStatusMeta(statusFilter).type">
-            {{ taskStatusMeta(statusFilter).label }}
-          </span>
           <el-tooltip v-if="backgroundError" :content="backgroundError" placement="bottom">
             <span class="chip warn">{{ t('tasks.refreshFailed') }}</span>
           </el-tooltip>
         </div>
         <div class="actions">
-          <el-select
+          <SegmentedControl
             v-model="statusFilter"
-            :placeholder="t('tasks.allStatuses')"
-            clearable
-            class="status-select"
+            :options="statusOptions"
+            :aria-label="t('tasks.allStatuses')"
             @change="applyFilters"
-          >
-            <el-option
-              v-for="opt in TASK_STATUS_OPTIONS"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
+          />
           <el-input
             v-model="recordingIdFilter"
             :placeholder="t('tasks.recordingIdPlaceholder')"
@@ -190,6 +179,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import api from '../api'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import {
   formatRelative,
   formatTime,
@@ -216,6 +206,12 @@ const recordingIdFilter = ref('')
 const autoRefresh = ref(true)
 const retryingId = ref(null)
 const lastLoadedAt = ref('')
+
+/* 枚举型过滤统一用分段控件：全部 / 待处理 / 执行中 / 成功 / 失败 / 死信 */
+const statusOptions = computed(() => [
+  { value: '', label: t('tasks.allStatuses') },
+  ...TASK_STATUS_OPTIONS
+])
 
 const hasFilters = computed(
   () => !!(statusFilter.value || recordingIdFilter.value.trim())
@@ -373,9 +369,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-}
-.status-select {
-  width: 138px;
 }
 .id-input {
   width: 170px;

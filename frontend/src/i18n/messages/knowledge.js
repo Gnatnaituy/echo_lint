@@ -7,6 +7,7 @@ export default {
   zh: {
     // 页头 / 工具栏
     'knowledge.pageTitle': '知识库 / SOP',
+    'knowledge.tabs.label': '知识库视图',
     'knowledge.readonly': '只读',
     'knowledge.searchPreview': '检索预览',
     'knowledge.importDocument': '导入文档',
@@ -120,6 +121,7 @@ export default {
   en: {
     // Header / toolbar
     'knowledge.pageTitle': 'Knowledge Base / SOP',
+    'knowledge.tabs.label': 'Knowledge base views',
     'knowledge.readonly': 'Read-only',
     'knowledge.searchPreview': 'Search preview',
     'knowledge.importDocument': 'Import document',

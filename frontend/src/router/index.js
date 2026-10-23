@@ -82,6 +82,12 @@ const routes = [
     meta: { titleKey: 'nav.knowledge' }
   },
   {
+    // 索引明细已并入知识库页（页内 Tab，仅 ADMIN 可见）：旧地址保留跳转，避免书签失效
+    path: '/knowledge-index',
+    redirect: { path: '/knowledge', query: { tab: 'index' } },
+    meta: { titleKey: 'nav.knowledge' }
+  },
+  {
     // 数据大屏：登录后可用；fullscreen 表示不渲染侧栏/页头壳层
     path: '/screen',
     component: () => import('../views/Screen.vue'),
