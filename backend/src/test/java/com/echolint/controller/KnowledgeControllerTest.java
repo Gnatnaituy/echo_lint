@@ -58,14 +58,16 @@ class KnowledgeControllerTest {
 
     @Test
     void listClampsPaginationAndSortsByIdDesc() {
-        when(knowledgeService.query(eq("辱骂"), eq("合规"), eq(true), any(Pageable.class)))
+        when(knowledgeService.query(eq("辱骂"), eq("合规"), eq(true), eq("READY"), eq("DOCUMENT"),
+                any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(entry(1L, "a"))));
 
-        Page<KnowledgeEntry> page = controller.list("辱骂", "合规", true, -1, 1000);
+        Page<KnowledgeEntry> page = controller.list("辱骂", "合规", true, "READY", "DOCUMENT", -1, 1000);
 
         assertEquals(1, page.getTotalElements());
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(knowledgeService).query(eq("辱骂"), eq("合规"), eq(true), captor.capture());
+        verify(knowledgeService).query(eq("辱骂"), eq("合规"), eq(true), eq("READY"), eq("DOCUMENT"),
+                captor.capture());
         assertEquals(0, captor.getValue().getPageNumber());
         assertEquals(100, captor.getValue().getPageSize(), "size 硬上限 100");
         assertEquals("id: DESC", captor.getValue().getSort().toString());

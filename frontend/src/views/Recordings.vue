@@ -3,44 +3,29 @@
     <!-- 工具栏 -->
     <section class="panel">
       <div class="toolbar">
-        <div class="filters" role="group" :aria-label="t('recordings.filters.group')">
-          <button
-            v-for="f in filters"
-            :key="f.key"
-            class="filter-chip"
-            :class="{ on: statusFilter === f.key }"
-            @click="applyFilter(f.key)"
-          >
-            {{ f.label }}
-            <span v-if="f.count !== null" class="filter-count">{{ f.count }}</span>
-          </button>
+        <div class="filters">
+          <SegmentedControl
+            v-model="statusFilter"
+            :options="statusOptions"
+            :aria-label="t('recordings.filters.group')"
+            @change="reload"
+          />
         </div>
 
         <div class="actions">
           <span v-if="!canWrite" class="chip info read-only-chip">{{ t('recordings.readOnly') }}</span>
-          <el-select
+          <SegmentedControl
             v-model="assignedFilter"
-            :placeholder="t('recordings.assigned.placeholder')"
-            clearable
-            class="filter-select"
+            :options="assignedOptions"
+            :aria-label="t('recordings.assigned.placeholder')"
             @change="reload"
-          >
-            <el-option :label="t('recordings.assigned.mine')" value="mine" />
-          </el-select>
-          <el-select
+          />
+          <SegmentedControl
             v-model="priorityFilter"
-            :placeholder="t('recordings.priority.placeholder')"
-            clearable
-            class="priority-select"
+            :options="priorityOptions"
+            :aria-label="t('recordings.priority.placeholder')"
             @change="reload"
-          >
-            <el-option
-              v-for="opt in PRIORITY_OPTIONS"
-              :key="opt.value"
-              :label="t('recordings.priority.option', { label: opt.label })"
-              :value="opt.value"
-            />
-          </el-select>
+          />
           <el-input
             v-model="keyword"
             :placeholder="t('recordings.search.placeholder')"
@@ -93,20 +78,12 @@
           @keyup.enter="reload"
           @clear="reload"
         />
-        <el-select
+        <SegmentedControl
           v-model="directionFilter"
-          :placeholder="t('recordings.meta.allDirections')"
-          clearable
-          class="direction-select"
+          :options="directionOptions"
+          :aria-label="t('recordings.meta.allDirections')"
           @change="reload"
-        >
-          <el-option
-            v-for="opt in DIRECTION_OPTIONS"
-            :key="opt.value"
-            :label="opt.label"
-            :value="opt.value"
-          />
-        </el-select>
+        />
         <el-button
           v-if="hasMetaFilters"
           class="meta-clear"
@@ -801,6 +778,7 @@ import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../i18n'
 import { formatClock } from '../utils/segments'
 import {
@@ -941,6 +919,32 @@ const filters = computed(() =>
     return { ...f, count }
   })
 )
+
+/* 枚举型过滤统一用分段控件（外观与人工复检页一致）：
+   状态带计数、待复检 >0 时角标标红；指派 / 优先级 / 方向提供「全部」项。 */
+const statusOptions = computed(() =>
+  filters.value.map((f) => ({
+    value: f.key,
+    label: f.label,
+    count: f.count,
+    hot: f.countKey === 'NEEDS_REVIEW' && (f.count ?? 0) > 0
+  }))
+)
+
+const assignedOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  { value: 'mine', label: t('recordings.assigned.mine') }
+])
+
+const priorityOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  ...PRIORITY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+])
+
+const directionOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  ...DIRECTION_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+])
 
 /* ---------- 元数据筛选 ---------- */
 
@@ -1153,11 +1157,6 @@ async function loadOverview() {
   } catch {
     // 忽略
   }
-}
-
-function applyFilter(key) {
-  statusFilter.value = key
-  reload()
 }
 
 function reload() {
@@ -1468,67 +1467,38 @@ onUnmounted(() => {
 
 <style scoped>
 /* 工具栏 */
+/* 状态 chips 与右侧筛选/上传操作同排：宽屏一行放得下时左右对齐，
+   放不下时自动换行并保持操作区右对齐（窄屏与原来两行观感一致） */
 .toolbar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   padding: 16px 18px 12px;
 }
 .filters {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.filter-chip {
-  display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 13px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--el-text-color-regular);
-  font-size: 12.5px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.filter-chip:hover {
-  border-color: var(--brand-300);
-  color: var(--brand-600);
-}
-.filter-chip.on {
-  background: var(--brand-500);
-  border-color: var(--brand-500);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 110, 246, 0.24);
-}
-.filter-count {
-  font-size: 11px;
-  opacity: 0.72;
-  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 .actions :deep(.el-input__wrapper),
 .actions :deep(.el-select__wrapper) {
   min-height: 32px;
 }
 .search {
-  width: 252px;
-}
-.priority-select {
-  width: 132px;
-}
-.filter-select {
-  width: 118px;
+  width: 224px;
 }
 .read-only-chip {
   flex: none;
@@ -1550,9 +1520,6 @@ onUnmounted(() => {
 }
 .meta-input {
   width: 136px;
-}
-.direction-select {
-  width: 128px;
 }
 .meta-clear {
   margin-left: 2px;

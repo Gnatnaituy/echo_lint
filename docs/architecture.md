@@ -14,12 +14,12 @@
 
 | 层 | 组成 | 说明 |
 |---|---|---|
-| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 15 个页面：工作台、录音管理、人工复检、敏感词库、语料库、知识库、报表、成本、任务、AI 对话记录、审计、设置等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER） |
+| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 15 个页面：工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、设置等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER） |
 | 前端容器 | Nginx | 静态资源、SPA fallback、`/api` 与 `/uploads` 反向代理、gzip/长缓存；宿主端口 8081 |
-| 后端 API | Spring Boot 3.3 / Java 17 | 17 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
+| 后端 API | Spring Boot 3.3 / Java 17 | 18 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
 | 稽核流水线 | `PipelineService`、`PipelineTaskScheduler`、`AudioTranscriptionService`、`DfaService`、`SemanticScreeningService`、`ReviewService` | 上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈 |
 | AI 治理 | `ScreenModelService`、`ProviderRegistry`、`AiModelCaller`、`AiQuotaService`、`AiUsageService`、`AiInvocationService`、`ModelEvaluationService`、`WordMiningService` | 供应商运行时切换、AES-GCM 密钥、重试/超时、配额、成本快照、完整调用留痕 |
-| RAG 子系统 | `RagDocumentService`、`TextChunker`、`RagIndexService`、`RagEmbeddingClient`、`RagRetrievalService`、`ScreeningPromptSupport`、`RagSettingsService`、`RagAdminService`、`RagEvaluationService` | 文档导入、异步分块/向量化、pgvector 检索、提示词注入、索引重建与对比评测 |
+| RAG 子系统 | `RagDocumentService`、`TextChunker`、`RagIndexService`、`RagEmbeddingClient`、`RagRetrievalService`、`ScreeningPromptSupport`、`RagSettingsService`、`RagAdminService`、`RagEvaluationService`、`KnowledgeIndexService` | 文档导入、异步分块/向量化、pgvector 检索、提示词注入、索引重建、索引明细与对比评测 |
 | 数据层 | PostgreSQL 17 + pgvector | 业务表 + `knowledge_chunks(vector 1024, HNSW)` + `ai_invocations`；Flyway V1/V2/V3，Hibernate `ddl-auto: update`；`DataSeedRunner` 预置词典/语料 |
 | 文件存储 | Docker 卷 `uploads` / `knowledge-docs` | 录音原件、双声道分轨、导入的 PDF/DOCX/TXT/MD 原文 |
 | 外部依赖 | DeepSeek（chat）、阿里云百炼 DashScope（embedding）、本机 whisper.cpp（ASR） | 全部走兼容 HTTP 接口；密钥不出后端；录音转写不出本机（whisper.cpp） |
@@ -50,6 +50,7 @@
 - 读链路：`RagRetrievalService` 对分块文本做 query embedding → 余弦 top-k → 注入 `ScreeningPromptSupport` 的用户提示词。
 - 语料 few-shot：`CorpusEntry` 整段 embedding 写入 `corpus_entries.embedding_text`，按相似度取样。
 - 运维：`RagSettingsService`（开关/检索参数持久化）、`RagAdminService`（索引统计/测试/重建）、`RagEvaluationService`（with/without RAG 对比评测）、`RagBackfillRunner`（启动回填）。
+- 索引明细：`GET /api/knowledge/{id}/chunks`（仅 ADMIN，`KnowledgeIndexController` / `KnowledgeIndexService`）返回条目索引状态与分块分页明细，供知识库页「索引明细」Tab（仅 ADMIN，`views/KnowledgeIndex.vue` 作为页内面板组件）展示与失败排查；旧 URL `/knowledge-index` 重定向到 `/knowledge?tab=index`。
 - 降级：embedding 不可用/检索失败 → 空上下文继续复筛，`aiResultJson.rag.status=degraded`，不阻塞主流程。
 
 ### 4.5 数据与迁移

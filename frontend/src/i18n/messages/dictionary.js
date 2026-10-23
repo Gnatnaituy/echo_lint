@@ -44,6 +44,8 @@ export default {
 
     // 工具栏
     'dictionary.filters.disabled': '已停用',
+    'dictionary.filters.source': '来源',
+    'dictionary.filters.status': '状态',
     'dictionary.readonly': '只读模式',
     'dictionary.searchPlaceholder': '搜索词条',
     'dictionary.exportCsv': '导出 CSV',
@@ -155,6 +157,8 @@ export default {
 
     // Toolbar
     'dictionary.filters.disabled': 'Disabled',
+    'dictionary.filters.source': 'Source',
+    'dictionary.filters.status': 'Status',
     'dictionary.readonly': 'Read-only',
     'dictionary.searchPlaceholder': 'Search entries',
     'dictionary.exportCsv': 'Export CSV',

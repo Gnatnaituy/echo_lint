@@ -51,15 +51,12 @@
     <section class="panel">
       <div class="toolbar">
         <div class="filters">
-          <button class="filter-chip" :class="{ on: labelFilter === '' }" @click="setLabel('')">
-            {{ t('common.all') }}
-          </button>
-          <button class="filter-chip" :class="{ on: labelFilter === 'VIOLATION' }" @click="setLabel('VIOLATION')">
-            {{ t('corpus.kpi.violation') }}
-          </button>
-          <button class="filter-chip" :class="{ on: labelFilter === 'COMPLIANT' }" @click="setLabel('COMPLIANT')">
-            {{ t('corpus.kpi.compliant') }}
-          </button>
+          <SegmentedControl
+            v-model="labelFilter"
+            :options="labelOptions"
+            :aria-label="t('corpus.table.label')"
+            @change="reload"
+          />
         </div>
         <div class="actions">
           <el-input
@@ -207,6 +204,7 @@ import { Search, Refresh, Plus, Download } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { VIOLATION_TYPES, formatTimeShort } from '../constants'
 import { useElementWidth } from '../utils/elementWidth'
 import { useI18n } from '../i18n'
@@ -233,6 +231,13 @@ const overview = ref(null)
 const dialogVisible = ref(false)
 const saving = ref(false)
 const form = ref({ label: 'VIOLATION', violationType: 'INSULT', transcript: '', reason: '' })
+
+/* 枚举型过滤统一用分段控件：全部 / 违规 / 合规 */
+const labelOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  { value: 'VIOLATION', label: t('corpus.kpi.violation') },
+  { value: 'COMPLIANT', label: t('corpus.kpi.compliant') }
+])
 
 const SOURCE_LABEL = computed(() => ({
   REVIEW: t('corpus.source.REVIEW'),
@@ -406,30 +411,9 @@ onMounted(() => {
 }
 .filters {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-.filter-chip {
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--el-text-color-regular);
-  font-size: 12.5px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.filter-chip:hover {
-  border-color: var(--brand-300);
-  color: var(--brand-600);
-}
-.filter-chip.on {
-  background: var(--brand-500);
-  border-color: var(--brand-500);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 110, 246, 0.24);
 }
 .actions {
   display: flex;

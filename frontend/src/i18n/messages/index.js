@@ -15,6 +15,7 @@ import reports from './reports.js'
 import dictionary from './dictionary.js'
 import corpus from './corpus.js'
 import knowledge from './knowledge.js'
+import knowledgeIndex from './knowledgeIndex.js'
 import settings from './settings.js'
 import costs from './costs.js'
 import tasks from './tasks.js'
@@ -35,6 +36,7 @@ export const MESSAGE_MODULES = [
   dictionary,
   corpus,
   knowledge,
+  knowledgeIndex,
   settings,
   costs,
   tasks,

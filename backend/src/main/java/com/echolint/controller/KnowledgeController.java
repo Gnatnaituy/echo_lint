@@ -40,11 +40,13 @@ public class KnowledgeController {
     public Page<KnowledgeEntry> list(@RequestParam(required = false) String keyword,
                                      @RequestParam(required = false) String category,
                                      @RequestParam(required = false) Boolean enabled,
+                                     @RequestParam(required = false) String indexStatus,
+                                     @RequestParam(required = false) String sourceType,
                                      @RequestParam(defaultValue = "0") int page,
                                      @RequestParam(defaultValue = "10") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        return knowledgeService.query(keyword, category, enabled,
+        return knowledgeService.query(keyword, category, enabled, indexStatus, sourceType,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
     }
 

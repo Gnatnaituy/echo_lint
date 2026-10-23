@@ -141,6 +141,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
                         .requestMatchers(HttpMethod.PUT, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
                         .requestMatchers(HttpMethod.DELETE, "/api/knowledge/**").hasAnyRole("ADMIN", "REVIEWER")
+                        // 知识库分块明细（Batch 6 管理端）：含分块正文与向量元数据，仅 ADMIN 可读
+                        .requestMatchers(HttpMethod.GET, "/api/knowledge/*/chunks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/recordings/**").hasAnyRole("ADMIN", "REVIEWER")
                         // 其余 /api/** 与 /uploads/**（音频流）登录即可
                         .requestMatchers("/api/**", "/uploads/**").authenticated()

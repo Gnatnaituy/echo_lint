@@ -46,20 +46,12 @@
             @keyup.enter="loadStats"
             @clear="loadStats"
           />
-          <el-select
+          <SegmentedControl
             v-model="directionFilter"
-            :placeholder="t('reports.allDirections')"
-            clearable
-            class="direction-select"
+            :options="directionOptions"
+            :aria-label="t('reports.allDirections')"
             @change="loadStats"
-          >
-            <el-option
-              v-for="opt in DIRECTION_OPTIONS"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
+          />
           <div class="filter-actions">
             <el-button type="primary" :icon="Search" :loading="statsLoading" @click="loadStats">
               {{ t('reports.query') }}
@@ -244,6 +236,7 @@ import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import StatCard from '../components/StatCard.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { DIRECTION_OPTIONS, VIOLATION_TYPES } from '../constants'
 import { useI18n } from '../i18n'
 import { saveBlob } from '../utils/download'
@@ -256,6 +249,12 @@ const dateRange = ref(defaultRange())
 const agentFilter = ref('')
 const teamFilter = ref('')
 const directionFilter = ref('')
+
+/* 枚举型过滤统一用分段控件：全部 / 呼入 / 呼出 / 未知 */
+const directionOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  ...DIRECTION_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+])
 
 function defaultRange() {
   const today = new Date()
@@ -473,10 +472,6 @@ onMounted(loadStats)
 .filter-input {
   flex: none;
   width: 136px;
-}
-.direction-select {
-  flex: none;
-  width: 128px;
 }
 /* 查询 / 重置作为一组整体换行，并与右侧对齐 */
 .filter-actions {

@@ -114,8 +114,44 @@ embedding 供应商复用 `ai_providers`（AES-GCM 密钥）；未配置/不可�
 ```
 
 ### 3.2 知识库（登录可读；写 ADMIN/REVIEWER）
-`GET /api/knowledge` 条目新增字段：
+`GET /api/knowledge` 支持筛选参数：`keyword`（标题 / 正文 / 标签 / 来源文件名模糊匹配）、
+`category`、`enabled`、`indexStatus`（精确，如 `READY`）、`sourceType`（`MANUAL` / `DOCUMENT`）、
+`page`、`size`；响应为 Spring Page。条目新增字段：
 `indexStatus`、`indexError`、`indexedAt`、`sourceType`、`sourceFilename`、`sourceSize`、`chunkCount`。
+`embeddingHash`（标题 + 分类 + 正文指纹）在实体上标注 `@JsonIgnore`，**列表/详情不返回**，
+只由下面的分块明细接口返回。
+
+`GET /api/knowledge/{id}/chunks`（ADMIN）：管理端知识库页「索引明细」Tab 的分块下钻接口；
+`page` 默认 0，`size` 默认 10（夹在 1~100）。条目不存在返回 404。
+```json
+{
+  "entryId": 12,
+  "title": "退款处理规范",
+  "indexStatus": "READY",
+  "indexError": null,
+  "indexedAt": "2026-10-23T12:00:00",
+  "embeddingHash": "……",
+  "embeddingModel": "qwen3.7-text-embedding",
+  "embeddingDimensions": 1024,
+  "total": 7,
+  "page": 0,
+  "size": 10,
+  "items": [
+    {
+      "chunkId": 101,
+      "chunkIndex": 0,
+      "content": "……",
+      "contentHash": "……",
+      "embeddingModel": "qwen3.7-text-embedding",
+      "embeddingDim": 1024,
+      "createdAt": "2026-10-23T12:00:00",
+      "updatedAt": "2026-10-23T12:00:00"
+    }
+  ]
+}
+```
+`embeddingModel` / `embeddingDimensions` 取该条目首个分块（`chunkIndex` 升序）的值，无分块时为 `null`；
+`items` 按 `chunkIndex` 升序分页返回。该接口只读、仅 ADMIN 可访问，不写审计。
 
 `POST /api/knowledge` / `PUT /api/knowledge/{id}`：响应同 GET；保存后异步重建该条索引。
 `DELETE /api/knowledge/{id}`：同时删除 chunks。

@@ -32,7 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * 知识库（Batch 4a）：过滤条件拼装（关键字/分类/启用）、CRUD 校验、404、createdBy 保留。
+ * 知识库（Batch 4a）：过滤条件拼装（关键字/分类/启用/索引状态/来源）、CRUD 校验、404、createdBy 保留。
  */
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -62,41 +62,67 @@ class KnowledgeServiceTest {
         lenient().when(cb.lower(any())).thenAnswer(inv -> lowered);
         lenient().when(cb.like(any(Expression.class), anyString())).thenAnswer(inv -> mock(Predicate.class));
         lenient().when(cb.equal(any(), any())).thenAnswer(inv -> mock(Predicate.class));
-        lenient().when(cb.or(any(Predicate.class), any(Predicate.class), any(Predicate.class)))
+        lenient().when(cb.or(any(Predicate.class), any(Predicate.class), any(Predicate.class),
+                        any(Predicate.class)))
                 .thenAnswer(inv -> mock(Predicate.class));
         lenient().when(cb.and(any(Predicate[].class))).thenAnswer(inv -> mock(Predicate.class));
     }
 
-    private Predicate evaluate(String keyword, String category, Boolean enabled) {
-        return KnowledgeService.specification(keyword, category, enabled)
+    private Predicate evaluate(String keyword, String category, Boolean enabled,
+                               String indexStatus, String sourceType) {
+        return KnowledgeService.specification(keyword, category, enabled, indexStatus, sourceType)
                 .toPredicate(root, criteriaQuery, cb);
     }
 
     @Test
-    void keywordFiltersTitleContentAndTags() {
-        evaluate("  Insult ", null, null);
+    void keywordFiltersTitleContentTagsAndSourceFilename() {
+        evaluate("  Insult ", null, null, null, null);
 
-        verify(cb, times(3)).like(any(Expression.class), eq("%insult%"));
+        verify(cb, times(4)).like(any(Expression.class), eq("%insult%"));
         verify(root).get("title");
         verify(root).get("content");
         verify(root).get("tags");
-        verify(cb).or(any(Predicate.class), any(Predicate.class), any(Predicate.class));
+        verify(root).get("sourceFilename");
+        verify(cb).or(any(Predicate.class), any(Predicate.class), any(Predicate.class),
+                any(Predicate.class));
     }
 
     @Test
     void categoryAndEnabledFiltersApplied() {
-        evaluate(null, "  Complaints ", Boolean.FALSE);
+        evaluate(null, "  Complaints ", Boolean.FALSE, null, null);
 
         verify(cb).equal(lowered, "complaints");
         verify(root).get("category");
         verify(cb).equal(path, false);
         verify(root).get("enabled");
         verify(cb, never()).like(any(Expression.class), anyString());
+        verify(root, never()).get("indexStatus");
+        verify(root, never()).get("sourceType");
+    }
+
+    @Test
+    void indexStatusAndSourceTypeAreTrimmedAndUppercased() {
+        evaluate(null, null, null, "  ready ", " document ");
+
+        verify(root).get("indexStatus");
+        verify(root).get("sourceType");
+        verify(cb).equal(path, "READY");
+        verify(cb).equal(path, "DOCUMENT");
+        verify(cb, never()).like(any(Expression.class), anyString());
+    }
+
+    @Test
+    void blankIndexStatusAndSourceTypeAreIgnored() {
+        evaluate(null, null, null, "  ", "");
+
+        verify(root, never()).get("indexStatus");
+        verify(root, never()).get("sourceType");
+        verify(cb, never()).equal(any(), any());
     }
 
     @Test
     void noFiltersProducesEmptyAnd() {
-        evaluate(null, "  ", null);
+        evaluate(null, "  ", null, " ", null);
 
         verify(cb).and(any(Predicate[].class));
         verify(cb, never()).like(any(Expression.class), anyString());
@@ -110,7 +136,7 @@ class KnowledgeServiceTest {
         when(repository.findAll(any(org.springframework.data.jpa.domain.Specification.class), eq(pageable)))
                 .thenReturn(page);
 
-        assertSame(page, service.query("x", "y", true, pageable));
+        assertSame(page, service.query("x", "y", true, "READY", "DOCUMENT", pageable));
     }
 
     @Test

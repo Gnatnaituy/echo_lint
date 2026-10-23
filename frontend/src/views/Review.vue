@@ -14,20 +14,12 @@
           </button>
         </div>
         <div v-if="tab === 'pending'" class="queue-filters">
-          <el-select
+          <SegmentedControl
             v-model="priorityFilter"
-            :placeholder="t('review.filters.allPriorities')"
-            clearable
-            class="prio-select"
+            :options="priorityOptions"
+            :aria-label="t('review.filters.allPriorities')"
             @change="applyQueueFilters"
-          >
-            <el-option
-              v-for="opt in PRIORITY_OPTIONS"
-              :key="opt.value"
-              :label="t('review.filters.priorityOption', { label: opt.label })"
-              :value="opt.value"
-            />
-          </el-select>
+          />
           <div class="assign-filter">
             <button
               v-for="opt in ASSIGN_FILTERS"
@@ -664,6 +656,7 @@ import AudioPlayer from '../components/AudioPlayer.vue'
 import PriorityTag from '../components/PriorityTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import SegmentTranscript from '../components/SegmentTranscript.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { formatClock } from '../utils/segments'
 import {
   QUEUE_PAGE_SIZE,
@@ -704,6 +697,12 @@ const assignVisible = ref(false)
 const submittedPending = ref(null)
 const reviewHistory = ref([])
 const reviewHistoryLoading = ref(false)
+
+/* 枚举型过滤统一用分段控件：全部 / 高 / 普通 / 低优先级 */
+const priorityOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  ...PRIORITY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+])
 
 // 复检队列分页（服务端）：page 0 基；筛选变化回第一页
 const pendingPage = ref(0)
@@ -1875,9 +1874,6 @@ watch(
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-}
-.prio-select {
-  width: 128px;
 }
 .assign-filter {
   display: inline-flex;

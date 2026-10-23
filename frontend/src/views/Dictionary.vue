@@ -111,18 +111,20 @@
     <section class="panel">
       <div class="toolbar">
         <div class="filters">
-          <button class="filter-chip" :class="{ on: sourceFilter === '' && enabledFilter === null }" @click="clearFilters">
-            {{ t('common.all') }}
-          </button>
-          <button class="filter-chip" :class="{ on: sourceFilter === 'MANUAL' }" @click="setSource('MANUAL')">
-            {{ SOURCE_META.MANUAL.label }}
-          </button>
-          <button class="filter-chip" :class="{ on: sourceFilter === 'MINED' }" @click="setSource('MINED')">
-            {{ SOURCE_META.MINED.label }}
-          </button>
-          <button class="filter-chip" :class="{ on: enabledFilter === false }" @click="filterEnabled(false)">
-            {{ t('dictionary.filters.disabled') }}
-          </button>
+          <span class="filter-label">{{ t('dictionary.filters.source') }}</span>
+          <SegmentedControl
+            v-model="sourceValue"
+            :options="sourceOptions"
+            :aria-label="t('dictionary.filters.source')"
+            @change="reload"
+          />
+          <span class="filter-label">{{ t('dictionary.filters.status') }}</span>
+          <SegmentedControl
+            v-model="enabledValue"
+            :options="enabledOptions"
+            :aria-label="t('dictionary.filters.status')"
+            @change="reload"
+          />
         </div>
         <div class="actions">
           <span v-if="!canWrite" class="chip info">{{ t('dictionary.readonly') }}</span>
@@ -390,6 +392,7 @@ import { Search, Refresh, Plus, MagicStick, Download, Upload } from '@element-pl
 import api from '../api'
 import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
 import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTime, formatTimeShort } from '../constants'
 import { saveBlob } from '../utils/download'
@@ -410,6 +413,30 @@ const loading = ref(false)
 const keyword = ref('')
 const sourceFilter = ref('')
 const enabledFilter = ref(null)
+
+/* 枚举型过滤统一用分段控件：来源（全部 / 手工 / AI 挖掘）与状态（全部 / 启用 / 已停用） */
+const sourceOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  { value: 'MANUAL', label: SOURCE_META.MANUAL.label },
+  { value: 'MINED', label: SOURCE_META.MINED.label }
+])
+const enabledOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  { value: 'true', label: t('common.enabled') },
+  { value: 'false', label: t('dictionary.filters.disabled') }
+])
+const sourceValue = computed({
+  get: () => sourceFilter.value || '',
+  set: (value) => {
+    sourceFilter.value = value
+  }
+})
+const enabledValue = computed({
+  get: () => (enabledFilter.value === null ? '' : String(enabledFilter.value)),
+  set: (value) => {
+    enabledFilter.value = value === '' ? null : value === 'true'
+  }
+})
 const overview = ref(null)
 
 const testText = ref('')
@@ -497,10 +524,6 @@ function clearFilters() {
   sourceFilter.value = ''
   enabledFilter.value = null
   keyword.value = ''
-  reload()
-}
-function setSource(v) {
-  sourceFilter.value = sourceFilter.value === v ? '' : v
   reload()
 }
 function filterEnabled(v) {
@@ -851,30 +874,14 @@ onMounted(() => {
 }
 .filters {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
-.filter-chip {
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--el-text-color-regular);
-  font-size: 12.5px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.filter-chip:hover {
-  border-color: var(--brand-300);
-  color: var(--brand-600);
-}
-.filter-chip.on {
-  background: var(--brand-500);
-  border-color: var(--brand-500);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 110, 246, 0.24);
+.filter-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-left: 2px;
 }
 .actions {
   display: flex;
