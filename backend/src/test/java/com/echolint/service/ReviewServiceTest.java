@@ -120,7 +120,7 @@ class ReviewServiceTest {
     @Test
     void singleApprovalFinalizesAndFeedsCorpusAndMining() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
         Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
@@ -152,7 +152,7 @@ class ReviewServiceTest {
     @Test
     void confirmedViolationNotificationIsSentOnlyAfterCommit() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -171,7 +171,7 @@ class ReviewServiceTest {
     @Test
     void miningRunsOnlyAfterTransactionCommit() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -193,7 +193,7 @@ class ReviewServiceTest {
     @Test
     void miningFailureAfterCommitDoesNotPropagate() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         doThrow(new RuntimeException("AI 不可用")).when(wordMiningService).mineAndSuggest(any(), any());
         loginAs("alice", 5L);
         TransactionSynchronizationManager.initSynchronization();
@@ -212,7 +212,7 @@ class ReviewServiceTest {
     void firstOfTwoApprovalsStaysNeedsReviewWithoutCorpusOrMining() {
         appProperties.getReview().setRequiredApprovals(2);
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
         Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "第一票"));
@@ -235,7 +235,7 @@ class ReviewServiceTest {
         appProperties.getReview().setRequiredApprovals(2);
         Recording recording = needsReview();
         recording.setReviewCount(1);
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         when(reviewRecordRepository.findTopByRecordingIdOrderByRoundDescIdDesc(7L))
                 .thenReturn(Optional.of(previousReview("bob", 1)));
         loginAs("alice", 5L);
@@ -257,7 +257,7 @@ class ReviewServiceTest {
         appProperties.getReview().setRequiredApprovals(2);
         Recording recording = needsReview();
         recording.setReviewCount(1);
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         when(reviewRecordRepository.findTopByRecordingIdOrderByRoundDescIdDesc(7L))
                 .thenReturn(Optional.of(previousReview("alice", 1)));
         loginAs("alice", 5L);
@@ -275,7 +275,7 @@ class ReviewServiceTest {
     void recordingNotInNeedsReviewCannotBeReviewed() {
         Recording recording = needsReview();
         recording.setStatus(RecordingStatus.COMPLIANT);
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
         BizException e = assertThrows(BizException.class,
@@ -288,7 +288,7 @@ class ReviewServiceTest {
     @Test
     void confirmedViolationRequiresViolationType() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
         BizException e = assertThrows(BizException.class,
@@ -301,7 +301,7 @@ class ReviewServiceTest {
     @Test
     void falsePositiveFinalizesCompliantCorpus() {
         Recording recording = needsReview();
-        when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
         Recording saved = service.review(7L, new ReviewRequest("FALSE_POSITIVE", null, "误报"));
@@ -320,6 +320,7 @@ class ReviewServiceTest {
         Recording recording = needsReview();
         ReviewRecord first = previousReview("bob", 1);
         ReviewRecord second = previousReview("alice", 2);
+        // history() 为只读接口，仍走无锁 findById
         when(recordingRepository.findById(7L)).thenReturn(Optional.of(recording));
         when(reviewRecordRepository.findByRecordingIdOrderByRoundAscIdAsc(7L))
                 .thenReturn(List.of(first, second));

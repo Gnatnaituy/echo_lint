@@ -285,6 +285,10 @@ public class RecordingService {
     @Transactional
     public void delete(Long id) {
         Recording recording = get(id);
+        // 流水线正在处理时禁止删除：任务线程稍后的 save 会把已删除的录音重新插回（幽灵行）
+        if (pipelineTaskService.isRunning(id)) {
+            throw new BizException("该录音正在处理中，请等待处理完成后再删除", HttpStatus.CONFLICT);
+        }
         pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
         aiInvocationService.deleteByRecording(id);
         reviewRecordRepository.deleteByRecordingId(id);

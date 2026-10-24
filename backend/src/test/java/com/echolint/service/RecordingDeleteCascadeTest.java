@@ -1,5 +1,6 @@
 package com.echolint.service;
 
+import com.echolint.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.RecordingStatus;
@@ -83,5 +84,21 @@ class RecordingDeleteCascadeTest {
         verify(aiInvocationService).deleteByRecording(11L);
         verify(recordingRepository).delete(recording);
         assertFalse(Files.exists(audio), "音频文件应被删除");
+    }
+
+    @Test
+    void deleteIsRejectedWhilePipelineIsRunning() {
+        Recording recording = new Recording();
+        recording.setId(12L);
+        recording.setFileName("call.mp3");
+        recording.setStatus(RecordingStatus.AI_CHECKING);
+        when(recordingRepository.findById(12L)).thenReturn(Optional.of(recording));
+        when(pipelineTaskService.isRunning(12L)).thenReturn(true);
+
+        BizException e = org.junit.jupiter.api.Assertions.assertThrows(BizException.class,
+                () -> service.delete(12L));
+
+        org.junit.jupiter.api.Assertions.assertEquals(409, e.getStatus().value());
+        verify(recordingRepository, never()).delete(org.mockito.ArgumentMatchers.<com.echolint.entity.Recording>any());
     }
 }
