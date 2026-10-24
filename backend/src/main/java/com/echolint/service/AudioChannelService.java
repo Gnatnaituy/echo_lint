@@ -95,7 +95,19 @@ public class AudioChannelService {
         } catch (Exception e) {
             log.warn("声道分离失败（按单路转写）: {}", e.getMessage());
         }
+        cleanupPartial(left, right);
         return Optional.empty();
+    }
+
+    /** 两种分离方案都失败时清理半截分轨文件，避免孤儿文件累积 */
+    private void cleanupPartial(Path left, Path right) {
+        for (Path p : List.of(left, right)) {
+            try {
+                Files.deleteIfExists(p);
+            } catch (IOException e) {
+                log.warn("清理半截分轨文件失败 {}: {}", p.getFileName(), e.getMessage());
+            }
+        }
     }
 
     public boolean isFfmpegAvailable() {
@@ -122,18 +134,32 @@ public class AudioChannelService {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         Process process = pb.start();
-        String output;
-        try (var in = process.getInputStream()) {
-            output = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        // 输出由独立线程消费：若在 waitFor 之前同步 readAllBytes，会一直阻塞到进程退出，
+        // timeoutSeconds 形同虚设（ffmpeg 挂起时线程被无限占用）
+        StringBuilder output = new StringBuilder();
+        Thread reader = new Thread(() -> {
+            try (var in = process.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    output.append(new String(buffer, 0, read, StandardCharsets.UTF_8));
+                }
+            } catch (IOException ignored) {
+                // 进程被销毁时管道关闭，读中断属预期
+            }
+        }, "ffmpeg-output-reader");
+        reader.setDaemon(true);
+        reader.start();
         if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
             process.destroyForcibly();
+            reader.join(1000);
             throw new IOException("命令超时: " + String.join(" ", new ArrayList<>(command).subList(0, Math.min(2, command.size()))));
         }
+        reader.join(5000);
         if (process.exitValue() != 0) {
-            throw new IOException("命令失败(" + process.exitValue() + "): " + abbreviate(output));
+            throw new IOException("命令失败(" + process.exitValue() + "): " + abbreviate(output.toString()));
         }
-        return output;
+        return output.toString();
     }
 
     private String abbreviate(String s) {

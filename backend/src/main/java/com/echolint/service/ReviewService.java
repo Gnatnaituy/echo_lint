@@ -55,7 +55,9 @@ public class ReviewService {
 
     @Transactional
     public Recording review(Long id, ReviewRequest request) {
-        Recording recording = recordingRepository.findById(id)
+        // 行锁串行化同一录音的并发复核：无锁时两个并发请求会都读到 NEEDS_REVIEW，
+        // 双双落最终结论（语料双写、通知双发、复核轮次错乱）
+        Recording recording = recordingRepository.findWithLockById(id)
                 .orElseThrow(() -> new BizException("录音不存在: " + id, HttpStatus.NOT_FOUND));
         AppUserDetails currentUser = currentUserOrThrow();
 
