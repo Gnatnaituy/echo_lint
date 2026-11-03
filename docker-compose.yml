@@ -11,7 +11,10 @@ services:
     environment:
       POSTGRES_DB: echolint
       POSTGRES_USER: audit
-      POSTGRES_PASSWORD: audit123
+      # 数据库口令由 .env 的 POSTGRES_PASSWORD 覆盖；默认值仅供本地开发/快速开始。
+      # 注意：口令只在「全新 pg-data 卷」首次初始化时生效——已有数据卷不会随环境变量变化，
+      #       轮换前需先在库内执行 ALTER USER audit PASSWORD '新口令';（见 README「注意事项」）
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-audit123}
       PGTZ: Asia/Shanghai
       TZ: Asia/Shanghai
     volumes:
@@ -25,6 +28,12 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+    # 容器日志轮转（P2-31）：与 backend/frontend 保持一致，避免长时间运行写满磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build: ./backend
@@ -37,10 +46,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # .env 中的变量整体注入容器（通知/抽样/双声道/集成适配器等仅通过环境变量配置的开关）。
+    # 长语法 required: false 需要 Docker Compose >= 2.24；.env 不存在时不会报错。
+    # 下方 environment 显式项优先级更高，会覆盖 .env 中的同名变量（如容器内数据库地址）。
+    env_file:
+      - path: .env
+        required: false
+    # Linux Docker Engine 不会自动解析 host.docker.internal（Docker Desktop 已内置），
+    # 显式映射到宿主机网关，whisper.cpp 才能从容器内访问；在 Desktop 上重复声明无副作用。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/echolint
       SPRING_DATASOURCE_USERNAME: audit
-      SPRING_DATASOURCE_PASSWORD: audit123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-audit123}
       APP_UPLOAD_DIR: /app/data/uploads
       # 阿里云百炼：RAG embedding（qwen3.7-text-embedding，1024 维）
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
@@ -90,6 +109,8 @@ services:
       # 转写固定走本机 whisper.cpp（Metal 加速，录音不出本机）：
       #   tools/whisper-server.sh --daemon
       #   .env 里设 WHISPER_BASE_URL=http://host.docker.internal:9900  WHISPER_API_KEY=local
+      # Linux 生产机：用 WHISPER_HOST=0.0.0.0 启动（默认只绑 127.0.0.1，容器访问不到），
+      #   并用防火墙只放行 Docker 网桥网段；容器侧依赖上面的 extra_hosts: host-gateway。
       WHISPER_BASE_URL: ${WHISPER_BASE_URL:-http://host.docker.internal:9900}
       WHISPER_API_KEY: ${WHISPER_API_KEY:-local}
       TZ: Asia/Shanghai
@@ -106,11 +127,22 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8080"]
-      interval: 10s
+      # P2-31：探活改为校验 /actuator/health 返回 UP，而不再只看端口是否 listening
+      #（数据库断开时端口仍在监听，旧写法会误报 healthy）。
+      # backend 运行镜像没装 curl/wget，这里用 bash 的 /dev/tcp 发一个最小 HTTP/1.0 请求。
+      test:
+        - "CMD"
+        - "bash"
+        - "-c"
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/8080 || exit 1
+          printf 'GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3
+          grep -q '"status":"UP"' <&3
+      interval: 15s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 20
+      # 首次启动需 Flyway 迁移 + 词典/语料种子 + 可选 RAG 回填，给足 2 分钟
+      start_period: 120s
 
   frontend:
     build: ./frontend
@@ -119,7 +151,8 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_started
+        # P2-31：等后端 /actuator/health 为 UP 再起前端（首次启动最多等约 2 分钟，见 backend.start_period）
+        condition: service_healthy
     ports:
       # 本机调试入口：http://localhost:8081；只绑回环
       - "127.0.0.1:8081:80"
@@ -128,6 +161,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      # nginx:alpine 自带 busybox wget；首页可访问即视为健康
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pg-data:
