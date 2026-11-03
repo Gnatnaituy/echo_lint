@@ -1,5 +1,11 @@
 package com.echolint.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.echolint.dto.AiInvocationDetail;
 import com.echolint.dto.AiInvocationFacets;
 import com.echolint.dto.AiInvocationFilter;
@@ -7,6 +13,9 @@ import com.echolint.dto.AiInvocationSummary;
 import com.echolint.entity.AiInvocation;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AiInvocationRepository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,25 +24,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.jpa.domain.Specification;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * AI 对话记录查询：列表摘要（不返回全文）、详情、筛选候选与 404。
- */
+/** AI 对话记录查询：列表摘要（不返回全文）、详情、筛选候选与 404。 */
 @ExtendWith(MockitoExtension.class)
 class AiInvocationQueryServiceTest {
 
-    @Mock
-    private AiInvocationRepository repository;
+    @Mock private AiInvocationRepository repository;
 
     private AiInvocationQueryService service;
 
@@ -59,7 +55,8 @@ class AiInvocationQueryServiceTest {
         invocation.setInputTokens(1200);
         invocation.setOutputTokens(96);
         invocation.setCostMicros(1250L);
-        invocation.setRequestJson("{\"messages\":[{\"role\":\"user\",\"content\":\"Huge prompt\"}]}");
+        invocation.setRequestJson(
+                "{\"messages\":[{\"role\":\"user\",\"content\":\"Huge prompt\"}]}");
         invocation.setResponseJson("{\"violation\":false}");
         invocation.setCreatedAt(LocalDateTime.of(2026, 10, 21, 10, 0));
         return invocation;
@@ -67,12 +64,15 @@ class AiInvocationQueryServiceTest {
 
     @Test
     void queryMapsSummariesWithoutPromptText() {
-        when(repository.findAll(any(Specification.class), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(List.of(entity(12L)), PageRequest.of(0, 15), 1));
+        AiInvocationRepository.SummaryProjection summary12 = projection(12L);
+        when(repository.findSummaries(
+                        any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(summary12), PageRequest.of(0, 15), 1));
 
-        Page<AiInvocationSummary> page = service.query(
-                new AiInvocationFilter("SCREEN", "deepseek", null, true, 7L, null, null),
-                PageRequest.of(0, 15));
+        Page<AiInvocationSummary> page =
+                service.query(
+                        new AiInvocationFilter("SCREEN", "deepseek", null, true, 7L, null, null),
+                        PageRequest.of(0, 15));
 
         assertEquals(1, page.getTotalElements());
         AiInvocationSummary summary = page.getContent().get(0);
@@ -81,6 +81,27 @@ class AiInvocationQueryServiceTest {
         assertEquals("SCREEN", summary.stage());
         assertEquals(1200, summary.inputTokens());
         assertEquals(1250L, summary.costMicros());
+    }
+
+    private AiInvocationRepository.SummaryProjection projection(long id) {
+        AiInvocationRepository.SummaryProjection p =
+                mock(AiInvocationRepository.SummaryProjection.class);
+        when(p.getId()).thenReturn(id);
+        when(p.getRecordingId()).thenReturn(7L);
+        when(p.getStage()).thenReturn("SCREEN");
+        when(p.getProviderId()).thenReturn("deepseek");
+        when(p.getProviderLabel()).thenReturn("DeepSeek");
+        when(p.getModel()).thenReturn("deepseek-flash");
+        when(p.getSuccess()).thenReturn(true);
+        when(p.getDegraded()).thenReturn(false);
+        when(p.getLatencyMs()).thenReturn(812);
+        when(p.getRequestChars()).thenReturn(4096);
+        when(p.getResponseChars()).thenReturn(160);
+        when(p.getInputTokens()).thenReturn(1200);
+        when(p.getOutputTokens()).thenReturn(96);
+        when(p.getCostMicros()).thenReturn(1250L);
+        when(p.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 10, 21, 10, 0));
+        return p;
     }
 
     @Test
@@ -105,10 +126,13 @@ class AiInvocationQueryServiceTest {
     @Test
     void facetsMapProvidersAndModels() {
         when(repository.findDistinctStages()).thenReturn(List.of("MINING", "SCREEN"));
-        when(repository.findDistinctProviders()).thenReturn(List.<Object[]>of(
-                new Object[]{"aliyun", "阿里云百炼"},
-                new Object[]{"deepseek", "DeepSeek"}));
-        when(repository.findDistinctModels()).thenReturn(List.of("deepseek-flash", "qwen3.7-text-embedding"));
+        when(repository.findDistinctProviders())
+                .thenReturn(
+                        List.<Object[]>of(
+                                new Object[] {"aliyun", "阿里云百炼"},
+                                new Object[] {"deepseek", "DeepSeek"}));
+        when(repository.findDistinctModels())
+                .thenReturn(List.of("deepseek-flash", "qwen3.7-text-embedding"));
 
         AiInvocationFacets facets = service.facets();
 
@@ -121,12 +145,16 @@ class AiInvocationQueryServiceTest {
 
     @Test
     void queryWithoutFiltersStillQueriesRepository() {
-        when(repository.findAll(any(Specification.class), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(List.of(entity(1L)), PageRequest.of(0, 15), 1));
+        AiInvocationRepository.SummaryProjection summary1 = projection(1L);
+        when(repository.findSummaries(
+                        any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(summary1), PageRequest.of(0, 15), 1));
 
         Page<AiInvocationSummary> page = service.query(null, PageRequest.of(0, 15));
 
         assertEquals(1, page.getContent().size());
-        verify(repository).findAll(any(Specification.class), any(PageRequest.class));
+        verify(repository)
+                .findSummaries(
+                        any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class));
     }
 }

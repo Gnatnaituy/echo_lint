@@ -1,25 +1,23 @@
 package com.echolint.config;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.util.StringUtils;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 
 /**
  * AI 语义复筛 / 敏感词挖掘所用的模型供应商清单。
  *
- * 复筛与词挖掘都是兼容 chat completions 协议的调用，因此「切换供应商」等价于
- * 换 base-url + api-key + model 三件套；语音转写（Whisper）不在其中，仍固定走
- * {@link WhisperProperties}（DeepSeek 等 chat 供应商不提供转写能力）。
+ * <p>复筛与词挖掘都是兼容 chat completions 协议的调用，因此「切换供应商」等价于 换 base-url + api-key + model
+ * 三件套；语音转写（Whisper）不在其中，仍固定走 {@link WhisperProperties}（DeepSeek 等 chat 供应商不提供转写能力）。
  *
- * 当前生效的供应商/模型在运行时可切换，并持久化到 app_settings 表，见 ScreenModelService。
+ * <p>当前生效的供应商/模型在运行时可切换，并持久化到 app_settings 表，见 ScreenModelService。
  */
 @Getter
 @Setter
@@ -37,41 +35,29 @@ public class ScreenModelProperties {
 
     private long requestTimeoutSeconds = 300;
 
-    /**
-     * 单次送入模型的转写文本上限（字符）。超过后按 {@code chunkChars} 切块、带重叠逐块复核，
-     * 避免长录音被静默截断导致后半段漏检（Batch 2b-2）。
-     */
+    /** 单次送入模型的转写文本上限（字符）。超过后按 {@code chunkChars} 切块、带重叠逐块复核， 避免长录音被静默截断导致后半段漏检（Batch 2b-2）。 */
     private int chunkChars = 12000;
 
     /** 最多复核的分块数；超出的分块直接截断（日志注明），防止超长录音把成本放大到不可控 */
     private int maxChunks = 6;
 
-    /**
-     * 判定违规所需的最低置信度：{@code violation=true} 但置信度低于该值时降级人工复核，
-     * 不允许自动放行（Batch 2b-2）。
-     */
+    /** 判定违规所需的最低置信度：{@code violation=true} 但置信度低于该值时降级人工复核， 不允许自动放行（Batch 2b-2）。 */
     private double minConfidence = 0.6;
 
-    /**
-     * 每日 token 配额（输入 + 输出，所有供应商合计），0 = 不限。
-     * 超限后不再发起 AI 调用，抛错由流水线降级人工复核（Batch 3a）。
-     */
+    /** 每日 token 配额（输入 + 输出，所有供应商合计），0 = 不限。 超限后不再发起 AI 调用，抛错由流水线降级人工复核（Batch 3a）。 */
     private long dailyTokenLimit = 0;
 
     /** 单个供应商每分钟调用次数上限，0 = 不限（进程内计数，Batch 3a） */
     private int requestsPerMinute = 0;
 
-    /**
-     * 语义复筛 A/B 分流（Batch 3b-2，只读配置）：开启且备用供应商可用时，
-     * 按 percent 概率走 B 组；否则走当前生效模型（A 组）。词挖掘不参与分流。
-     */
+    /** 语义复筛 A/B 分流（Batch 3b-2，只读配置）：开启且备用供应商可用时， 按 percent 概率走 B 组；否则走当前生效模型（A 组）。词挖掘不参与分流。 */
     private Ab ab = new Ab();
 
     private List<Provider> providers = new ArrayList<>();
 
-    /** 生效的单块字符数：下限 500，避免配置过小把提示词切碎 */
+    /** 生效的单块字符数：下限 500（避免配置过小把提示词切碎），上限 20000 （避免误配成超大值把整段转写塞进一次请求，成本/上下文不可控）。 */
     public int effectiveChunkChars() {
-        return Math.max(500, chunkChars);
+        return Math.min(20_000, Math.max(500, chunkChars));
     }
 
     /** 生效的最大分块数：1~50，避免 0/负数导致不复核或异常配置放大成本 */
@@ -100,9 +86,7 @@ public class ScreenModelProperties {
         return find(defaultProvider).or(() -> providers.stream().findFirst());
     }
 
-    /**
-     * 语义复筛 A/B 分流配置。
-     */
+    /** 语义复筛 A/B 分流配置。 */
     @Getter
     @Setter
     public static class Ab {
@@ -125,9 +109,7 @@ public class ScreenModelProperties {
         }
     }
 
-    /**
-     * 单个模型供应商（兼容 chat completions 端点）
-     */
+    /** 单个模型供应商（兼容 chat completions 端点） */
     @Getter
     @Setter
     public static class Provider {

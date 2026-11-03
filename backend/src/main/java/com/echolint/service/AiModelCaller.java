@@ -3,21 +3,22 @@ package com.echolint.service;
 import com.echolint.exception.BizException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-
 /**
- * 兼容 chat completions 调用器（Batch 3a）：
- * 对 HTTP 429 / 5xx 做最多 2 次重试（500ms、1500ms 退避），其它错误立即失败。
+ * 兼容 chat completions 调用器（Batch 3a）： 对 HTTP 429 / 5xx 做最多 2 次重试（500ms、1500ms 退避），其它错误立即失败。
  *
- * <p>最终失败抛 {@link BizException}，由流水线降级人工复核。网络异常/超时保持原有行为
- * （由 WebClient 的 responseTimeout 控制，异常直接上抛）。</p>
+ * <p>最终失败抛 {@link BizException}，由流水线降级人工复核。网络异常/超时保持原有行为 （由 WebClient 的 responseTimeout 控制，异常直接上抛）。
  */
 @Slf4j
 @Service
@@ -25,8 +26,12 @@ public class AiModelCaller {
 
     /** 第 1、2 次重试前的退避（毫秒） */
     static final long FIRST_RETRY_DELAY_MS = 500;
+
     static final long SECOND_RETRY_DELAY_MS = 1500;
     static final int MAX_RETRIES = 2;
+
+    /** Retry-After 上限：避免供应商返回超大值让流水线线程长时间挂起 */
+    static final long MAX_RETRY_AFTER_MS = 30_000;
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 60;
 
@@ -61,48 +66,101 @@ public class AiModelCaller {
      *
      * @param timeoutSeconds 单次请求超时秒数；≤0 时回退默认值
      */
-    public JsonNode call(ScreenModelService.ActiveModel model, String requestJson, String action,
-                         long timeoutSeconds) {
+    public JsonNode call(
+            ScreenModelService.ActiveModel model,
+            String requestJson,
+            String action,
+            long timeoutSeconds) {
         long effectiveTimeout = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
         for (int attempt = 0; ; attempt++) {
             try {
                 JsonNode response = doCall(model, requestJson, action, effectiveTimeout);
                 if (response == null) {
-                    throw new BizException(action + "超时或返回为空 [" + model.display() + "]",
+                    throw new BizException(
+                            action + "超时或返回为空 [" + model.display() + "]",
                             HttpStatus.INTERNAL_SERVER_ERROR);
                 }
                 return response;
             } catch (RetryableStatusException e) {
                 if (attempt >= MAX_RETRIES) {
-                    log.warn("{}调用失败 [{}]（HTTP {}），已重试 {} 次仍失败，放弃并降级", action,
-                            model.display(), e.httpStatus, MAX_RETRIES);
+                    log.warn(
+                            "{}调用失败 [{}]（HTTP {}），已重试 {} 次仍失败，放弃并降级",
+                            action,
+                            model.display(),
+                            e.httpStatus,
+                            MAX_RETRIES);
                     throw e;
                 }
-                long delay = attempt == 0 ? firstRetryDelayMs : secondRetryDelayMs;
-                log.warn("{}调用返回 HTTP {} [{}]，{}ms 后进行第 {}/{} 次重试", action, e.httpStatus,
-                        model.display(), delay, attempt + 1, MAX_RETRIES);
+                long baseDelay = attempt == 0 ? firstRetryDelayMs : secondRetryDelayMs;
+                // 供应商返回 429/503 时通常带 Retry-After；遵循它可避免重试风暴（上限 MAX_RETRY_AFTER_MS）
+                long delay = Math.max(baseDelay, Math.min(e.retryAfterMs, MAX_RETRY_AFTER_MS));
+                log.warn(
+                        "{}调用返回 HTTP {} [{}]，{}ms 后进行第 {}/{} 次重试",
+                        action,
+                        e.httpStatus,
+                        model.display(),
+                        delay,
+                        attempt + 1,
+                        MAX_RETRIES);
                 sleep(delay);
             }
         }
     }
 
-    private JsonNode doCall(ScreenModelService.ActiveModel model, String requestJson, String action,
-                            long timeoutSeconds) {
-        return model.client().post()
+    private JsonNode doCall(
+            ScreenModelService.ActiveModel model,
+            String requestJson,
+            String action,
+            long timeoutSeconds) {
+        return model.client()
+                .post()
                 .uri(model.chatPath())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestJson)
                 .retrieve()
-                .onStatus(AiModelCaller::isRetryable, clientResponse ->
-                        clientResponse.bodyToMono(String.class).defaultIfEmpty("").map(errorBody ->
-                                new RetryableStatusException(
-                                        clientResponse.statusCode().value(),
-                                        errorMessage(action, model, clientResponse.statusCode().value(), errorBody))))
-                .onStatus(HttpStatusCode::isError, clientResponse ->
-                        clientResponse.bodyToMono(String.class).defaultIfEmpty("").map(errorBody ->
-                                new BizException(
-                                        errorMessage(action, model, clientResponse.statusCode().value(), errorBody),
-                                        HttpStatus.INTERNAL_SERVER_ERROR)))
+                .onStatus(
+                        AiModelCaller::isRetryable,
+                        clientResponse ->
+                                clientResponse
+                                        .bodyToMono(String.class)
+                                        .defaultIfEmpty("")
+                                        .map(
+                                                errorBody ->
+                                                        new RetryableStatusException(
+                                                                clientResponse.statusCode().value(),
+                                                                retryAfterMs(
+                                                                        clientResponse
+                                                                                .headers()
+                                                                                .header(
+                                                                                        HttpHeaders
+                                                                                                .RETRY_AFTER)
+                                                                                .stream()
+                                                                                .findFirst()
+                                                                                .orElse(null)),
+                                                                errorMessage(
+                                                                        action,
+                                                                        model,
+                                                                        clientResponse
+                                                                                .statusCode()
+                                                                                .value(),
+                                                                        errorBody))))
+                .onStatus(
+                        HttpStatusCode::isError,
+                        clientResponse ->
+                                clientResponse
+                                        .bodyToMono(String.class)
+                                        .defaultIfEmpty("")
+                                        .map(
+                                                errorBody ->
+                                                        new BizException(
+                                                                errorMessage(
+                                                                        action,
+                                                                        model,
+                                                                        clientResponse
+                                                                                .statusCode()
+                                                                                .value(),
+                                                                        errorBody),
+                                                                HttpStatus.INTERNAL_SERVER_ERROR)))
                 .bodyToMono(JsonNode.class)
                 .block(Duration.ofSeconds(timeoutSeconds));
     }
@@ -111,8 +169,14 @@ public class AiModelCaller {
         return status.value() == 429 || status.is5xxServerError();
     }
 
-    private String errorMessage(String action, ScreenModelService.ActiveModel model, int status, String errorBody) {
-        return action + "调用失败 [" + model.display() + "] (HTTP " + status + "): "
+    private String errorMessage(
+            String action, ScreenModelService.ActiveModel model, int status, String errorBody) {
+        return action
+                + "调用失败 ["
+                + model.display()
+                + "] (HTTP "
+                + status
+                + "): "
                 + ScreenModelService.extractErrorMessage(objectMapper, errorBody);
     }
 
@@ -128,18 +192,48 @@ public class AiModelCaller {
         }
     }
 
-    /** 可重试的 HTTP 状态（429/5xx），保留原始状态码供日志使用 */
+    /**
+     * 解析供应商返回的 {@code Retry-After} 头（秒数或 HTTP-date），失败/缺失返回 0。 结果由调用方再按 {@link #MAX_RETRY_AFTER_MS}
+     * 钳制，避免线程长时间挂起。
+     */
+    static long retryAfterMs(String header) {
+        if (header == null || header.isBlank()) {
+            return 0L;
+        }
+        String value = header.trim();
+        try {
+            long seconds = Long.parseLong(value);
+            return seconds > 0 ? seconds * 1000L : 0L;
+        } catch (NumberFormatException ignored) {
+            // 继续尝试 HTTP-date 形式
+        }
+        try {
+            ZonedDateTime target = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME);
+            long millis = target.toInstant().toEpochMilli() - System.currentTimeMillis();
+            return Math.max(0L, millis);
+        } catch (DateTimeParseException ignored) {
+            return 0L;
+        }
+    }
+
+    /** 可重试的 HTTP 状态（429/5xx），保留原始状态码与 Retry-After（毫秒）供日志/退避使用 */
     static final class RetryableStatusException extends BizException {
 
         private final int httpStatus;
+        private final long retryAfterMs;
 
-        RetryableStatusException(int httpStatus, String message) {
+        RetryableStatusException(int httpStatus, long retryAfterMs, String message) {
             super(message, HttpStatus.INTERNAL_SERVER_ERROR);
             this.httpStatus = httpStatus;
+            this.retryAfterMs = Math.max(0L, retryAfterMs);
         }
 
         int httpStatus() {
             return httpStatus;
+        }
+
+        long retryAfterMs() {
+            return retryAfterMs;
         }
     }
 }

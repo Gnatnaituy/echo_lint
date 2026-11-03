@@ -1,5 +1,11 @@
 package com.echolint.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
+
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.config.SecretCipher;
 import com.echolint.entity.AiProvider;
@@ -8,35 +14,24 @@ import com.echolint.exception.BizException;
 import com.echolint.repository.AiProviderRepository;
 import com.echolint.repository.AppSettingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
-
-/**
- * AI 复筛模型切换：默认值解析、落库优先级、切换校验（未知/停用）、密钥缺失提示、
- * 数据库供应商优先 + yml 兜底（Batch 3a）。
- */
+/** AI 复筛模型切换：默认值解析、落库优先级、切换校验（未知/停用）、密钥缺失提示、 数据库供应商优先 + yml 兜底（Batch 3a）。 */
 @ExtendWith(MockitoExtension.class)
 class ScreenModelServiceTest {
 
-    @Mock
-    private AppSettingRepository settingRepository;
-    @Mock
-    private AiProviderRepository providerRepository;
+    @Mock private AppSettingRepository settingRepository;
+    @Mock private AiProviderRepository providerRepository;
+    @Mock private AiInvocationService invocations;
 
     /** 内存版 app_settings，模拟持久化 */
     private final Map<String, AppSetting> store = new HashMap<>();
@@ -49,19 +44,31 @@ class ScreenModelServiceTest {
     @BeforeEach
     void setUp() {
         store.clear();
-        lenient().when(settingRepository.findById(anyString()))
-                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.getArgument(0, String.class))));
-        lenient().when(settingRepository.save(any(AppSetting.class))).thenAnswer(inv -> {
-            AppSetting s = inv.getArgument(0);
-            store.put(s.getSettingKey(), s);
-            return s;
-        });
-        lenient().when(providerRepository.findAllByOrderByBuiltInDescProviderKeyAsc()).thenReturn(List.of());
-        lenient().when(providerRepository.findByProviderKeyIgnoreCase(anyString())).thenReturn(Optional.empty());
+        lenient()
+                .when(settingRepository.findById(anyString()))
+                .thenAnswer(
+                        inv -> Optional.ofNullable(store.get(inv.getArgument(0, String.class))));
+        lenient()
+                .when(settingRepository.save(any(AppSetting.class)))
+                .thenAnswer(
+                        inv -> {
+                            AppSetting s = inv.getArgument(0);
+                            store.put(s.getSettingKey(), s);
+                            return s;
+                        });
+        lenient()
+                .when(providerRepository.findAllByOrderByBuiltInDescProviderKeyAsc())
+                .thenReturn(List.of());
+        lenient()
+                .when(providerRepository.findByProviderKeyIgnoreCase(anyString()))
+                .thenReturn(Optional.empty());
 
         properties = properties();
-        ProviderRegistry registry = new ProviderRegistry(providerRepository, properties, cipher, objectMapper);
-        service = new ScreenModelService(properties, settingRepository, objectMapper, registry);
+        ProviderRegistry registry =
+                new ProviderRegistry(providerRepository, properties, cipher, objectMapper);
+        service =
+                new ScreenModelService(
+                        properties, settingRepository, objectMapper, registry, invocations);
     }
 
     private ScreenModelProperties properties() {
@@ -69,19 +76,38 @@ class ScreenModelServiceTest {
         p.setDefaultProvider("openai");
         p.setFewShotCount(5);
         p.setRequestTimeoutSeconds(30);
-        p.setProviders(List.of(
-                provider("openai", "OpenAI", "https://api.openai.com", "sk-openai",
-                        "/v1/chat/completions", "gpt-4o-mini",
-                        List.of("gpt-4o-mini", "gpt-4o"), true),
-                provider("deepseek", "DeepSeek", "https://api.deepseek.com", "",
-                        "/chat/completions", "deepseek-flash",
-                        List.of("deepseek-flash", "deepseek-v4-pro"), true)));
+        p.setProviders(
+                List.of(
+                        provider(
+                                "openai",
+                                "OpenAI",
+                                "https://api.openai.com",
+                                "sk-openai",
+                                "/v1/chat/completions",
+                                "gpt-4o-mini",
+                                List.of("gpt-4o-mini", "gpt-4o"),
+                                true),
+                        provider(
+                                "deepseek",
+                                "DeepSeek",
+                                "https://api.deepseek.com",
+                                "",
+                                "/chat/completions",
+                                "deepseek-flash",
+                                List.of("deepseek-flash", "deepseek-v4-pro"),
+                                true)));
         return p;
     }
 
-    private ScreenModelProperties.Provider provider(String id, String label, String baseUrl, String apiKey,
-                                                    String chatPath, String defaultModel,
-                                                    List<String> models, boolean jsonMode) {
+    private ScreenModelProperties.Provider provider(
+            String id,
+            String label,
+            String baseUrl,
+            String apiKey,
+            String chatPath,
+            String defaultModel,
+            List<String> models,
+            boolean jsonMode) {
         ScreenModelProperties.Provider p = new ScreenModelProperties.Provider();
         p.setId(id);
         p.setLabel(label);
@@ -144,10 +170,16 @@ class ScreenModelServiceTest {
 
         ScreenModelService.View view = service.snapshot();
         assertEquals("DATABASE", view.source());
-        assertEquals(1, view.providers().stream().filter(ScreenModelService.ProviderView::active).count());
-        assertTrue(view.providers().stream()
-                .filter(ScreenModelService.ProviderView::active)
-                .allMatch(v -> "deepseek".equals(v.id()) && "deepseek-v4-pro".equals(v.model())));
+        assertEquals(
+                1,
+                view.providers().stream().filter(ScreenModelService.ProviderView::active).count());
+        assertTrue(
+                view.providers().stream()
+                        .filter(ScreenModelService.ProviderView::active)
+                        .allMatch(
+                                v ->
+                                        "deepseek".equals(v.id())
+                                                && "deepseek-v4-pro".equals(v.model())));
     }
 
     @Test
@@ -201,7 +233,8 @@ class ScreenModelServiceTest {
         when(providerRepository.findByProviderKeyIgnoreCase("legacy"))
                 .thenReturn(Optional.of(dbProvider("legacy", "sk-legacy", false)));
 
-        BizException e = assertThrows(BizException.class, () -> service.switchTo("legacy", "db-model"));
+        BizException e =
+                assertThrows(BizException.class, () -> service.switchTo("legacy", "db-model"));
 
         assertTrue(e.getMessage().contains("已停用"), e.getMessage());
         assertTrue(store.isEmpty(), "校验失败不应写入任何设置");
@@ -334,8 +367,8 @@ class ScreenModelServiceTest {
 
     @Test
     void resolveModelRejectsUnknownProvider() {
-        BizException error = assertThrows(BizException.class,
-                () -> service.resolveModel("ghost", "m"));
+        BizException error =
+                assertThrows(BizException.class, () -> service.resolveModel("ghost", "m"));
 
         assertTrue(error.getMessage().contains("未知的模型供应商"));
     }

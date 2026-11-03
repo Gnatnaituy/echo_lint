@@ -13,6 +13,7 @@ import com.echolint.service.ProviderAdminService;
 import com.echolint.service.ProviderRegistry.ProviderSnapshot;
 import com.echolint.service.ScreenModelService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,14 +27,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
- * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试；
- * Batch 2b-2 起增加 Webhook 通知配置查看与测试发送；
- * Batch 3a 起增加 AI 供应商 CRUD（密钥只回掩码）与供应商连通性测试；
- * Batch 5 起增加集成适配器状态（多租户/SSO/流式 ASR/说话人分离，不含密钥）。
- * 除 GET /screen-model 外均仅 ADMIN（见 SecurityConfig）。
+ * 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）的查看、切换与连通性测试； Batch 2b-2 起增加 Webhook 通知配置查看与测试发送； Batch 3a 起增加 AI 供应商
+ * CRUD（密钥只回掩码）与供应商连通性测试； Batch 5 起增加集成适配器状态（多租户/SSO/流式 ASR/说话人分离，不含密钥）。 除 GET /screen-model 外均仅
+ * ADMIN（见 SecurityConfig）。
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -55,16 +52,22 @@ public class SettingsController {
 
     /** 运行时切换（落库持久化，立即生效，无需重启；未知/停用的供应商会被拒绝） */
     @PutMapping("/screen-model")
-    public ScreenModelService.View updateScreenModel(@Valid @RequestBody ScreenModelRequest request) {
-        ScreenModelService.View view = screenModelService.switchTo(request.providerId(), request.model());
-        auditService.record(AuditAction.SETTINGS_UPDATE, "SETTINGS", "screen-model",
+    public ScreenModelService.View updateScreenModel(
+            @Valid @RequestBody ScreenModelRequest request) {
+        ScreenModelService.View view =
+                screenModelService.switchTo(request.providerId(), request.model());
+        auditService.record(
+                AuditAction.SETTINGS_UPDATE,
+                "SETTINGS",
+                "screen-model",
                 "切换复筛模型为 " + view.providerId() + " · " + view.model());
         return view;
     }
 
     /** 连通性测试：请求体留空则测当前生效的模型 */
     @PostMapping("/screen-model/test")
-    public ScreenModelService.TestResult testScreenModel(@RequestBody(required = false) ScreenModelRequest request) {
+    public ScreenModelService.TestResult testScreenModel(
+            @RequestBody(required = false) ScreenModelRequest request) {
         if (request == null || !StringUtils.hasText(request.providerId())) {
             ScreenModelService.ActiveModel active = screenModelService.active();
             return screenModelService.test(active.providerId(), active.model());
@@ -73,22 +76,39 @@ public class SettingsController {
     }
 
     /**
-     * 模型效果评测（Batch 3b-2，ADMIN）：用已标注语料跑一次离线评测，返回混淆矩阵与逐条结果。
-     * 同步执行，样本数封顶 20，单条调用超时 60s；失败样本计入 failed 并在 results 中带 error。
+     * 模型效果评测（Batch 3b-2，ADMIN）：用已标注语料跑一次离线评测，返回混淆矩阵与逐条结果。 同步执行：样本数服务端封顶 20，单条调用超时 20s，单次评测总预算
+     * 100s（超时中止剩余样本并标注原因）； 样本按生产 chunk-chars 截断（CaseResult.truncated=true），保证与线上分块口径一致且不拖过前端超时。
+     * 失败样本计入 failed 并在 results 中带 error；调用同样写 ai_invocations（stage=EVAL）。
      */
     @PostMapping("/screen-model/evaluate")
     public ModelEvaluationService.EvaluationResult evaluateScreenModel(
             @Valid @RequestBody ModelEvaluationRequest request) {
-        ModelEvaluationService.EvaluationResult result = modelEvaluationService.evaluate(
-                request.providerId(), request.model(), request.sampleSize());
-        auditService.record(AuditAction.MODEL_EVALUATE, "SETTINGS", "screen-model",
-                "模型评测 " + result.providerId() + " · " + result.model()
-                        + "：样本 " + result.total() + "，有效 " + result.evaluated()
-                        + "，失败 " + result.failed()
-                        + "，accuracy=" + result.accuracy()
-                        + "，precision=" + result.precision()
-                        + "，recall=" + result.recall()
-                        + "（耗时 " + result.latencyMs() + "ms）");
+        ModelEvaluationService.EvaluationResult result =
+                modelEvaluationService.evaluate(
+                        request.providerId(), request.model(), request.sampleSize());
+        auditService.record(
+                AuditAction.MODEL_EVALUATE,
+                "SETTINGS",
+                "screen-model",
+                "模型评测 "
+                        + result.providerId()
+                        + " · "
+                        + result.model()
+                        + "：样本 "
+                        + result.total()
+                        + "，有效 "
+                        + result.evaluated()
+                        + "，失败 "
+                        + result.failed()
+                        + "，accuracy="
+                        + result.accuracy()
+                        + "，precision="
+                        + result.precision()
+                        + "，recall="
+                        + result.recall()
+                        + "（耗时 "
+                        + result.latencyMs()
+                        + "ms）");
         return result;
     }
 
@@ -101,21 +121,38 @@ public class SettingsController {
     }
 
     @PostMapping("/providers")
-    public ResponseEntity<ProviderSnapshot> createProvider(@Valid @RequestBody ProviderRequest request) {
+    public ResponseEntity<ProviderSnapshot> createProvider(
+            @Valid @RequestBody ProviderRequest request) {
         ProviderSnapshot created = providerAdminService.create(request);
-        auditService.record(AuditAction.PROVIDER_CREATE, "PROVIDER", created.key(),
-                "新增 AI 供应商 " + created.key() + "（" + created.baseUrl() + "，API Key "
-                        + (created.apiKeyConfigured() ? "已配置" : "未配置") + "）");
+        auditService.record(
+                AuditAction.PROVIDER_CREATE,
+                "PROVIDER",
+                created.key(),
+                "新增 AI 供应商 "
+                        + created.key()
+                        + "（"
+                        + created.baseUrl()
+                        + "，API Key "
+                        + (created.apiKeyConfigured() ? "已配置" : "未配置")
+                        + "）");
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/providers/{key}")
-    public ProviderSnapshot updateProvider(@PathVariable String key,
-                                           @Valid @RequestBody ProviderRequest request) {
+    public ProviderSnapshot updateProvider(
+            @PathVariable String key, @Valid @RequestBody ProviderRequest request) {
         ProviderSnapshot updated = providerAdminService.update(key, request);
-        auditService.record(AuditAction.PROVIDER_UPDATE, "PROVIDER", updated.key(),
-                "更新 AI 供应商 " + updated.key() + "（" + (updated.enabled() ? "启用" : "停用")
-                        + "，API Key " + (updated.apiKeyConfigured() ? "已配置" : "未配置") + "）");
+        auditService.record(
+                AuditAction.PROVIDER_UPDATE,
+                "PROVIDER",
+                updated.key(),
+                "更新 AI 供应商 "
+                        + updated.key()
+                        + "（"
+                        + (updated.enabled() ? "启用" : "停用")
+                        + "，API Key "
+                        + (updated.apiKeyConfigured() ? "已配置" : "未配置")
+                        + "）");
         return updated;
     }
 
@@ -128,14 +165,23 @@ public class SettingsController {
 
     /** 供应商连通性测试（可选 model）；失败也返回 200 + ok=false，便于界面展示原因 */
     @PostMapping("/providers/{key}/test")
-    public ScreenModelService.TestResult testProvider(@PathVariable String key,
-                                                      @RequestBody(required = false) ProviderTestRequest request) {
+    public ScreenModelService.TestResult testProvider(
+            @PathVariable String key, @RequestBody(required = false) ProviderTestRequest request) {
         String model = request == null ? null : request.model();
         ScreenModelService.TestResult result = screenModelService.test(key, model);
-        auditService.record(AuditAction.PROVIDER_TEST, "PROVIDER", key,
-                "AI 供应商连通性测试" + (result.ok() ? "成功" : "失败")
-                        + "（" + result.providerLabel() + " · " + result.model()
-                        + "，耗时 " + result.latencyMs() + "ms）"
+        auditService.record(
+                AuditAction.PROVIDER_TEST,
+                "PROVIDER",
+                key,
+                "AI 供应商连通性测试"
+                        + (result.ok() ? "成功" : "失败")
+                        + "（"
+                        + result.providerLabel()
+                        + " · "
+                        + result.model()
+                        + "，耗时 "
+                        + result.latencyMs()
+                        + "ms）"
                         + (result.ok() ? "" : "：" + result.message()));
         return result;
     }
@@ -152,19 +198,21 @@ public class SettingsController {
     @PostMapping("/notifications/test")
     public NotificationService.TestResult testNotification() {
         NotificationService.TestResult result = notificationService.test();
-        auditService.record(AuditAction.NOTIFY_TEST, "SETTINGS", "notifications",
+        auditService.record(
+                AuditAction.NOTIFY_TEST,
+                "SETTINGS",
+                "notifications",
                 (result.ok() ? "测试通知发送成功" : "测试通知发送失败")
-                        + "（耗时 " + result.latencyMs() + "ms）"
+                        + "（耗时 "
+                        + result.latencyMs()
+                        + "ms）"
                         + (result.ok() ? "" : "：" + result.message()));
         return result;
     }
 
     // ------------------------------------------------------------------ 集成适配器（Batch 5）
 
-    /**
-     * 集成适配器状态（ADMIN）：多租户 / SSO / 流式 ASR / 说话人分离。
-     * 只返回是否启用/配置、供应商名与 SSO 登录地址，不包含任何密钥或完整端点密钥参数。
-     */
+    /** 集成适配器状态（ADMIN）：多租户 / SSO / 流式 ASR / 说话人分离。 只返回是否启用/配置、供应商名与 SSO 登录地址，不包含任何密钥或完整端点密钥参数。 */
     @GetMapping("/integrations")
     public IntegrationStatusService.IntegrationsView integrations() {
         return integrationStatusService.status();

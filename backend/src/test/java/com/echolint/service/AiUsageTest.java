@@ -1,25 +1,33 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-
-import java.math.BigDecimal;
-import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * 用量提取与成本快照（Batch 3a）：usage 字段 null-safe、按单价计算、微美元四舍五入。
- */
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+/** 用量提取与成本快照（Batch 3a）：usage 字段 null-safe、按单价计算、微美元四舍五入。 */
 class AiUsageTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ScreenModelService.ActiveModel model(BigDecimal input, BigDecimal output) {
         return new ScreenModelService.ActiveModel(
-                "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash",
-                "/chat/completions", true, true, null, Map.of(), 30, null, input, output);
+                "deepseek",
+                "DeepSeek",
+                "https://api.deepseek.com",
+                "deepseek-flash",
+                "/chat/completions",
+                true,
+                true,
+                null,
+                Map.of(),
+                30,
+                null,
+                input,
+                output);
     }
 
     private JsonNode json(String body) throws Exception {
@@ -28,8 +36,11 @@ class AiUsageTest {
 
     @Test
     void extractsPromptAndCompletionTokens() throws Exception {
-        AiUsage usage = AiUsage.extract(json("{\"choices\":[],\"usage\":{\"prompt_tokens\":123,"
-                + "\"completion_tokens\":45,\"total_tokens\":168}}"));
+        AiUsage usage =
+                AiUsage.extract(
+                        json(
+                                "{\"choices\":[],\"usage\":{\"prompt_tokens\":123,"
+                                        + "\"completion_tokens\":45,\"total_tokens\":168}}"));
 
         assertEquals(123, usage.inputTokens());
         assertEquals(45, usage.outputTokens());
@@ -42,8 +53,11 @@ class AiUsageTest {
         assertNull(noUsage.inputTokens());
         assertNull(noUsage.outputTokens());
 
-        AiUsage weird = AiUsage.extract(json("{\"usage\":{\"prompt_tokens\":\"many\","
-                + "\"completion_tokens\":null}}"));
+        AiUsage weird =
+                AiUsage.extract(
+                        json(
+                                "{\"usage\":{\"prompt_tokens\":\"many\","
+                                        + "\"completion_tokens\":null}}"));
         assertNull(weird.inputTokens());
         assertNull(weird.outputTokens());
 
@@ -54,7 +68,9 @@ class AiUsageTest {
 
     @Test
     void negativeTokensAreClampedToZero() throws Exception {
-        AiUsage usage = AiUsage.extract(json("{\"usage\":{\"prompt_tokens\":-5,\"completion_tokens\":-1}}"));
+        AiUsage usage =
+                AiUsage.extract(
+                        json("{\"usage\":{\"prompt_tokens\":-5,\"completion_tokens\":-1}}"));
 
         assertEquals(0, usage.inputTokens());
         assertEquals(0, usage.outputTokens());
@@ -62,9 +78,12 @@ class AiUsageTest {
 
     @Test
     void costUsesPricePerThousandTokens() throws Exception {
-        AiUsage usage = AiUsage.extract(json("{\"usage\":{\"prompt_tokens\":1000,"
-                + "\"completion_tokens\":500}}"))
-                .pricedWith(model(new BigDecimal("0.0015"), new BigDecimal("0.002")));
+        AiUsage usage =
+                AiUsage.extract(
+                                json(
+                                        "{\"usage\":{\"prompt_tokens\":1000,"
+                                                + "\"completion_tokens\":500}}"))
+                        .pricedWith(model(new BigDecimal("0.0015"), new BigDecimal("0.002")));
 
         // 1000/1000*0.0015 + 500/1000*0.002 = 0.0015 + 0.001 = 0.0025 USD = 2500 微美元
         assertEquals(2500L, usage.costMicros());
@@ -84,8 +103,9 @@ class AiUsageTest {
     void missingTokensOrPricesCostZero() {
         assertEquals(0L, AiUsage.costMicros(null, null, new BigDecimal("1"), new BigDecimal("1")));
 
-        AiUsage usage = new AiUsage(null, null, null).pricedWith(model(
-                new BigDecimal("0.01"), new BigDecimal("0.02")));
+        AiUsage usage =
+                new AiUsage(null, null, null)
+                        .pricedWith(model(new BigDecimal("0.01"), new BigDecimal("0.02")));
         assertEquals(0L, usage.costMicros());
 
         AiUsage nullPrices = new AiUsage(100, 100, null).pricedWith(model(null, null));
@@ -97,5 +117,26 @@ class AiUsageTest {
         AiUsage usage = new AiUsage(100, 100, null).pricedWith(null);
 
         assertEquals(0L, usage.costMicros());
+    }
+
+    @Test
+    void totalTokensFallbackForEmbeddingShapedUsage() throws Exception {
+        // embedding 响应可能只有 total_tokens（没有 prompt_tokens/completion_tokens）
+        AiUsage usage = AiUsage.extract(json("{\"usage\":{\"total_tokens\":42}}"));
+
+        assertEquals(42, usage.inputTokens());
+        assertEquals(0, usage.outputTokens());
+    }
+
+    @Test
+    void chatShapedUsageIsNotOverriddenByTotalTokens() throws Exception {
+        AiUsage usage =
+                AiUsage.extract(
+                        json(
+                                "{\"usage\":{\"prompt_tokens\":7,"
+                                        + "\"completion_tokens\":3,\"total_tokens\":10}}"));
+
+        assertEquals(7, usage.inputTokens());
+        assertEquals(3, usage.outputTokens());
     }
 }

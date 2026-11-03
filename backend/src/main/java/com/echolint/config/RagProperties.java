@@ -1,25 +1,23 @@
 package com.echolint.config;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.util.StringUtils;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 
 /**
  * RAG 检索增强配置（Batch 6，前缀 {@code app.rag}）。
  *
- * <p>知识库/SOP 与人工复核语料在写入时异步向量化，复筛时按相似度召回并注入提示词。
- * embedding 复用 {@code ai_providers} 的 base-url / api-key，只额外指定模型与路径，
- * 因此密钥轮换、供应商停用与现有 AI 治理保持一致。</p>
+ * <p>知识库/SOP 与人工复核语料在写入时异步向量化，复筛时按相似度召回并注入提示词。 embedding 复用 {@code ai_providers} 的 base-url /
+ * api-key，只额外指定模型与路径， 因此密钥轮换、供应商停用与现有 AI 治理保持一致。
  *
- * <p>默认关闭（{@code enabled=false}）：不发起任何 embedding 调用，复筛行为与旧版一致。
- * 所有数值型配置都提供钳制后的 {@code effectiveXxx()}，避免配置笔误放大成本或把 prompt 撑爆。</p>
+ * <p>默认关闭（{@code enabled=false}）：不发起任何 embedding 调用，复筛行为与旧版一致。 所有数值型配置都提供钳制后的 {@code
+ * effectiveXxx()}，避免配置笔误放大成本或把 prompt 撑爆。
  */
 @Getter
 @Setter
@@ -168,15 +166,25 @@ public class RagProperties {
     public static class Embedding {
         /** 复用 ai_providers 中的供应商（需已配置密钥）；默认阿里云百炼 */
         private String providerId = "aliyun";
+
         /** 阿里云百炼文本向量模型；默认 1024 维 */
         private String model = "qwen3.7-text-embedding";
+
         /** base-url 已包含 /compatible-mode/v1，这里只需要 /embeddings */
         private String path = "/embeddings";
+
         private int dimensions = 1024;
         private long timeoutSeconds = 30;
         private int batchSize = 8;
+
         /** 是否在请求体中显式发送 dimensions（阿里云 qwen3.7 / v3 / v4 支持） */
         private boolean sendDimensions = true;
+
+        /**
+         * embedding 输入单价（USD / 1K tokens，审计 P2-10）：为空时回退供应商的 {@code inputPricePer1k}；同一供应商同时承载 chat
+         * 与 embedding 两种价格时应显式配置， 否则成本看板会沿用 chat 单价导致偏差。
+         */
+        private java.math.BigDecimal inputPricePer1k;
     }
 
     @Getter
