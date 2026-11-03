@@ -179,5 +179,7 @@ embedding 供应商复用 `ai_providers`（AES-GCM 密钥）；未配置/不可�
 - 检索失败/embedding 不可用：继续复筛，仅不带检索结果，`rag.status=degraded`，写 WARN 日志。
 - 知识库写入后异步索引；失败置 `FAILED` 存 `index_error`，不阻塞 CRUD；可手动重建。
 - 复筛 prompt 预算：`max-context-chars` 裁剪；每条引用格式 `【知识库·分类】标题：正文`。
+- 检索只命中 `knowledge_entries.index_status=READY` 的分块；同一条录音的多个复筛分块共用一次 query embedding（批量）调用。
+- 模型回复解析先剥离 markdown 围栏/提取首个 JSON 对象，再做严格字段校验（缺布尔 `violation` 仍按失败降级）；`finish_reason=length` 时按 2× `max_tokens` 重试一次。
 - 语料 few-shot（A）：优先语义召回（违规/合规各半），不足时用最新样本补齐；失败回退旧逻辑。
 - 文档导入（D）：pdf/docx/txt/md；校验扩展名+魔数+大小；解析失败置 FAILED 并保留错误。

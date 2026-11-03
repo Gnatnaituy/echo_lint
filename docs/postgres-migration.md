@@ -56,11 +56,11 @@ MySQL 8.4 默认禁用 `mysql_native_password`，不建议为迁移去改服务�
 ```bash
 # dry-run：只打印表/列映射与源行数，不写库
 python3 tools/migrate_mysql_to_pg.py \
-  --env-file /opt/echolint/.env --mysql-port 3306 --pg-port 5433
+  --env-file <deploy-dir>/.env --mysql-port 3306 --pg-port 5433
 
 # 正式执行：清空目标业务表 → 搬数据 → setval 重置序列 → 逐表行数校验（不一致则回滚）
 python3 tools/migrate_mysql_to_pg.py \
-  --env-file /opt/echolint/.env --mysql-port 3306 --pg-port 5433 --apply
+  --env-file <deploy-dir>/.env --mysql-port 3306 --pg-port 5433 --apply
 ```
 
 脚本要点：`bit(1)`/`tinyint(1)` → `boolean`；`datetime` 按墙上时间直写 `timestamp`（无时区换算）；
@@ -572,7 +572,7 @@ curl http://localhost:8082/actuator/health
 
 | 项 | 结果 |
 |---|---|
-| 迁移日期 | 2026-10-22（服务器 `8.137.123.233`，停机窗口约 20 分钟） |
+| 迁移日期 | 2026-10-22（服务器 `<server-ip>`，停机窗口约 20 分钟） |
 | MySQL 版本 / 行数快照 | MySQL 8.4.11；13 张表 / 281 行（明细见 §0.3） |
 | PostgreSQL / pgvector 版本 | PostgreSQL 17.11 / pgvector 0.8.7 |
 | pgloader 版本与耗时 | pgloader 3.6.7 因 `caching_sha2_password` 不可用（§0.2）；改用 `tools/migrate_mysql_to_pg.py`，281 行秒级完成 |

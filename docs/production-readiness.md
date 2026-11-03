@@ -4,6 +4,9 @@
 > 原则：分批交付；每批必须 `mvn test`、`npm run build` / `npm test` 通过并单独提交；
 > 依赖外部选型的 P2 项先落地适配器与接口，选型确定后只需实现适配器。
 > 进度以本文件的 checkbox 为准。
+>
+> 本文件只保留「当前状态 / 验收清单 / 已知限制」；历次生产部署的详细记录（环境、迁移、验证、回滚点）
+> 见 [deployment-records.md](deployment-records.md)。
 
 ## 状态总览
 
@@ -14,7 +17,7 @@
 | 3 | AI 治理（供应商/密钥/配额/成本/重试）、异步任务持久化、成本看板 | 3a ✅；3b-1 ✅；3b-2 ✅（P1 完成） |
 | 4 | P2 可独立项：i18n、移动端、无障碍、大屏、开放 API/Webhook、知识库/SOP、前端性能、分片上传 | 4a ✅；4b ✅（P2 可独立项完成） |
 | 5 | P2 外部依赖项：多租户、SSO/LDAP、实时转写、单声道说话人分离（适配器先行） | ✅ 已完成 |
-| 6 | PostgreSQL 17 + pgvector 迁移、知识库语义检索（RAG） | RAG ✅ 已完成（2026-10-20）；数据迁移待演练 |
+| 6 | PostgreSQL 17 + pgvector 迁移、知识库语义检索（RAG） | RAG ✅ 已完成（2026-10-20）；数据迁移 ✅ 已完成（2026-10-22，见 [deployment-records.md](deployment-records.md)） |
 
 ---
 
@@ -205,7 +208,9 @@
 - `app.screen-models.chunk-chars`（默认 12000）、`app.screen-models.max-chunks`（默认 6）、
   `app.screen-models.min-confidence`（默认 0.6）。
 - 转写文本超长时分块（带重叠）逐块调用模型；任一块违规即整体违规（取最高置信度合并原句/理由），
-  每块调用都写 `ai_invocations` 留痕；最多 max-chunks 块，超出截断并在日志注明。
+  每块调用都写 `ai_invocations` 留痕；最多 max-chunks 块，超出上限时尾部内容不送审，
+  若其余各段均判合规将**强制降级转人工**（degraded=true，不得静默放行，Batch 6 收尾补丁）。
+  转写文本命中明显提示词注入模式（如「忽略以上所有规则」/行首伪造 `system:`）时，合规结论同样强制转人工。
 - 严格解析：缺少 `violation` 布尔字段/返回非 JSON → 视为解析失败（降级人工，不得自动放行）；
   `violation=true` 且置信度 < min-confidence → 降级 NEEDS_REVIEW（degraded=true）；
   `violation=false` 才可自动 COMPLIANT。
@@ -617,27 +622,6 @@
 
 ---
 
-## 部署记录（2026-10-20）
-
-| 项 | 值 |
-|---|---|
-| 代码版本 | `main` @ `3d6dda9`（P1/P2 全部批次已合并并推送） |
-| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
-| 访问地址 | http://8.137.123.233/ （HTTP/80；前端 nginx，后端仅 127.0.0.1:8082） |
-| 管理员 | `admin`（密码在服务器 `/opt/echolint/.env` 的 `APP_ADMIN_PASSWORD`） |
-| 数据库 | `gx-mysql` 内 `echolint` 库；Flyway baseline v1；预置 191 词 |
-| AI | DeepSeek 已加密落库（ProviderRegistry）；阿里云百炼待配置 `DASHSCOPE_API_KEY` |
-| DB 备份 | `/opt/echolint/backups/echolint-20261020-071045.sql.gz` |
-| 镜像回滚 | `echolint-backend:rollback-20261020-071045`、`echolint-frontend:rollback-20261020-071045` |
-| 验证 | 登录 200、匿名 API/上传 401、管理接口 200、容器 healthy、日志 0 ERROR、内存稳定（backend ~319MiB/512MiB） |
-
-### 上线前仍需处理（P0/运维项，非 P1/P2 代码范围）
-
-- **转写服务**：使用本机 whisper.cpp；需启动 `tools/whisper-server.sh --daemon` 并配置 `WHISPER_BASE_URL`/`WHISPER_API_KEY`，否则上传录音会转写失败（FAILED）。
-- **HTTPS/域名**：当前 HTTP 明文、公网 80；建议域名 + 证书 + 反代，并把 `server.servlet.session.cookie.secure` 打开。
-- **备份/监控**：本次为手工备份；建议 cron 每日 mysqldump + uploads 卷备份，接入 Prometheus 告警与日志轮转。
-- **安全**：`APP_SECRET_KEY` 已配置，变更会导致已存供应商密文不可解密；管理员默认密码请首次登录后立即修改。
-
 ---
 
 ## Batch 6 · PostgreSQL 迁移 + RAG（✅ 已完成）
@@ -815,63 +799,9 @@
 
 ---
 
-## 部署记录（2026-10-22，MySQL → PostgreSQL 正式切换）
-
-| 项 | 值 |
-|---|---|
-| 代码版本 | `main` @ `9904bbc`（PostgreSQL/pgvector + RAG + 浅色分层界面） |
-| 部署时间 | 2026-10-22 23:00–23:20（Asia/Shanghai），停机约 20 分钟 |
-| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
-| 访问地址 | http://8.137.123.233/ （HTTP/80，nginx 1.31；前端 gzip + `/assets/` immutable 缓存） |
-| 后端 | 仅 `127.0.0.1:8082`；健康检查 `/actuator/health` = `{"status":"UP"}` |
-| 数据库 | PostgreSQL 17.11 + pgvector 0.8.7；容器 `echolint-postgres`，库/用户 `echolint`/`audit`，仅绑 `127.0.0.1:5433`，卷 `echolint_pg-data` |
-| 迁移数据 | 13 张表 / 281 行（录音 9、流水线日志 37、审计 12、词库 191、知识 3、语料 8、AI 留痕 7、供应商 2、任务 8、复核 3、管理员 1）；逐行逐微秒校验一致 |
-| 上传文件 | 沿用旧卷 `echolint_uploads`，9 条录音详情页音频 200 可播；新增 `echolint_knowledge-docs` 卷 |
-| 旧库备份 | `/opt/echolint/backups/echolint-mysql-20261022-230331.sql.gz`（16K，含 13 张表） |
-| 回滚点 | 镜像 `echolint-backend:rollback-20261022-230331`、`echolint-frontend:rollback-20261022-230331`；旧 compose/.env/DEPLOY.md 在 `backups/*.mysql-20261022-230331*` |
-| 验证 | 端到端冒烟 18/18：登录/登出、会话、录音列表 9、详情+音频、知识库 3、AI 留痕 7、审计、统计、RAG 设置、供应商列表；匿名 API/上传 401；重启后数据与 Flyway 历史不变；日志无 ERROR |
-
-### 本次部署暴露的问题（已在 `docs/postgres-migration.md` §0 记录）
-
-- **全新空库首次启动 Flyway V3 失败**：`V3__rag_embedding_1024.sql` 在 Hibernate 建表前 `UPDATE`
-  业务表 → `relation "knowledge_entries" does not exist`，应用启动即崩。处理：首次启动临时
-  `SPRING_FLYWAY_ENABLED=false` 建表，再恢复 Flyway 应用 V3（V1/V2/V3 全部 success）；未改动迁移文件。
-- **pgloader 不支持 MySQL 8.4 认证**：QMynd 报 `MYSQL-UNSUPPORTED-AUTHENTICATION`，改用
-  `tools/migrate_mysql_to_pg.py`（pymysql + psycopg2，281 行秒级搬完并做行数校验）。
-
-### 2026-10-22 收尾补丁：复检队列分页
-
-- 「人工复检 → 待复检」队列由「一次拉 100 条 + 前端筛选」改为**服务端分页**（10 条/页）：
-  `GET /api/recordings` 新增 `unassigned` 参数（`assignedTo is null`），关键词/优先级/指派筛选全部下推服务端；
-  队列底部显示「共 N 条」+ 翻页；复核完本页最后一条自动回退上一页；深链 `/review?id=N` 在目标不在当前页时按 id 拉详情。
-- 测试：后端 **537** 项、前端 **135** 项（新增 `reviewQueue` 单测）全部通过；部署后接口冒烟通过
-  （分页第 0/1 页、未指派 2 条、只看我的 1 条、关键词、优先级、组合筛选）。
-
-### 上线后仍未处理（沿用旧状态，非本次部署范围）
-
-- **转写未配置**：服务器无 whisper 服务，`WHISPER_BASE_URL` 指向不存在的 host.docker.internal:9900，
-  上传录音会转写失败（FAILED）；需自建 whisper.cpp 或配置兼容 ASR。
-- **RAG 未启用**：未配置 `DASHSCOPE_API_KEY`，`APP_RAG_ENABLED=false`；配密钥后可在设置页开启并全量重建索引。
-- **HTTPS/域名**：仍为 HTTP 明文公网 80。
-- **Flyway 10.10 对 PG 17 仅版本告警**（官方支持到 16），本次迁移正常执行，不影响功能。
-- **备份/监控**：仍为手工备份；建议 cron 每日 `pg_dump` + uploads 卷备份。
-
 ---
 
-## 部署记录（2026-10-23，前端 i18n 全站补全）
+## 部署记录
 
-| 项 | 值 |
-|---|---|
-| 代码版本 | `main` @ `3f9a425`（内容页中英双语全站补全） |
-| 部署时间 | 2026-10-23 12:42–12:44（Asia/Shanghai）；**仅前端**，后端/数据库未变，无停机 |
-| 服务器 | `root@8.137.123.233`，部署目录 `/opt/echolint` |
-| 访问地址 | http://8.137.123.233/ |
-| 变更范围 | 仅前端：替换 `/opt/echolint/frontend/dist` → `docker compose build frontend && up -d frontend`；`nginx.conf`、后端、数据库均未改动 |
-| 构建产物 | 本机 `npm run build`，入口 `assets/index-CTgObqZo.js`（旧入口 `assets/index-cGre2tOD.js`） |
-| 回滚点 | 镜像 `echolint-frontend:rollback-20261023-124240`；旧 dist `backups/frontend-dist-20261023-124240.tgz` |
-| 验证 | 线上入口 hash 与本地构建一致；frontend 容器 Up、nginx 无 error；API 同源代理匿名 401、backend healthy；Playwright 对公网入口做 15 条路由 EN 扫描：0 console/page error、0 raw key、中英切换正常（生产中文数据按约定保持原文） |
-
-回滚命令（镜像已含旧 dist，直接回退镜像即可）：
-
-    docker tag echolint-frontend:rollback-20261023-124240 echolint-frontend:deploy
-    cd /opt/echolint && docker compose up -d --force-recreate frontend
+历次生产部署的详细记录（2026-10-20 P1/P2 上线、2026-10-22 MySQL → PostgreSQL 切换、
+2026-10-23 前端 i18n 全站补全）已拆分到 [deployment-records.md](deployment-records.md)。
