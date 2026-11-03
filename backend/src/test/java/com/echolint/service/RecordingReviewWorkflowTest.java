@@ -1,6 +1,11 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.RecordingStatus;
@@ -15,6 +20,10 @@ import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.security.AppUserDetails;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,41 +35,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * 复核队列操作：认领（状态/占用守卫）、管理员指派（用户校验）、重开（终态守卫 + 清空结论）。
- */
+/** 复核队列操作：认领（状态/占用守卫）、管理员指派（用户校验）、重开（终态守卫 + 清空结论）。 */
 @ExtendWith(MockitoExtension.class)
 class RecordingReviewWorkflowTest {
 
-    @Mock
-    private RecordingRepository recordingRepository;
-    @Mock
-    private PipelineLogRepository pipelineLogRepository;
-    @Mock
-    private AiInvocationService aiInvocationService;
-    @Mock
-    private PipelineTaskService pipelineTaskService;
-    @Mock
-    private AuditService auditService;
-    @Mock
-    private AppUserRepository userRepository;
-    @Mock
-    private ReviewRecordRepository reviewRecordRepository;
-    @Mock
-    private CorpusEntryRepository corpusEntryRepository;
+    @Mock private RecordingRepository recordingRepository;
+    @Mock private PipelineLogRepository pipelineLogRepository;
+    @Mock private AiInvocationService aiInvocationService;
+    @Mock private PipelineTaskService pipelineTaskService;
+    @Mock private AuditService auditService;
+    @Mock private AppUserRepository userRepository;
+    @Mock private ReviewRecordRepository reviewRecordRepository;
+    @Mock private CorpusEntryRepository corpusEntryRepository;
 
-    @TempDir
-    Path tempDir;
+    @TempDir Path tempDir;
 
     private RecordingService service;
 
@@ -69,9 +57,19 @@ class RecordingReviewWorkflowTest {
         AppProperties appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
         ObjectMapper objectMapper = new ObjectMapper();
-        service = new RecordingService(recordingRepository, pipelineLogRepository, aiInvocationService,
-                pipelineTaskService, appProperties, objectMapper, auditService, userRepository, reviewRecordRepository,
-                corpusEntryRepository, new AudioFileValidator());
+        service =
+                new RecordingService(
+                        recordingRepository,
+                        pipelineLogRepository,
+                        aiInvocationService,
+                        pipelineTaskService,
+                        appProperties,
+                        objectMapper,
+                        auditService,
+                        userRepository,
+                        reviewRecordRepository,
+                        corpusEntryRepository,
+                        new AudioFileValidator());
     }
 
     @AfterEach
@@ -80,9 +78,12 @@ class RecordingReviewWorkflowTest {
     }
 
     private void loginAs(String username) {
-        AppUserDetails details = new AppUserDetails(9L, username, "hash", username, UserRole.REVIEWER, true);
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));
+        AppUserDetails details =
+                new AppUserDetails(9L, username, "hash", username, UserRole.REVIEWER, true);
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                details, null, details.getAuthorities()));
     }
 
     private Recording recording(RecordingStatus status) {
@@ -116,21 +117,24 @@ class RecordingReviewWorkflowTest {
     @Test
     void claimSetsAssignedToCurrentUser() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
         stubSave();
         loginAs("alice");
 
         Recording claimed = service.claim(1L);
 
         assertEquals("alice", claimed.getAssignedTo());
+        verify(recordingRepository).findWithLockById(1L);
+        verify(recordingRepository, never()).findById(1L);
         verify(recordingRepository).save(recording);
-        verify(auditService).record(eq(AuditAction.RECORDING_CLAIM), eq("RECORDING"), eq(1L), anyString());
+        verify(auditService)
+                .record(eq(AuditAction.RECORDING_CLAIM), eq("RECORDING"), eq(1L), anyString());
     }
 
     @Test
     void claimRejectsRecordingNotAwaitingReview() {
         Recording recording = recording(RecordingStatus.COMPLIANT);
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
         loginAs("alice");
 
         BizException e = assertThrows(BizException.class, () -> service.claim(1L));
@@ -143,7 +147,7 @@ class RecordingReviewWorkflowTest {
     void claimRejectsRecordingAlreadyClaimedByAnotherUser() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
         recording.setAssignedTo("bob");
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
         loginAs("alice");
 
         BizException e = assertThrows(BizException.class, () -> service.claim(1L));
@@ -157,7 +161,7 @@ class RecordingReviewWorkflowTest {
     void claimBySameUserIsIdempotent() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
         recording.setAssignedTo("alice");
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
         stubSave();
         loginAs("alice");
 
@@ -166,25 +170,47 @@ class RecordingReviewWorkflowTest {
         assertEquals("alice", claimed.getAssignedTo());
     }
 
+    @Test
+    void secondConcurrentClaimByAnotherUserIsRejected() {
+        // 行锁语义：第一个认领写入 assignedTo 后，后来的认领必须 409（不能覆盖前者）
+        Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
+        stubSave();
+
+        loginAs("alice");
+        service.claim(1L);
+
+        loginAs("bob");
+        BizException e = assertThrows(BizException.class, () -> service.claim(1L));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertTrue(e.getMessage().contains("alice"));
+        assertEquals("alice", recording.getAssignedTo(), "后到者不得覆盖先到者的认领");
+        verify(recordingRepository, times(2)).findWithLockById(1L);
+    }
+
     // ---------- 指派 ----------
 
     @Test
     void adminAssignsReviewer() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
-        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(user("bob", UserRole.REVIEWER, true)));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
+        when(userRepository.findByUsername("bob"))
+                .thenReturn(Optional.of(user("bob", UserRole.REVIEWER, true)));
         stubSave();
 
         Recording assigned = service.assign(1L, " BOB ");
 
         assertEquals("bob", assigned.getAssignedTo());
-        verify(auditService).record(eq(AuditAction.RECORDING_ASSIGN), eq("RECORDING"), eq(1L), anyString());
+        verify(recordingRepository).findWithLockById(1L);
+        verify(auditService)
+                .record(eq(AuditAction.RECORDING_ASSIGN), eq("RECORDING"), eq(1L), anyString());
     }
 
     @Test
     void assignRejectsUnknownUser() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
         when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
 
         BizException e = assertThrows(BizException.class, () -> service.assign(1L, "ghost"));
@@ -196,9 +222,11 @@ class RecordingReviewWorkflowTest {
     @Test
     void assignRejectsViewerAndDisabledUsers() {
         Recording recording = recording(RecordingStatus.NEEDS_REVIEW);
-        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
-        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(user("viewer", UserRole.VIEWER, true)));
-        when(userRepository.findByUsername("off")).thenReturn(Optional.of(user("off", UserRole.REVIEWER, false)));
+        when(recordingRepository.findWithLockById(1L)).thenReturn(Optional.of(recording));
+        when(userRepository.findByUsername("viewer"))
+                .thenReturn(Optional.of(user("viewer", UserRole.VIEWER, true)));
+        when(userRepository.findByUsername("off"))
+                .thenReturn(Optional.of(user("off", UserRole.REVIEWER, false)));
 
         assertThrows(BizException.class, () -> service.assign(1L, "viewer"));
         assertThrows(BizException.class, () -> service.assign(1L, "off"));
@@ -232,7 +260,8 @@ class RecordingReviewWorkflowTest {
         assertNull(reopened.getReviewComment());
         assertEquals(0, reopened.getReviewCount());
         assertEquals("bob", reopened.getAssignedTo(), "重开不应清空指派");
-        verify(auditService).record(eq(AuditAction.REVIEW_REOPEN), eq("RECORDING"), eq(1L), anyString());
+        verify(auditService)
+                .record(eq(AuditAction.REVIEW_REOPEN), eq("RECORDING"), eq(1L), anyString());
     }
 
     @Test

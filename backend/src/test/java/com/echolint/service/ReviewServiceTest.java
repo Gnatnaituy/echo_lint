@@ -1,6 +1,11 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.CorpusLabel;
@@ -17,6 +22,9 @@ import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.security.AppUserDetails;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,36 +40,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * 复核工作流：单人复核落结论、双人复核未达标保持待复检、同一人不能连续复核、状态守卫、历史。
- */
+/** 复核工作流：单人复核落结论、双人复核未达标保持待复检、同一人不能连续复核、状态守卫、历史。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ReviewServiceTest {
 
-    @Mock
-    private RecordingRepository recordingRepository;
-    @Mock
-    private PipelineLogRepository pipelineLogRepository;
-    @Mock
-    private CorpusService corpusService;
-    @Mock
-    private WordMiningService wordMiningService;
-    @Mock
-    private ReviewRecordRepository reviewRecordRepository;
-    @Mock
-    private AuditService auditService;
-    @Mock
-    private NotificationService notificationService;
+    @Mock private RecordingRepository recordingRepository;
+    @Mock private PipelineLogRepository pipelineLogRepository;
+    @Mock private CorpusService corpusService;
+    @Mock private WordMiningService wordMiningService;
+    @Mock private ReviewRecordRepository reviewRecordRepository;
+    @Mock private AuditService auditService;
+    @Mock private NotificationService notificationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private AppProperties appProperties;
@@ -70,9 +60,17 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() {
         appProperties = new AppProperties();
-        service = new ReviewService(recordingRepository, pipelineLogRepository, corpusService,
-                new AsyncWordMiningTrigger(wordMiningService), objectMapper, reviewRecordRepository,
-                auditService, appProperties, notificationService);
+        service =
+                new ReviewService(
+                        recordingRepository,
+                        pipelineLogRepository,
+                        corpusService,
+                        new AsyncWordMiningTrigger(wordMiningService),
+                        objectMapper,
+                        reviewRecordRepository,
+                        auditService,
+                        appProperties,
+                        notificationService);
         when(recordingRepository.save(any(Recording.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -83,9 +81,12 @@ class ReviewServiceTest {
     }
 
     private void loginAs(String username, Long id) {
-        AppUserDetails details = new AppUserDetails(id, username, "hash", username, UserRole.REVIEWER, true);
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));
+        AppUserDetails details =
+                new AppUserDetails(id, username, "hash", username, UserRole.REVIEWER, true);
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                details, null, details.getAuthorities()));
     }
 
     private Recording needsReview() {
@@ -123,7 +124,8 @@ class ReviewServiceTest {
         when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
-        Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
+        Recording saved =
+                service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
 
         assertEquals(RecordingStatus.VIOLATION_CONFIRMED, saved.getStatus());
         assertEquals("INSULT", saved.getViolationType());
@@ -141,12 +143,19 @@ class ReviewServiceTest {
         assertEquals("INSULT", record.getViolationType());
         assertEquals(1, record.getRound());
 
-        verify(corpusService).append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("确认辱骂"));
+        verify(corpusService)
+                .append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("确认辱骂"));
         verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
-        verify(auditService).record(eq(AuditAction.REVIEW_SUBMIT), eq("RECORDING"), eq(7L), anyString());
+        verify(auditService)
+                .record(eq(AuditAction.REVIEW_SUBMIT), eq("RECORDING"), eq(7L), anyString());
         // Batch 2b-2：确认违规应发出 Webhook 告警
-        verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
-                contains("辱骂"), contains("确认辱骂"), isNull());
+        verify(notificationService)
+                .notify(
+                        eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION),
+                        eq(7L),
+                        contains("辱骂"),
+                        contains("确认辱骂"),
+                        isNull());
     }
 
     @Test
@@ -159,10 +168,17 @@ class ReviewServiceTest {
             service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
 
             // 事务未提交前不能发告警，避免「通知已发但回滚」
-            verify(notificationService, never()).notify(any(), any(), anyString(), anyString(), any());
-            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-            verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
-                    anyString(), anyString(), isNull());
+            verify(notificationService, never())
+                    .notify(any(), any(), anyString(), anyString(), any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(notificationService)
+                    .notify(
+                            eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION),
+                            eq(7L),
+                            anyString(),
+                            anyString(),
+                            isNull());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -179,7 +195,8 @@ class ReviewServiceTest {
 
             // AI 词挖掘可能耗时数百秒，不允许留在复核事务内执行
             verify(wordMiningService, never()).mineAndSuggest(any(), any());
-            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            List<TransactionSynchronization> synchronizations =
+                    TransactionSynchronizationManager.getSynchronizations();
             assertFalse(synchronizations.isEmpty(), "应在当前事务注册 afterCommit 回调");
 
             synchronizations.forEach(TransactionSynchronization::afterCommit);
@@ -194,15 +211,20 @@ class ReviewServiceTest {
     void miningFailureAfterCommitDoesNotPropagate() {
         Recording recording = needsReview();
         when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
-        doThrow(new RuntimeException("AI 不可用")).when(wordMiningService).mineAndSuggest(any(), any());
+        doThrow(new RuntimeException("AI 不可用"))
+                .when(wordMiningService)
+                .mineAndSuggest(any(), any());
         loginAs("alice", 5L);
         TransactionSynchronizationManager.initSynchronization();
         try {
-            Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
+            Recording saved =
+                    service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "确认辱骂"));
             assertEquals(RecordingStatus.VIOLATION_CONFIRMED, saved.getStatus());
 
-            assertDoesNotThrow(() -> TransactionSynchronizationManager.getSynchronizations()
-                    .forEach(TransactionSynchronization::afterCommit));
+            assertDoesNotThrow(
+                    () ->
+                            TransactionSynchronizationManager.getSynchronizations()
+                                    .forEach(TransactionSynchronization::afterCommit));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -215,7 +237,8 @@ class ReviewServiceTest {
         when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
-        Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "第一票"));
+        Recording saved =
+                service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "第一票"));
 
         assertEquals(RecordingStatus.NEEDS_REVIEW, saved.getStatus());
         assertEquals(1, saved.getReviewCount());
@@ -240,16 +263,23 @@ class ReviewServiceTest {
                 .thenReturn(Optional.of(previousReview("bob", 1)));
         loginAs("alice", 5L);
 
-        Recording saved = service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "第二票"));
+        Recording saved =
+                service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "第二票"));
 
         assertEquals(RecordingStatus.VIOLATION_CONFIRMED, saved.getStatus());
         assertEquals(2, saved.getReviewCount());
         assertEquals("alice", saved.getReviewer());
         assertEquals(2, capturedReviewRecord().getRound());
-        verify(corpusService).append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("第二票"));
+        verify(corpusService)
+                .append(eq(recording), eq(CorpusLabel.VIOLATION), eq("INSULT"), eq("第二票"));
         verify(wordMiningService).mineAndSuggest(recording, ViolationType.INSULT);
-        verify(notificationService).notify(eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION), eq(7L),
-                anyString(), contains("第二票"), isNull());
+        verify(notificationService)
+                .notify(
+                        eq(NotifyEvent.REVIEW_CONFIRMED_VIOLATION),
+                        eq(7L),
+                        anyString(),
+                        contains("第二票"),
+                        isNull());
     }
 
     @Test
@@ -262,8 +292,14 @@ class ReviewServiceTest {
                 .thenReturn(Optional.of(previousReview("alice", 1)));
         loginAs("alice", 5L);
 
-        BizException e = assertThrows(BizException.class,
-                () -> service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "INSULT", "重复提交")));
+        BizException e =
+                assertThrows(
+                        BizException.class,
+                        () ->
+                                service.review(
+                                        7L,
+                                        new ReviewRequest(
+                                                "CONFIRMED_VIOLATION", "INSULT", "重复提交")));
 
         assertEquals(HttpStatus.CONFLICT, e.getStatus());
         assertTrue(e.getMessage().contains("不能连续复核"));
@@ -278,8 +314,10 @@ class ReviewServiceTest {
         when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
-        BizException e = assertThrows(BizException.class,
-                () -> service.review(7L, new ReviewRequest("FALSE_POSITIVE", null, null)));
+        BizException e =
+                assertThrows(
+                        BizException.class,
+                        () -> service.review(7L, new ReviewRequest("FALSE_POSITIVE", null, null)));
 
         assertEquals(HttpStatus.CONFLICT, e.getStatus());
         verify(recordingRepository, never()).save(any());
@@ -291,8 +329,13 @@ class ReviewServiceTest {
         when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
         loginAs("alice", 5L);
 
-        BizException e = assertThrows(BizException.class,
-                () -> service.review(7L, new ReviewRequest("CONFIRMED_VIOLATION", "NONE", null)));
+        BizException e =
+                assertThrows(
+                        BizException.class,
+                        () ->
+                                service.review(
+                                        7L,
+                                        new ReviewRequest("CONFIRMED_VIOLATION", "NONE", null)));
 
         assertTrue(e.getMessage().contains("违规类型"));
         verify(recordingRepository, never()).save(any());
@@ -328,5 +371,24 @@ class ReviewServiceTest {
         List<ReviewRecord> history = service.history(7L);
 
         assertEquals(List.of(first, second), history);
+    }
+
+    @Test
+    void illegalResultIsRejectedWith400InsteadOfDefaultingToViolation() {
+        Recording recording = needsReview();
+        when(recordingRepository.findWithLockById(7L)).thenReturn(Optional.of(recording));
+        loginAs("alice", 5L);
+
+        BizException e =
+                assertThrows(
+                        BizException.class,
+                        () -> service.review(7L, new ReviewRequest("FALSE", "INSULT", "笔误")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
+        assertTrue(e.getMessage().contains("CONFIRMED_VIOLATION"));
+        // 非法值不得落任何复核记录 / 语料 / 终态（原来会静默当成「确认违规」）
+        verify(reviewRecordRepository, never()).save(any());
+        assertEquals(RecordingStatus.NEEDS_REVIEW, recording.getStatus());
+        assertEquals(0, recording.getReviewCount());
     }
 }

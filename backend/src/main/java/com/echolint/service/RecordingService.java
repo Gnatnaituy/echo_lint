@@ -1,6 +1,5 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.RecordingStatus;
@@ -18,17 +17,7 @@ import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.security.SecurityUtils;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -45,10 +34,18 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
-/**
- * 录音管理：上传、查询、详情、删除、重试、认领、指派、重开。
- */
+/** 录音管理：上传、查询、详情、删除、重试、认领、指派、重开。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -70,28 +67,31 @@ public class RecordingService {
     private static final int BUFFER_SIZE = 64 * 1024;
 
     /**
-     * 上传录音：流式落临时文件并计算 SHA-256 -> 查重 -> 原子移动到正式目录
-     * -> 建记录(PENDING，附可选元数据) -> 持久化任务入队（由调度器异步执行）。
+     * 上传录音：流式落临时文件并计算 SHA-256 -> 查重 -> 原子移动到正式目录 -> 建记录(PENDING，附可选元数据) -> 持久化任务入队（由调度器异步执行）。
      *
-     * <p>失败或命中重复时始终清理临时文件，避免留下孤儿半截文件。</p>
+     * <p>失败或命中重复时始终清理临时文件，避免留下孤儿半截文件。
      */
     public Recording upload(MultipartFile file, RecordingMetadata metadata) {
         return uploadInternal(file, metadata, null);
     }
 
     /**
-     * 开放 API 上传（Batch 4a）：复用内部上传逻辑，审计动作记为 {@code OPEN_API_UPLOAD}，
-     * 操作人记为 {@code api-key:<名称>}（而非无会话的 system）。
+     * 开放 API 上传（Batch 4a）：复用内部上传逻辑，审计动作记为 {@code OPEN_API_UPLOAD}， 操作人记为 {@code
+     * api-key:<名称>}（而非无会话的 system）。
      */
-    public Recording uploadFromOpenApi(MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
+    public Recording uploadFromOpenApi(
+            MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
         return uploadInternal(file, metadata, apiKeyName);
     }
 
-    private Recording uploadInternal(MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
+    private Recording uploadInternal(
+            MultipartFile file, RecordingMetadata metadata, String apiKeyName) {
         validateFile(file);
         RecordingMetadata meta = metadata == null ? RecordingMetadata.EMPTY : metadata;
 
-        String original = StringUtils.cleanPath(Objects.requireNonNullElse(file.getOriginalFilename(), "recording"));
+        String original =
+                StringUtils.cleanPath(
+                        Objects.requireNonNullElse(file.getOriginalFilename(), "recording"));
         String ext = extensionOf(original);
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + ext;
 
@@ -125,19 +125,33 @@ public class RecordingService {
                 saved = recordingRepository.saveAndFlush(recording);
             } catch (DataIntegrityViolationException e) {
                 // 并发上传同一文件时由 audio_sha256 唯一索引兜底，回查给出已存在的 id
-                throw recordingRepository.findByAudioSha256(sha256)
+                throw recordingRepository
+                        .findByAudioSha256(sha256)
                         .map(RecordingService::duplicateOf)
-                        .orElseGet(() -> new BizException("录音保存失败，请重试", HttpStatus.INTERNAL_SERVER_ERROR));
+                        .orElseGet(
+                                () ->
+                                        new BizException(
+                                                "录音保存失败，请重试", HttpStatus.INTERNAL_SERVER_ERROR));
             }
             committed = true;
 
             if (apiKeyName == null) {
-                auditService.record(AuditAction.RECORDING_UPLOAD, "RECORDING", saved.getId(),
-                        "上传录音 " + original + "（" + file.getSize() + " 字节）"
-                                + metadataSummary(meta));
+                auditService.record(
+                        AuditAction.RECORDING_UPLOAD,
+                        "RECORDING",
+                        saved.getId(),
+                        "上传录音 " + original + "（" + file.getSize() + " 字节）" + metadataSummary(meta));
             } else {
-                auditService.recordAs("api-key:" + apiKeyName, AuditAction.OPEN_API_UPLOAD, "RECORDING",
-                        saved.getId(), "开放 API 上传录音 " + original + "（" + file.getSize() + " 字节）"
+                auditService.recordAs(
+                        "api-key:" + apiKeyName,
+                        AuditAction.OPEN_API_UPLOAD,
+                        "RECORDING",
+                        saved.getId(),
+                        "开放 API 上传录音 "
+                                + original
+                                + "（"
+                                + file.getSize()
+                                + " 字节）"
                                 + metadataSummary(meta));
             }
             log.info("录音 {} 上传成功（{}，{} 字节），已入队稽核任务", saved.getId(), original, file.getSize());
@@ -158,16 +172,17 @@ public class RecordingService {
         return new BizException("重复录音（已存在 #" + existing.getId() + "）", HttpStatus.CONFLICT);
     }
 
-    /**
-     * 单次流式写入临时文件，同时计算 SHA-256；首块数据先做文件头预检。
-     * 不把整段音频读进内存（上限 200MB）。
-     */
-    private String streamToTempAndHash(MultipartFile file, String ext, Path temp) throws IOException {
+    /** 单次流式写入临时文件，同时计算 SHA-256；首块数据先做文件头预检。 不把整段音频读进内存（上限 200MB）。 */
+    private String streamToTempAndHash(MultipartFile file, String ext, Path temp)
+            throws IOException {
         MessageDigest digest = sha256();
         byte[] buffer = new byte[BUFFER_SIZE];
         try (InputStream in = file.getInputStream();
-             OutputStream out = Files.newOutputStream(temp,
-                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                OutputStream out =
+                        Files.newOutputStream(
+                                temp,
+                                StandardOpenOption.WRITE,
+                                StandardOpenOption.TRUNCATE_EXISTING)) {
             // 先读满文件头（可能分多次 read），保证 WAV/MP4 等需要 offset 8~12 的格式校验稳定
             byte[] header = new byte[AudioFileValidator.HEADER_SIZE];
             int headerLength = 0;
@@ -230,7 +245,8 @@ public class RecordingService {
         if (metadata.callTime() != null) {
             sb.append("，通话时间 ").append(metadata.callTime());
         }
-        if (metadata.direction() != null && metadata.direction() != com.echolint.domain.CallDirection.UNKNOWN) {
+        if (metadata.direction() != null
+                && metadata.direction() != com.echolint.domain.CallDirection.UNKNOWN) {
             sb.append("，方向 ").append(metadata.direction().getLabel());
         }
         if (metadata.businessLine() != null) {
@@ -243,12 +259,20 @@ public class RecordingService {
         if (file == null || file.isEmpty()) {
             throw new BizException("上传文件为空");
         }
-        String ext = extensionOf(StringUtils.cleanPath(Objects.requireNonNullElse(file.getOriginalFilename(), "")));
+        String ext =
+                extensionOf(
+                        StringUtils.cleanPath(
+                                Objects.requireNonNullElse(file.getOriginalFilename(), "")));
         if (!appProperties.getAllowedExtensions().contains(ext)) {
-            throw new BizException("不支持的文件类型 ." + ext + "，支持: " + String.join(", ", appProperties.getAllowedExtensions()));
+            throw new BizException(
+                    "不支持的文件类型 ."
+                            + ext
+                            + "，支持: "
+                            + String.join(", ", appProperties.getAllowedExtensions()));
         }
         if (file.getSize() > appProperties.getMaxSizeBytes()) {
-            throw new BizException("文件大小超过限制（" + (appProperties.getMaxSizeBytes() / 1024 / 1024) + "MB）");
+            throw new BizException(
+                    "文件大小超过限制（" + (appProperties.getMaxSizeBytes() / 1024 / 1024) + "MB）");
         }
     }
 
@@ -260,15 +284,21 @@ public class RecordingService {
         return fileName.substring(idx + 1).toLowerCase(Locale.ROOT);
     }
 
-    /**
-     * 录音列表：状态 / 关键字 / 指派对象 / 优先级 / 坐席 / 团队 / 方向 / 时间范围 过滤。
-     */
+    /** 录音列表：状态 / 关键字 / 指派对象 / 优先级 / 坐席 / 团队 / 方向 / 时间范围 过滤。 */
     public Page<Recording> query(RecordingFilter filter, Pageable pageable) {
         return recordingRepository.findAll(RecordingSpecifications.of(filter), pageable);
     }
 
     public Recording get(Long id) {
-        return recordingRepository.findById(id)
+        return recordingRepository
+                .findById(id)
+                .orElseThrow(() -> new BizException("录音不存在: " + id, HttpStatus.NOT_FOUND));
+    }
+
+    /** 行锁读取录音：认领/指派等读-改-写操作用 {@code select ... for update} 串行化（审计 P2-2） */
+    private Recording getForUpdate(Long id) {
+        return recordingRepository
+                .findWithLockById(id)
                 .orElseThrow(() -> new BizException("录音不存在: " + id, HttpStatus.NOT_FOUND));
     }
 
@@ -289,7 +319,8 @@ public class RecordingService {
         if (pipelineTaskService.isRunning(id)) {
             throw new BizException("该录音正在处理中，请等待处理完成后再删除", HttpStatus.CONFLICT);
         }
-        pipelineLogRepository.deleteAll(pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
+        pipelineLogRepository.deleteAll(
+                pipelineLogRepository.findByRecordingIdOrderByCreatedAtAscIdAsc(id));
         aiInvocationService.deleteByRecording(id);
         reviewRecordRepository.deleteByRecordingId(id);
         // 语料是复核结论的派生物，录音删除后一并清理（保留人工录入的语料）
@@ -305,8 +336,8 @@ public class RecordingService {
                 log.warn("解析分轨文件失败: {}", e.getMessage());
             }
         }
-        auditService.record(AuditAction.RECORDING_DELETE, "RECORDING", id,
-                "删除录音 " + recording.getFileName());
+        auditService.record(
+                AuditAction.RECORDING_DELETE, "RECORDING", id, "删除录音 " + recording.getFileName());
         log.info("录音 {} 已删除", id);
     }
 
@@ -324,12 +355,9 @@ public class RecordingService {
     /**
      * 手动推进/重新处理：清空上一轮处理产物后重新入队（任务持久化，重启不丢）。
      *
-     * 允许的状态：
-     * - PENDING：排队但未开始（例如上传后服务重启，流水线丢失）
-     * - FAILED：上次处理失败
-     * - TRANSCRIBING / DFA_CHECKING / AI_CHECKING：卡住的中间态（服务重启中断）
-     * 不允许：COMPLIANT / NEEDS_REVIEW / VIOLATION_CONFIRMED / FALSE_POSITIVE，
-     * 这些已有结论，重新跑会覆盖结果（待复检请走「人工复检」）。
+     * <p>允许的状态： - PENDING：排队但未开始（例如上传后服务重启，流水线丢失） - FAILED：上次处理失败 - TRANSCRIBING / DFA_CHECKING /
+     * AI_CHECKING：卡住的中间态（服务重启中断） 不允许：COMPLIANT / NEEDS_REVIEW / VIOLATION_CONFIRMED /
+     * FALSE_POSITIVE， 这些已有结论，重新跑会覆盖结果（待复检请走「人工复检」）。
      */
     public Recording retry(Long id) {
         Recording recording = get(id);
@@ -352,7 +380,8 @@ public class RecordingService {
         // 清理上一轮产物，避免新旧结果混杂
         if (StringUtils.hasText(recording.getChannelFilesJson())) {
             try {
-                objectMapper.readTree(recording.getChannelFilesJson())
+                objectMapper
+                        .readTree(recording.getChannelFilesJson())
                         .forEach(node -> deleteFile(node.asText()));
             } catch (Exception e) {
                 log.warn("清理分轨文件失败: {}", e.getMessage());
@@ -370,8 +399,8 @@ public class RecordingService {
         recording.setProcessedTime(null);
         recordingRepository.saveAndFlush(recording);
 
-        auditService.record(AuditAction.RECORDING_RETRY, "RECORDING", id,
-                "重新处理录音（原状态 " + status + "）");
+        auditService.record(
+                AuditAction.RECORDING_RETRY, "RECORDING", id, "重新处理录音（原状态 " + status + "）");
         pipelineTaskService.enqueue(recording.getId());
         log.info("录音 {} 手动触发重新处理（原状态 {}），任务已入队", id, status);
         return recording;
@@ -379,19 +408,22 @@ public class RecordingService {
 
     /**
      * 认领复核：仅待复检录音；已被他人认领返回 409；重复认领自己幂等。
+     *
+     * <p>用行锁读取录音（与 {@code ReviewService#review} 一致）：认领是「读-改-写」， 两个复核人并发认领时若无锁会都通过校验、后提交者覆盖前者（审计
+     * P2-2）。
      */
     @Transactional
     public Recording claim(Long id) {
-        Recording recording = get(id);
+        Recording recording = getForUpdate(id);
         String username = currentUsernameOrThrow();
         if (recording.getStatus() != RecordingStatus.NEEDS_REVIEW) {
-            throw new BizException("仅待复检录音可认领（当前状态 " + recording.getStatus() + "）",
-                    HttpStatus.CONFLICT);
+            throw new BizException(
+                    "仅待复检录音可认领（当前状态 " + recording.getStatus() + "）", HttpStatus.CONFLICT);
         }
         if (StringUtils.hasText(recording.getAssignedTo())
                 && !recording.getAssignedTo().equalsIgnoreCase(username)) {
-            throw new BizException("该录音已被 " + recording.getAssignedTo() + " 认领",
-                    HttpStatus.CONFLICT);
+            throw new BizException(
+                    "该录音已被 " + recording.getAssignedTo() + " 认领", HttpStatus.CONFLICT);
         }
         recording.setAssignedTo(username);
         Recording saved = recordingRepository.save(recording);
@@ -402,16 +434,20 @@ public class RecordingService {
 
     /**
      * 管理员指派复核人：用户必须存在、启用且角色为 ADMIN / REVIEWER。
+     *
+     * <p>用行锁读取录音：与 {@link #claim} / 复核提交并发时避免读-改-写覆盖（审计 P2-2）。
      */
     @Transactional
     public Recording assign(Long id, String username) {
-        Recording recording = get(id);
+        Recording recording = getForUpdate(id);
         String target = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
         if (!StringUtils.hasText(target)) {
             throw new BizException("用户名不能为空");
         }
-        AppUser user = userRepository.findByUsername(target)
-                .orElseThrow(() -> new BizException("用户不存在: " + target));
+        AppUser user =
+                userRepository
+                        .findByUsername(target)
+                        .orElseThrow(() -> new BizException("用户不存在: " + target));
         if (!user.isEnabled()) {
             throw new BizException("用户已被禁用，不能指派: " + target);
         }
@@ -420,15 +456,13 @@ public class RecordingService {
         }
         recording.setAssignedTo(user.getUsername());
         Recording saved = recordingRepository.save(recording);
-        auditService.record(AuditAction.RECORDING_ASSIGN, "RECORDING", id,
-                "指派给 " + user.getUsername());
+        auditService.record(
+                AuditAction.RECORDING_ASSIGN, "RECORDING", id, "指派给 " + user.getUsername());
         log.info("录音 {} 指派给 {}", id, user.getUsername());
         return saved;
     }
 
-    /**
-     * 重开复核（ADMIN）：仅终态录音可重开；清空最终结论与复核轮次，保留复核历史。
-     */
+    /** 重开复核（ADMIN）：仅终态录音可重开；清空最终结论与复核轮次，保留复核历史。 */
     @Transactional
     public Recording reopen(Long id) {
         Recording recording = get(id);
@@ -436,8 +470,7 @@ public class RecordingService {
         if (status != RecordingStatus.VIOLATION_CONFIRMED
                 && status != RecordingStatus.FALSE_POSITIVE
                 && status != RecordingStatus.COMPLIANT) {
-            throw new BizException("仅已出最终结论的录音可重开（当前状态 " + status + "）",
-                    HttpStatus.CONFLICT);
+            throw new BizException("仅已出最终结论的录音可重开（当前状态 " + status + "）", HttpStatus.CONFLICT);
         }
         recording.setStatus(RecordingStatus.NEEDS_REVIEW);
         recording.setReviewResult(null);
@@ -450,8 +483,7 @@ public class RecordingService {
         Recording saved = recordingRepository.save(recording);
 
         saveLog(id, "REVIEW", "INFO", "管理员重开复核（原状态 " + status + "），复核历史保留");
-        auditService.record(AuditAction.REVIEW_REOPEN, "RECORDING", id,
-                "重开复核（原状态 " + status + "）");
+        auditService.record(AuditAction.REVIEW_REOPEN, "RECORDING", id, "重开复核（原状态 " + status + "）");
         log.info("录音 {} 被重开复核（原状态 {}）", id, status);
         return saved;
     }

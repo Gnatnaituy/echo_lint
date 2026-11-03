@@ -1,6 +1,7 @@
 package com.echolint.service;
 
 import com.echolint.domain.NotifyEvent;
+import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.TaskStatus;
 import com.echolint.dto.PipelineTaskView;
 import com.echolint.entity.PipelineTask;
@@ -9,16 +10,6 @@ import com.echolint.exception.BizException;
 import com.echolint.repository.PipelineTaskRepository;
 import com.echolint.repository.RecordingRepository;
 import jakarta.persistence.criteria.Predicate;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,18 +20,27 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 异步流水线任务队列（Batch 3b-1）。
  *
- * <p>可靠性设计：</p>
+ * <p>可靠性设计：
+ *
  * <ul>
- *   <li>任务持久化在 {@code pipeline_tasks}，服务重启后 RUNNING 任务由启动恢复重置为 PENDING；</li>
- *   <li>入队幂等：同一录音已有 PENDING/RUNNING 任务时直接复用，不重复排队；</li>
- *   <li>领取使用条件更新（PENDING -> RUNNING），多实例/重入下同一条任务只会被执行一次；</li>
- *   <li>失败退避 30s/120s/300s（封顶），达到 max_attempts 进入 DEAD；只有 DEAD 才发
- *       RECORDING_FAILED 通知，避免每次重试都告警；</li>
- *   <li>所有状态变更都在事务方法内完成，调度器（{@link PipelineTaskScheduler}）只负责编排。</li>
+ *   <li>任务持久化在 {@code pipeline_tasks}，服务重启后 RUNNING 任务由启动恢复重置为 PENDING；
+ *   <li>入队幂等：同一录音已有 PENDING/RUNNING 任务时直接复用，不重复排队；
+ *   <li>领取使用条件更新（PENDING -> RUNNING），多实例/重入下同一条任务只会被执行一次；
+ *   <li>失败退避 30s/120s/300s（封顶），达到 max_attempts 进入 DEAD；只有 DEAD 才发 RECORDING_FAILED 通知，避免每次重试都告警；
+ *   <li>所有状态变更都在事务方法内完成，调度器（{@link PipelineTaskScheduler}）只负责编排。
  * </ul>
  */
 @Slf4j
@@ -57,6 +57,18 @@ public class PipelineTaskService {
     /** 活动任务状态：入队幂等与启动恢复的判断依据 */
     static final List<TaskStatus> ACTIVE_STATUSES = List.of(TaskStatus.PENDING, TaskStatus.RUNNING);
 
+    /**
+     * 允许「管理员重试任务」的录音状态（与 {@code RecordingService#retry} 的口径一致）： 未开始/失败/被中断的中间态才可重跑；COMPLIANT /
+     * NEEDS_REVIEW / VIOLATION_CONFIRMED / FALSE_POSITIVE 已有稽核或人工结论，重跑会覆盖结论，一律 409。
+     */
+    static final List<RecordingStatus> RETRYABLE_RECORDING_STATUSES =
+            List.of(
+                    RecordingStatus.PENDING,
+                    RecordingStatus.FAILED,
+                    RecordingStatus.TRANSCRIBING,
+                    RecordingStatus.DFA_CHECKING,
+                    RecordingStatus.AI_CHECKING);
+
     private static final int MAX_ERROR_LENGTH = 2000;
 
     private final PipelineTaskRepository taskRepository;
@@ -66,22 +78,26 @@ public class PipelineTaskService {
     /**
      * 入队（幂等）：该录音已有 PENDING/RUNNING 任务时直接返回已有任务。
      *
-     * <p>用录音行锁串行化同一录音的并发入队（上传/重试/多实例），避免产生重复活动任务；
-     * 任务本身没有唯一约束（MySQL 不支持部分索引），行锁是简单可靠的去重手段。</p>
+     * <p>用录音行锁串行化同一录音的并发入队（上传/重试/多实例），避免产生重复活动任务； 任务本身没有唯一约束（MySQL 不支持部分索引），行锁是简单可靠的去重手段。
      */
     @Transactional
     public PipelineTask enqueue(Long recordingId) {
         if (recordingId == null) {
             throw new BizException("录音 ID 不能为空");
         }
-        recordingRepository.findWithLockById(recordingId)
+        recordingRepository
+                .findWithLockById(recordingId)
                 .orElseThrow(() -> new BizException("录音不存在: " + recordingId, HttpStatus.NOT_FOUND));
 
-        Optional<PipelineTask> active = taskRepository.findFirstByRecordingIdAndStatusInOrderByIdDesc(
-                recordingId, ACTIVE_STATUSES);
+        Optional<PipelineTask> active =
+                taskRepository.findFirstByRecordingIdAndStatusInOrderByIdDesc(
+                        recordingId, ACTIVE_STATUSES);
         if (active.isPresent()) {
-            log.debug("录音 {} 已有活动任务 {}（{}），入队幂等返回", recordingId,
-                    active.get().getId(), active.get().getStatus());
+            log.debug(
+                    "录音 {} 已有活动任务 {}（{}），入队幂等返回",
+                    recordingId,
+                    active.get().getId(),
+                    active.get().getStatus());
             return active.get();
         }
 
@@ -99,17 +115,15 @@ public class PipelineTaskService {
     /** 调度器查询到期任务（最多 {@link #BATCH_SIZE} 条） */
     @Transactional(readOnly = true)
     public List<PipelineTask> findDueTasks() {
-        return taskRepository.findDue(TaskStatus.PENDING, LocalDateTime.now(), PageRequest.of(0, BATCH_SIZE));
+        return taskRepository.findDue(
+                TaskStatus.PENDING, LocalDateTime.now(), PageRequest.of(0, BATCH_SIZE));
     }
 
     public Optional<PipelineTask> get(Long taskId) {
         return taskRepository.findById(taskId);
     }
 
-    /**
-     * 原子领取任务：PENDING -> RUNNING。返回 true 表示领取成功、可以提交执行。
-     * 已被其它调度实例/线程领取时返回 false，调用方必须跳过。
-     */
+    /** 原子领取任务：PENDING -> RUNNING。返回 true 表示领取成功、可以提交执行。 已被其它调度实例/线程领取时返回 false，调用方必须跳过。 */
     @Transactional
     public boolean claim(Long taskId) {
         return taskRepository.markRunning(taskId, LocalDateTime.now()) == 1;
@@ -133,8 +147,8 @@ public class PipelineTaskService {
     }
 
     /**
-     * 执行失败：attempts+1；未达上限 -> PENDING + 指数退避；达到上限 -> DEAD（死信）。
-     * 只有进入 DEAD 才发 RECORDING_FAILED 通知，中间重试不重复告警。
+     * 执行失败：attempts+1；未达上限 -> PENDING + 指数退避；达到上限 -> DEAD（死信）。 只有进入 DEAD 才发 RECORDING_FAILED
+     * 通知，中间重试不重复告警。
      */
     @Transactional
     public PipelineTask markFailed(Long taskId, String error) {
@@ -152,14 +166,23 @@ public class PipelineTaskService {
             task.setStatus(TaskStatus.PENDING);
             task.setNextAttemptAt(now.plusSeconds(backoffSeconds(attempts)));
             task.setFinishedAt(null);
-            log.warn("任务 {} 第 {} 次失败，{}s 后重试（录音 {}）：{}", taskId, attempts,
-                    backoffSeconds(attempts), task.getRecordingId(), truncate(error));
+            log.warn(
+                    "任务 {} 第 {} 次失败，{}s 后重试（录音 {}）：{}",
+                    taskId,
+                    attempts,
+                    backoffSeconds(attempts),
+                    task.getRecordingId(),
+                    truncate(error));
         } else {
             task.setStatus(TaskStatus.DEAD);
             task.setNextAttemptAt(null);
             task.setFinishedAt(now);
-            log.warn("任务 {} 重试耗尽进入死信（录音 {}，共 {} 次）：{}", taskId,
-                    task.getRecordingId(), attempts, truncate(error));
+            log.warn(
+                    "任务 {} 重试耗尽进入死信（录音 {}，共 {} 次）：{}",
+                    taskId,
+                    task.getRecordingId(),
+                    attempts,
+                    truncate(error));
         }
         PipelineTask saved = taskRepository.save(task);
         if (saved.getStatus() == TaskStatus.DEAD) {
@@ -196,16 +219,43 @@ public class PipelineTaskService {
     }
 
     /**
-     * 管理员手动重试死信/终态失败任务：DEAD/FAILED -> PENDING，attempts 归零。
-     * 对应录音的 FAILED 状态由流水线下一次执行覆盖。
+     * 管理员手动重试死信/终态失败任务：DEAD/FAILED -> PENDING，attempts 归零。 对应录音的 FAILED 状态由流水线下一次执行覆盖。
+     *
+     * <p>重试前必须确认该录音「现在仍然可以重跑」，否则会与正常处理/人工结论冲突：
+     *
+     * <ol>
+     *   <li>对录音行加 {@code select ... for update}：与入队（{@link #enqueue}）互斥，避免检查与落库之间被插队；
+     *   <li>录音状态白名单：终态（COMPLIANT/NEEDS_REVIEW/VIOLATION_CONFIRMED/FALSE_POSITIVE）一律拒绝， 防止一条历史 DEAD
+     *       任务在录音已被重新处理/人工复核后再次执行并覆盖结论；
+     *   <li>该录音已有其它 PENDING/RUNNING 任务时拒绝（本任务此时必为 DEAD/FAILED，不会被自己命中），
+     *       否则两条活动任务会被调度器同时领取、同一录音并发双跑（AI 费用翻倍 + 结果互相覆盖）。
+     * </ol>
      */
     @Transactional
     public PipelineTaskView retry(Long taskId) {
-        PipelineTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new BizException("任务不存在: " + taskId, HttpStatus.NOT_FOUND));
+        PipelineTask task =
+                taskRepository
+                        .findById(taskId)
+                        .orElseThrow(
+                                () -> new BizException("任务不存在: " + taskId, HttpStatus.NOT_FOUND));
         if (task.getStatus() != TaskStatus.DEAD && task.getStatus() != TaskStatus.FAILED) {
-            throw new BizException("仅 DEAD/FAILED 任务可重试（当前 " + task.getStatus() + "）",
-                    HttpStatus.CONFLICT);
+            throw new BizException(
+                    "仅 DEAD/FAILED 任务可重试（当前 " + task.getStatus() + "）", HttpStatus.CONFLICT);
+        }
+        Recording recording =
+                recordingRepository
+                        .findWithLockById(task.getRecordingId())
+                        .orElseThrow(
+                                () ->
+                                        new BizException(
+                                                "录音不存在: " + task.getRecordingId(),
+                                                HttpStatus.NOT_FOUND));
+        if (!RETRYABLE_RECORDING_STATUSES.contains(recording.getStatus())) {
+            throw new BizException(
+                    "录音当前状态（" + recording.getStatus() + "）已有稽核/人工结论，不支持重试任务", HttpStatus.CONFLICT);
+        }
+        if (taskRepository.existsByRecordingIdAndStatusIn(task.getRecordingId(), ACTIVE_STATUSES)) {
+            throw new BizException("该录音已有排队/执行中的任务，请勿重复重试", HttpStatus.CONFLICT);
         }
         task.setStatus(TaskStatus.PENDING);
         task.setAttempts(0);
@@ -213,13 +263,17 @@ public class PipelineTaskService {
         task.setLastError(null);
         task.setFinishedAt(null);
         PipelineTask saved = taskRepository.save(task);
-        log.info("任务 {} 已由管理员重置为 PENDING（录音 {}）", taskId, saved.getRecordingId());
+        log.info(
+                "任务 {} 已由管理员重置为 PENDING（录音 {}，录音状态 {}）",
+                taskId,
+                saved.getRecordingId(),
+                recording.getStatus());
         return viewOf(saved);
     }
 
     /**
-     * 启动恢复：把上次进程中断遗留的 RUNNING 任务重置为 PENDING（nextAttemptAt=now）。
-     * 在 {@code PipelineRecoveryService} 里先于「强制 FAILED」执行，保证任务不丢。
+     * 启动恢复：把上次进程中断遗留的 RUNNING 任务重置为 PENDING（nextAttemptAt=now）。 在 {@code PipelineRecoveryService}
+     * 里先于「强制 FAILED」执行，保证任务不丢。
      */
     @Transactional
     public int recoverRunningTasks() {
@@ -237,25 +291,30 @@ public class PipelineTaskService {
 
     /** 该录音是否有正在执行的任务（录音手动重试的并发保护） */
     public boolean isRunning(Long recordingId) {
-        return taskRepository.existsByRecordingIdAndStatusIn(recordingId, List.of(TaskStatus.RUNNING));
+        return taskRepository.existsByRecordingIdAndStatusIn(
+                recordingId, List.of(TaskStatus.RUNNING));
     }
 
     /** 任务分页（含录音文件名） */
     @Transactional(readOnly = true)
     public Page<PipelineTaskView> query(TaskStatus status, Long recordingId, Pageable pageable) {
-        Specification<PipelineTask> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
-            }
-            if (recordingId != null) {
-                predicates.add(cb.equal(root.get("recordingId"), recordingId));
-            }
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
+        Specification<PipelineTask> spec =
+                (root, query, cb) -> {
+                    List<Predicate> predicates = new ArrayList<>();
+                    if (status != null) {
+                        predicates.add(cb.equal(root.get("status"), status));
+                    }
+                    if (recordingId != null) {
+                        predicates.add(cb.equal(root.get("recordingId"), recordingId));
+                    }
+                    return cb.and(predicates.toArray(Predicate[]::new));
+                };
         Page<PipelineTask> page = taskRepository.findAll(spec, pageable);
-        Map<Long, String> fileNames = fileNames(
-                page.getContent().stream().map(PipelineTask::getRecordingId).collect(Collectors.toSet()));
+        Map<Long, String> fileNames =
+                fileNames(
+                        page.getContent().stream()
+                                .map(PipelineTask::getRecordingId)
+                                .collect(Collectors.toSet()));
         return page.map(task -> PipelineTaskView.from(task, fileNames.get(task.getRecordingId())));
     }
 
@@ -295,13 +354,24 @@ public class PipelineTaskService {
 
     private void notifyDead(PipelineTask task) {
         try {
-            String fileName = recordingRepository.findById(task.getRecordingId())
-                    .map(Recording::getFileName)
-                    .orElse("未知文件");
-            notificationService.notify(NotifyEvent.RECORDING_FAILED, task.getRecordingId(),
+            String fileName =
+                    recordingRepository
+                            .findById(task.getRecordingId())
+                            .map(Recording::getFileName)
+                            .orElse("未知文件");
+            notificationService.notify(
+                    NotifyEvent.RECORDING_FAILED,
+                    task.getRecordingId(),
                     "录音处理失败（重试耗尽）",
-                    "录音 #" + task.getRecordingId() + "（" + fileName + "）处理失败，已重试 "
-                            + task.getAttempts() + " 次后进入死信：" + task.getLastError(), null);
+                    "录音 #"
+                            + task.getRecordingId()
+                            + "（"
+                            + fileName
+                            + "）处理失败，已重试 "
+                            + task.getAttempts()
+                            + " 次后进入死信："
+                            + task.getLastError(),
+                    null);
         } catch (Exception e) {
             // 通知是旁路能力，失败不影响任务状态
             log.warn("死信通知发送失败（task={}）：{}", task.getId(), e.getMessage());

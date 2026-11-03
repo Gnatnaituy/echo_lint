@@ -1,6 +1,15 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.echolint.config.AppProperties;
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.dfa.DfaHit;
@@ -12,9 +21,13 @@ import com.echolint.exception.BizException;
 import com.echolint.repository.DictionaryWordRepository;
 import com.echolint.repository.PipelineLogRepository;
 import com.echolint.repository.RecordingRepository;
+import com.echolint.service.AudioTranscriptionService.TranscriptionOutcome;
 import com.echolint.service.rag.RagRetrievalService;
 import com.echolint.service.rag.RagSettingsService;
-import com.echolint.service.AudioTranscriptionService.TranscriptionOutcome;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,24 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * 流水线编排：AI 复筛不可用时的降级路径（DFA 已命中/抽样录音都不能漏审）、判定模型留痕、
- * 合规抽样分支（Batch 2b-2）与失败告警。
- */
+/** 流水线编排：AI 复筛不可用时的降级路径（DFA 已命中/抽样录音都不能漏审）、判定模型留痕、 合规抽样分支（Batch 2b-2）与失败告警。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PipelineServiceTest {
@@ -57,8 +53,7 @@ class PipelineServiceTest {
     @Mock private RagRetrievalService ragRetrievalService;
     @Mock private RagSettingsService ragSettingsService;
 
-    @TempDir
-    Path tempDir;
+    @TempDir Path tempDir;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private AppProperties appProperties;
@@ -72,10 +67,20 @@ class PipelineServiceTest {
         ScreenModelProperties screenProperties = new ScreenModelProperties();
         screenProperties.setFewShotCount(5);
 
-        pipeline = new PipelineService(
-                recordingRepository, pipelineLogRepository, dictionaryWordRepository,
-                audioTranscriptionService, dfaService, semanticScreeningService, screenModelService,
-                ragRetrievalService, ragSettingsService, appProperties, screenProperties, objectMapper);
+        pipeline =
+                new PipelineService(
+                        recordingRepository,
+                        pipelineLogRepository,
+                        dictionaryWordRepository,
+                        audioTranscriptionService,
+                        dfaService,
+                        semanticScreeningService,
+                        screenModelService,
+                        ragRetrievalService,
+                        ragSettingsService,
+                        appProperties,
+                        screenProperties,
+                        objectMapper);
     }
 
     private Recording stubRecording() {
@@ -87,23 +92,28 @@ class PipelineServiceTest {
         r.setStatus(RecordingStatus.PENDING);
         when(recordingRepository.findById(1L)).thenReturn(Optional.of(r));
         when(recordingRepository.save(any(Recording.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(pipelineLogRepository.save(any(PipelineLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(pipelineLogRepository.save(any(PipelineLog.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
         return r;
     }
 
     private void stubTranscriptionAndHit() {
-        when(audioTranscriptionService.transcribe(any(Path.class))).thenReturn(
-                new TranscriptionOutcome("you stupid bitch", "[]", 1, null, "en", 12, false));
+        when(audioTranscriptionService.transcribe(any(Path.class)))
+                .thenReturn(
+                        new TranscriptionOutcome(
+                                "you stupid bitch", "[]", 1, null, "en", 12, false));
         when(dfaService.match(anyString())).thenReturn(List.of(new DfaHit("bitch", 0, 5)));
-        when(dictionaryWordRepository.findByWordIgnoreCase(anyString())).thenReturn(Optional.empty());
+        when(dictionaryWordRepository.findByWordIgnoreCase(anyString()))
+                .thenReturn(Optional.empty());
         when(ragSettingsService.isEnabled()).thenReturn(false);
         when(ragRetrievalService.corpusExamples(anyString(), anyInt())).thenReturn(List.of());
         when(screenModelService.active()).thenReturn(activeModel());
     }
 
     private void stubTranscriptionWithoutHit() {
-        when(audioTranscriptionService.transcribe(any(Path.class))).thenReturn(
-                new TranscriptionOutcome("have a nice day", "[]", 1, null, "en", 8, false));
+        when(audioTranscriptionService.transcribe(any(Path.class)))
+                .thenReturn(
+                        new TranscriptionOutcome("have a nice day", "[]", 1, null, "en", 8, false));
         when(dfaService.match(anyString())).thenReturn(List.of());
         when(ragSettingsService.isEnabled()).thenReturn(false);
         when(ragRetrievalService.corpusExamples(anyString(), anyInt())).thenReturn(List.of());
@@ -112,9 +122,19 @@ class PipelineServiceTest {
 
     private ScreenModelService.ActiveModel activeModel() {
         return new ScreenModelService.ActiveModel(
-                "deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash", "/chat/completions",
-                true, true, null, java.util.Map.of(), 30, null,
-                java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO);
+                "deepseek",
+                "DeepSeek",
+                "https://api.deepseek.com",
+                "deepseek-flash",
+                "/chat/completions",
+                true,
+                true,
+                null,
+                java.util.Map.of(),
+                30,
+                null,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO);
     }
 
     private List<PipelineLog> pipelineLogs() {
@@ -124,7 +144,9 @@ class PipelineServiceTest {
     }
 
     private void assertLogged(String fragment) {
-        assertTrue(pipelineLogs().stream().anyMatch(l -> l.getMessage() != null && l.getMessage().contains(fragment)),
+        assertTrue(
+                pipelineLogs().stream()
+                        .anyMatch(l -> l.getMessage() != null && l.getMessage().contains(fragment)),
                 "流水线日志应包含：" + fragment);
     }
 
@@ -148,9 +170,19 @@ class PipelineServiceTest {
     void screeningVerdictRecordsWhichModelJudged() throws Exception {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
-        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any())).thenReturn(
-                outcome(new AiScreenResult(true, ViolationType.INSULT, "辱骂", "直接辱骂客户",
-                        0.92, "you stupid bitch", "deepseek", "DeepSeek", "deepseek-flash")));
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                        true,
+                                        ViolationType.INSULT,
+                                        "辱骂",
+                                        "直接辱骂客户",
+                                        0.92,
+                                        "you stupid bitch",
+                                        "deepseek",
+                                        "DeepSeek",
+                                        "deepseek-flash")));
 
         pipeline.processNow(1L);
 
@@ -168,9 +200,22 @@ class PipelineServiceTest {
     void screeningVerdictRecordsAbVariant() throws Exception {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
-        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any())).thenReturn(
-                outcome(new AiScreenResult(true, ViolationType.INSULT, "辱骂", "B 组模型判定",
-                        0.91, "you idiot", "stub-b", "Stub B", "b-model", false, null, "B")));
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                        true,
+                                        ViolationType.INSULT,
+                                        "辱骂",
+                                        "B 组模型判定",
+                                        0.91,
+                                        "you idiot",
+                                        "stub-b",
+                                        "Stub B",
+                                        "b-model",
+                                        false,
+                                        null,
+                                        "B")));
 
         pipeline.processNow(1L);
 
@@ -198,9 +243,19 @@ class PipelineServiceTest {
         appProperties.getSample().setDfaMissRate(1.0);
         Recording r = stubRecording();
         stubTranscriptionWithoutHit();
-        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any())).thenReturn(
-                outcome(new AiScreenResult(false, ViolationType.NONE, "无", "no violation", 0.88, "",
-                        "deepseek", "DeepSeek", "deepseek-flash")));
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                        false,
+                                        ViolationType.NONE,
+                                        "无",
+                                        "no violation",
+                                        0.88,
+                                        "",
+                                        "deepseek",
+                                        "DeepSeek",
+                                        "deepseek-flash")));
 
         pipeline.processNow(1L);
 
@@ -219,9 +274,19 @@ class PipelineServiceTest {
         appProperties.getSample().setDfaMissRate(1.0);
         Recording r = stubRecording();
         stubTranscriptionWithoutHit();
-        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any())).thenReturn(
-                outcome(new AiScreenResult(true, ViolationType.FRAUD, "诈骗诱导", "elevated risk language",
-                        0.9, "wire me the money", "deepseek", "DeepSeek", "deepseek-flash")));
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                        true,
+                                        ViolationType.FRAUD,
+                                        "诈骗诱导",
+                                        "elevated risk language",
+                                        0.9,
+                                        "wire me the money",
+                                        "deepseek",
+                                        "DeepSeek",
+                                        "deepseek-flash")));
 
         pipeline.processNow(1L);
 
@@ -254,9 +319,20 @@ class PipelineServiceTest {
     void lowConfidenceViolationVerdictIsTreatedAsDegraded() throws Exception {
         Recording r = stubRecording();
         stubTranscriptionAndHit();
-        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any())).thenReturn(
-                outcome(new AiScreenResult(true, ViolationType.THREAT, "威胁", "maybe a threat", 0.42, "",
-                        "deepseek", "DeepSeek", "deepseek-flash").withDegraded("置信度低于阈值")));
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                                true,
+                                                ViolationType.THREAT,
+                                                "威胁",
+                                                "maybe a threat",
+                                                0.42,
+                                                "",
+                                                "deepseek",
+                                                "DeepSeek",
+                                                "deepseek-flash")
+                                        .withDegraded("置信度低于阈值")));
 
         pipeline.processNow(1L);
 
@@ -308,6 +384,81 @@ class PipelineServiceTest {
 
         assertNull(r.getErrorMessage(), "新一次处理应清空上一轮错误，避免重试成功后残留");
         assertFalse(r.isSampled(), "非抽样路径不应残留上一轮的 sampled 标记");
+    }
+
+    @Test
+    void processNowSkipsRecordingWithFinalHumanVerdict() {
+        Recording r = new Recording();
+        r.setId(1L);
+        r.setFileName("call.mp3");
+        r.setFilePath("stored.mp3");
+        r.setFileSize(100L);
+        r.setStatus(RecordingStatus.VIOLATION_CONFIRMED);
+        when(recordingRepository.findById(1L)).thenReturn(Optional.of(r));
+
+        pipeline.processNow(1L);
+
+        assertEquals(RecordingStatus.VIOLATION_CONFIRMED, r.getStatus(), "已有终态时不得改写录音状态");
+        verify(audioTranscriptionService, never()).transcribe(any(Path.class));
+        verify(recordingRepository, never()).save(any(Recording.class));
+        verify(pipelineLogRepository, never()).save(any(PipelineLog.class));
+    }
+
+    @Test
+    void processNowSkipsRecordingWaitingForReview() {
+        Recording r = new Recording();
+        r.setId(1L);
+        r.setFileName("call.mp3");
+        r.setFilePath("stored.mp3");
+        r.setFileSize(100L);
+        r.setStatus(RecordingStatus.NEEDS_REVIEW);
+        when(recordingRepository.findById(1L)).thenReturn(Optional.of(r));
+
+        pipeline.processNow(1L);
+
+        assertEquals(RecordingStatus.NEEDS_REVIEW, r.getStatus(), "复核队列中的录音不得被流水线重跑覆盖");
+        verify(audioTranscriptionService, never()).transcribe(any(Path.class));
+        verify(recordingRepository, never()).save(any(Recording.class));
+    }
+
+    @Test
+    void hitCountsAreAggregatedIntoOneAtomicUpdatePerWord() throws Exception {
+        Recording r = stubRecording();
+        when(audioTranscriptionService.transcribe(any(Path.class)))
+                .thenReturn(
+                        new TranscriptionOutcome(
+                                "you stupid bitch bitch", "[]", 1, null, "en", 10, false));
+        when(dfaService.match(anyString()))
+                .thenReturn(
+                        List.of(
+                                new DfaHit("bitch", 0, 5),
+                                new DfaHit("bitch", 10, 15),
+                                new DfaHit("fuck", 20, 24)));
+        when(ragSettingsService.isEnabled()).thenReturn(false);
+        when(ragRetrievalService.corpusExamples(anyString(), anyInt())).thenReturn(List.of());
+        when(screenModelService.active()).thenReturn(activeModel());
+        when(semanticScreeningService.screenWithTrace(any(), anyString(), any(), any(), any()))
+                .thenReturn(
+                        outcome(
+                                new AiScreenResult(
+                                        false,
+                                        ViolationType.NONE,
+                                        "无",
+                                        "no violation",
+                                        0.9,
+                                        "",
+                                        "deepseek",
+                                        "DeepSeek",
+                                        "deepseek-flash")));
+
+        pipeline.processNow(1L);
+
+        // 3 处命中、2 个不同词：每个词只发一条原子累加（不再逐命中 find+save）
+        verify(dictionaryWordRepository).addHitCount(eq("bitch"), eq(2), any());
+        verify(dictionaryWordRepository).addHitCount(eq("fuck"), eq(1), any());
+        verify(dictionaryWordRepository, never()).findByWordIgnoreCase(anyString());
+        verify(dictionaryWordRepository, never()).save(any());
+        assertEquals(RecordingStatus.COMPLIANT, r.getStatus());
     }
 
     private SemanticScreeningService.ScreeningOutcome outcome(AiScreenResult result) {

@@ -1,6 +1,18 @@
 package com.echolint.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.echolint.domain.NotifyEvent;
+import com.echolint.domain.RecordingStatus;
 import com.echolint.domain.TaskStatus;
 import com.echolint.dto.PipelineTaskView;
 import com.echolint.entity.PipelineTask;
@@ -8,6 +20,9 @@ import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.PipelineTaskRepository;
 import com.echolint.repository.RecordingRepository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,25 +37,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * 任务队列核心行为（Batch 3b-1）：入队幂等、领取去重、成功/失败状态流转、
- * 退避 30/120/300s、死信与死信通知、管理员重试、启动恢复、分页视图。
- */
+/** 任务队列核心行为（Batch 3b-1）：入队幂等、领取去重、成功/失败状态流转、 退避 30/120/300s、死信与死信通知、管理员重试、启动恢复、分页视图。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PipelineTaskServiceTest {
@@ -48,12 +45,9 @@ class PipelineTaskServiceTest {
     private static final Long RECORDING_ID = 5L;
     private static final Long TASK_ID = 100L;
 
-    @Mock
-    private PipelineTaskRepository taskRepository;
-    @Mock
-    private RecordingRepository recordingRepository;
-    @Mock
-    private NotificationService notificationService;
+    @Mock private PipelineTaskRepository taskRepository;
+    @Mock private RecordingRepository recordingRepository;
+    @Mock private NotificationService notificationService;
 
     private PipelineTaskService service;
 
@@ -86,7 +80,8 @@ class PipelineTaskServiceTest {
     }
 
     private void stubEnqueueLookups(Optional<PipelineTask> active) {
-        when(recordingRepository.findWithLockById(RECORDING_ID)).thenReturn(Optional.of(recording()));
+        when(recordingRepository.findWithLockById(RECORDING_ID))
+                .thenReturn(Optional.of(recording()));
         when(taskRepository.findFirstByRecordingIdAndStatusInOrderByIdDesc(eq(RECORDING_ID), any()))
                 .thenReturn(active);
     }
@@ -159,15 +154,20 @@ class PipelineTaskServiceTest {
 
     @Test
     void findDueTasksFetchesAtMostFive() {
-        when(taskRepository.findDue(eq(TaskStatus.PENDING), any(LocalDateTime.class),
-                argThat(pageable -> pageable.getPageSize() == PipelineTaskService.BATCH_SIZE
-                        && pageable.getOffset() == 0)))
+        when(taskRepository.findDue(
+                        eq(TaskStatus.PENDING),
+                        any(LocalDateTime.class),
+                        argThat(
+                                pageable ->
+                                        pageable.getPageSize() == PipelineTaskService.BATCH_SIZE
+                                                && pageable.getOffset() == 0)))
                 .thenReturn(List.of(task(TaskStatus.PENDING, 0)));
 
         List<PipelineTask> due = service.findDueTasks();
 
         assertEquals(1, due.size());
-        verify(taskRepository).findDue(eq(TaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class));
+        verify(taskRepository)
+                .findDue(eq(TaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class));
     }
 
     @Test
@@ -243,8 +243,13 @@ class PipelineTaskServiceTest {
         assertEquals(TaskStatus.DEAD, saved.getStatus());
         assertEquals(3, saved.getAttempts());
         assertNotNull(saved.getFinishedAt(), "死信应记录结束时间");
-        verify(notificationService).notify(eq(NotifyEvent.RECORDING_FAILED), eq(RECORDING_ID),
-                anyString(), contains("ffmpeg crashed"), isNull());
+        verify(notificationService)
+                .notify(
+                        eq(NotifyEvent.RECORDING_FAILED),
+                        eq(RECORDING_ID),
+                        anyString(),
+                        contains("ffmpeg crashed"),
+                        isNull());
     }
 
     @Test
@@ -253,7 +258,8 @@ class PipelineTaskServiceTest {
         when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
         when(recordingRepository.findById(RECORDING_ID)).thenReturn(Optional.of(recording()));
         org.mockito.Mockito.doThrow(new RuntimeException("webhook down"))
-                .when(notificationService).notify(any(), any(), anyString(), anyString(), any());
+                .when(notificationService)
+                .notify(any(), any(), anyString(), anyString(), any());
 
         PipelineTask saved = assertDoesNotThrow(() -> service.markFailed(TASK_ID, "boom"));
 
@@ -302,6 +308,11 @@ class PipelineTaskServiceTest {
         task.setLastError("boom");
         task.setFinishedAt(LocalDateTime.now());
         when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        // 录音仍有可重试状态（PENDING）且无其它活动任务，才允许重试
+        when(recordingRepository.findWithLockById(RECORDING_ID))
+                .thenReturn(Optional.of(recording()));
+        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), any()))
+                .thenReturn(false);
         when(recordingRepository.findAllById(any())).thenReturn(List.of(recording()));
 
         PipelineTaskView view = service.retry(TASK_ID);
@@ -312,6 +323,69 @@ class PipelineTaskServiceTest {
         assertNull(view.finishedAt());
         assertNotNull(view.nextAttemptAt());
         assertEquals("call.mp3", view.recordingFileName());
+        verify(recordingRepository).findWithLockById(RECORDING_ID);
+    }
+
+    @Test
+    void retryAllowsFailedRecordingWithoutOtherActiveTask() {
+        PipelineTask task = task(TaskStatus.FAILED, 1);
+        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        Recording recording = recording();
+        recording.setStatus(RecordingStatus.FAILED);
+        when(recordingRepository.findWithLockById(RECORDING_ID)).thenReturn(Optional.of(recording));
+        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), any()))
+                .thenReturn(false);
+        when(recordingRepository.findAllById(any())).thenReturn(List.of(recording));
+
+        PipelineTaskView view = service.retry(TASK_ID);
+
+        assertEquals(TaskStatus.PENDING, view.status());
+        assertEquals(0, view.attempts());
+    }
+
+    @Test
+    void retryRejectsRecordingWithFinalVerdict() {
+        PipelineTask task = task(TaskStatus.DEAD, 3);
+        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        Recording recording = recording();
+        recording.setStatus(RecordingStatus.VIOLATION_CONFIRMED);
+        when(recordingRepository.findWithLockById(RECORDING_ID)).thenReturn(Optional.of(recording));
+
+        BizException e = assertThrows(BizException.class, () -> service.retry(TASK_ID));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertTrue(e.getMessage().contains("结论"));
+        assertEquals(TaskStatus.DEAD, task.getStatus(), "拒绝时不得改动任务状态");
+        verify(taskRepository, never()).save(any(PipelineTask.class));
+    }
+
+    @Test
+    void retryRejectsWhenAnotherActiveTaskExists() {
+        PipelineTask task = task(TaskStatus.DEAD, 3);
+        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(recordingRepository.findWithLockById(RECORDING_ID))
+                .thenReturn(Optional.of(recording()));
+        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), any()))
+                .thenReturn(true);
+
+        BizException e = assertThrows(BizException.class, () -> service.retry(TASK_ID));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertTrue(e.getMessage().contains("已有排队/执行中"));
+        assertEquals(TaskStatus.DEAD, task.getStatus());
+        verify(taskRepository, never()).save(any(PipelineTask.class));
+    }
+
+    @Test
+    void retryRejectsMissingRecording() {
+        PipelineTask task = task(TaskStatus.DEAD, 3);
+        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(recordingRepository.findWithLockById(RECORDING_ID)).thenReturn(Optional.empty());
+
+        BizException e = assertThrows(BizException.class, () -> service.retry(TASK_ID));
+
+        assertEquals(HttpStatus.NOT_FOUND, e.getStatus());
+        verify(taskRepository, never()).save(any(PipelineTask.class));
     }
 
     @Test
@@ -339,10 +413,12 @@ class PipelineTaskServiceTest {
     void queryReturnsRecordingFileName() {
         PipelineTask task = task(TaskStatus.DEAD, 3);
         Page<PipelineTask> page = new PageImpl<>(List.of(task), PageRequest.of(0, 20), 1);
-        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(page);
         when(recordingRepository.findAllById(any())).thenReturn(List.of(recording()));
 
-        Page<PipelineTaskView> result = service.query(TaskStatus.DEAD, RECORDING_ID, PageRequest.of(0, 20));
+        Page<PipelineTaskView> result =
+                service.query(TaskStatus.DEAD, RECORDING_ID, PageRequest.of(0, 20));
 
         assertEquals(1, result.getTotalElements());
         assertEquals("call.mp3", result.getContent().get(0).recordingFileName());
@@ -351,10 +427,12 @@ class PipelineTaskServiceTest {
 
     @Test
     void hasActiveTaskChecksPendingAndRunning() {
-        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), any())).thenReturn(true);
+        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), any()))
+                .thenReturn(true);
         assertTrue(service.hasActiveTask(RECORDING_ID));
 
-        when(taskRepository.existsByRecordingIdAndStatusIn(eq(RECORDING_ID), eq(List.of(TaskStatus.RUNNING))))
+        when(taskRepository.existsByRecordingIdAndStatusIn(
+                        eq(RECORDING_ID), eq(List.of(TaskStatus.RUNNING))))
                 .thenReturn(false);
         assertFalse(service.isRunning(RECORDING_ID));
     }
