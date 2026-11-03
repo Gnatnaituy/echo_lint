@@ -161,7 +161,10 @@ test('知识库条目：snake_case / 字符串布尔 / 缺字段兜底', () => {
 
 test('知识库分页：Spring Page / 裸数组 / 空响应', () => {
   const page = normalizeKnowledgePage({
-    content: [{ id: 1, title: 'A' }, { id: 2, title: 'B' }],
+    content: [
+      { id: 1, title: 'A' },
+      { id: 2, title: 'B' }
+    ],
     totalElements: 12,
     totalPages: 2,
     number: 0,
@@ -209,6 +212,9 @@ test('审计动作：API 密钥 / 知识库 / 开放 API 上传均有中文文�
     'KNOWLEDGE_UPDATE',
     'KNOWLEDGE_DELETE'
   ]) {
-    assert.ok(AUDIT_ACTION_OPTIONS.some((opt) => opt.value === action), action)
+    assert.ok(
+      AUDIT_ACTION_OPTIONS.some((opt) => opt.value === action),
+      action
+    )
   }
 })

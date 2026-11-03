@@ -108,7 +108,12 @@ test('逐句视图：句内高亮切片偏移正确（相对句子文本）', ()
 
 test('逐句视图：AI 判违规原句被标记到对应句子', () => {
   const target = 'you stupid bitch, I will kill you'
-  const view = buildSentenceView({ text: TEXT, segments: SEGMENTS, hits: HITS, targetSentence: target })
+  const view = buildSentenceView({
+    text: TEXT,
+    segments: SEGMENTS,
+    hits: HITS,
+    targetSentence: target
+  })
   assert.equal(view.sentences[2].isTarget, true)
   assert.equal(view.sentences[0].isTarget, false)
 })
@@ -116,7 +121,12 @@ test('逐句视图：AI 判违规原句被标记到对应句子', () => {
 test('逐句视图：目标句与分段文本不完全一致时按包含关系兜底', () => {
   // AI 返回的原句缺少分段中存在的部分（如断句差异）
   const target = 'I will kill you, do you understand?'
-  const view = buildSentenceView({ text: TEXT, segments: SEGMENTS, hits: [], targetSentence: target })
+  const view = buildSentenceView({
+    text: TEXT,
+    segments: SEGMENTS,
+    hits: [],
+    targetSentence: target
+  })
   assert.equal(view.sentences[2].isTarget, true)
 })
 
@@ -163,7 +173,13 @@ const STEREO_SEGMENTS = [
   { start: 0, end: 2.5, text: 'Thank you for calling support.', speaker: '坐席', channel: 'L' },
   { start: 2.6, end: 5.2, text: 'I want a refund right now.', speaker: '客户', channel: 'R' },
   { start: 5.4, end: 8.0, text: 'Let me check your order first.', speaker: '坐席', channel: 'L' },
-  { start: 8.2, end: 11.0, text: 'You are a stupid idiot, hurry up!', speaker: '客户', channel: 'R' }
+  {
+    start: 8.2,
+    end: 11.0,
+    text: 'You are a stupid idiot, hurry up!',
+    speaker: '客户',
+    channel: 'R'
+  }
 ]
 
 test('sideOfChannel 声道映射', () => {

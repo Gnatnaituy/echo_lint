@@ -55,7 +55,9 @@
               <el-button type="primary" :icon="MagicStick" :loading="testing" @click="runTest">
                 {{ t('dictionary.dfa.test') }}
               </el-button>
-              <el-button v-if="tested" link @click="clearTest">{{ t('dictionary.dfa.clear') }}</el-button>
+              <el-button v-if="tested" link @click="clearTest">{{
+                t('dictionary.dfa.clear')
+              }}</el-button>
               <span v-if="tested && testHits.length" class="chip danger">
                 {{ t('dictionary.dfa.hitCount', { count: testHits.length }) }}
               </span>
@@ -82,25 +84,34 @@
           <div class="tip">
             <el-icon class="tip-icon"><InfoFilled /></el-icon>
             <div>
-              <b>{{ t('dictionary.rules.caseInsensitive') }}</b>{{ t('dictionary.rules.caseInsensitiveDesc') }}<code class="mono">fuck</code>{{ t('dictionary.rules.caseInsensitiveMatches') }}<code class="mono">F U C K</code>{{ t('dictionary.rules.listSeparator') }}<code class="mono">f.u.c.k</code>{{ t('dictionary.rules.sentenceEnd') }}
+              <b>{{ t('dictionary.rules.caseInsensitive') }}</b
+              >{{ t('dictionary.rules.caseInsensitiveDesc') }}<code class="mono">fuck</code
+              >{{ t('dictionary.rules.caseInsensitiveMatches') }}<code class="mono">F U C K</code
+              >{{ t('dictionary.rules.listSeparator') }}<code class="mono">f.u.c.k</code
+              >{{ t('dictionary.rules.sentenceEnd') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><InfoFilled /></el-icon>
             <div>
-              <b>{{ t('dictionary.rules.substring') }}</b>{{ t('dictionary.rules.substringLead') }}<code class="mono">unfuckingbelievable</code>{{ t('dictionary.rules.substringMatches') }}<code class="mono">fuck</code>{{ t('dictionary.rules.substringTail') }}
+              <b>{{ t('dictionary.rules.substring') }}</b
+              >{{ t('dictionary.rules.substringLead') }}<code class="mono">unfuckingbelievable</code
+              >{{ t('dictionary.rules.substringMatches') }}<code class="mono">fuck</code
+              >{{ t('dictionary.rules.substringTail') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><MagicStick /></el-icon>
             <div>
-              <b>{{ t('dictionary.rules.minedDisabled') }}</b>{{ t('dictionary.rules.minedDisabledDesc') }}
+              <b>{{ t('dictionary.rules.minedDisabled') }}</b
+              >{{ t('dictionary.rules.minedDisabledDesc') }}
             </div>
           </div>
           <div class="tip">
             <el-icon class="tip-icon"><WarningFilled /></el-icon>
             <div>
-              <b>{{ t('dictionary.rules.saveTakesEffect') }}</b>{{ t('dictionary.rules.saveTakesEffectDesc') }}
+              <b>{{ t('dictionary.rules.saveTakesEffect') }}</b
+              >{{ t('dictionary.rules.saveTakesEffectDesc') }}
             </div>
           </div>
         </div>
@@ -136,29 +147,44 @@
             @keyup.enter="reload"
             @clear="reload"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
+          <el-button
+            :icon="Refresh"
+            circle
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+            @click="reload"
+          />
           <template v-if="canWrite">
             <el-button :icon="Download" :loading="exporting" @click="exportCsv">
               {{ t('dictionary.exportCsv') }}
             </el-button>
-            <el-button :icon="Upload" @click="openImport">{{ t('dictionary.importCsv') }}</el-button>
-            <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('dictionary.createEntry') }}</el-button>
+            <el-button :icon="Upload" @click="openImport">{{
+              t('dictionary.importCsv')
+            }}</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreate">{{
+              t('dictionary.createEntry')
+            }}</el-button>
           </template>
         </div>
       </div>
 
       <!-- 批量启停（仅 ADMIN）：选中词条后出现 -->
       <div v-if="canWrite && selectedRows.length" class="bulk-bar">
-        <span class="chip brand">{{ t('dictionary.bulk.selected', { count: selectedRows.length }) }}</span>
+        <span class="chip brand">{{
+          t('dictionary.bulk.selected', { count: selectedRows.length })
+        }}</span>
         <el-button
           size="small"
           type="success"
           plain
           :loading="bulkLoading === 'on'"
           @click="bulkUpdate(true)"
-        >{{ t('dictionary.bulk.enable') }}</el-button>
+          >{{ t('dictionary.bulk.enable') }}</el-button
+        >
         <el-popconfirm
           :title="t('dictionary.bulk.confirmDisable')"
           width="260"
@@ -170,7 +196,9 @@
             </el-button>
           </template>
         </el-popconfirm>
-        <el-button size="small" link @click="clearSelection">{{ t('dictionary.bulk.clear') }}</el-button>
+        <el-button size="small" link @click="clearSelection">{{
+          t('dictionary.bulk.clear')
+        }}</el-button>
         <span class="tiny dim">{{ t('dictionary.bulk.hint') }}</span>
       </div>
 
@@ -190,7 +218,8 @@
                 v-if="row.source === 'MINED' && !row.enabled"
                 class="chip warn"
                 :title="t('dictionary.pendingReviewTip')"
-              >{{ t('dictionary.pendingReview') }}</span>
+                >{{ t('dictionary.pendingReview') }}</span
+              >
             </div>
           </template>
         </el-table-column>
@@ -243,10 +272,18 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="canWrite" :label="t('common.actions')" width="104" align="right" fixed="right">
+        <el-table-column
+          v-if="canWrite"
+          :label="t('common.actions')"
+          width="104"
+          align="right"
+          fixed="right"
+        >
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button size="small" link type="primary" @click="openEdit(row)">{{ t('common.edit') }}</el-button>
+              <el-button size="small" link type="primary" @click="openEdit(row)">{{
+                t('common.edit')
+              }}</el-button>
               <el-popconfirm :title="t('dictionary.confirmDelete')" @confirm="remove(row)">
                 <template #reference>
                   <el-button size="small" link type="danger">{{ t('common.delete') }}</el-button>
@@ -269,18 +306,30 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
 
     <!-- 导入 CSV（仅 ADMIN） -->
-    <el-dialog v-model="importVisible" :title="t('dictionary.import.title')" width="560px" @closed="resetImport">
+    <el-dialog
+      v-model="importVisible"
+      :title="t('dictionary.import.title')"
+      width="560px"
+      @closed="resetImport"
+    >
       <div class="import-hint">
         <div class="tip-line">
           <el-icon><InfoFilled /></el-icon>
           <span>
-            {{ t('dictionary.import.columnsLead') }}<code class="mono">word,category,severity,enabled</code>{{ t('dictionary.import.columnsRest') }}
+            {{ t('dictionary.import.columnsLead')
+            }}<code class="mono">word,category,severity,enabled</code
+            >{{ t('dictionary.import.columnsRest') }}
           </span>
         </div>
         <div class="tip-line">
@@ -303,7 +352,9 @@
         :on-exceed="onImportExceed"
       >
         <el-icon class="el-icon--upload"><Upload /></el-icon>
-        <div class="el-upload__text">{{ t('dictionary.import.dragPrefix') }}<em>{{ t('dictionary.import.clickSelect') }}</em></div>
+        <div class="el-upload__text">
+          {{ t('dictionary.import.dragPrefix') }}<em>{{ t('dictionary.import.clickSelect') }}</em>
+        </div>
         <template #tip>
           <div class="el-upload__tip">{{ t('dictionary.import.uploadTip') }}</div>
         </template>
@@ -325,14 +376,17 @@
       </div>
 
       <template #footer>
-        <el-button @click="importVisible = false">{{ importResult ? t('dictionary.import.done') : t('common.cancel') }}</el-button>
+        <el-button @click="importVisible = false">{{
+          importResult ? t('dictionary.import.done') : t('common.cancel')
+        }}</el-button>
         <el-button
           v-if="!importResult"
           type="primary"
           :loading="importing"
           :disabled="!importFile"
           @click="submitImport"
-        >{{ t('dictionary.import.start') }}</el-button>
+          >{{ t('dictionary.import.start') }}</el-button
+        >
         <el-button v-else type="primary" :disabled="importing" @click="resetImportForm">
           {{ t('dictionary.import.continue') }}
         </el-button>
@@ -349,13 +403,19 @@
         <el-form-item :label="t('dictionary.table.word')">
           <el-input v-model="form.word" :placeholder="t('dictionary.form.wordPlaceholder')" />
           <div class="norm-hint">
-            {{ t('dictionary.form.normalized') }}<code class="mono">{{ normalizedPreview || '—' }}</code>
+            {{ t('dictionary.form.normalized')
+            }}<code class="mono">{{ normalizedPreview || '—' }}</code>
             <span class="dim">{{ t('dictionary.form.normalizedHint') }}</span>
           </div>
         </el-form-item>
         <el-form-item :label="t('dictionary.table.category')">
           <el-select v-model="form.category" style="width: 100%">
-            <el-option v-for="(label, code) in VIOLATION_TYPES" :key="code" :label="label" :value="code" />
+            <el-option
+              v-for="(label, code) in VIOLATION_TYPES"
+              :key="code"
+              :label="label"
+              :value="code"
+            />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('dictionary.table.severity')">
@@ -366,7 +426,9 @@
               class="type-chip"
               :class="{ on: form.severity === code }"
               @click="form.severity = code"
-            >{{ meta.label }}</button>
+            >
+              {{ meta.label }}
+            </button>
           </div>
         </el-form-item>
         <el-form-item :label="t('common.enabled')">
@@ -394,10 +456,18 @@ import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
-import { VIOLATION_TYPES, SEVERITY_META, SOURCE_META, formatTime, formatTimeShort } from '../constants'
+import {
+  VIOLATION_TYPES,
+  SEVERITY_META,
+  SOURCE_META,
+  formatTime,
+  formatTimeShort
+} from '../constants'
 import { saveBlob } from '../utils/download'
 import { useElementWidth } from '../utils/elementWidth'
 import { useI18n } from '../i18n'
+import overviewState from '../state/overview'
+import { InfoFilled, Lock, WarningFilled } from '../components/icons.js'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -437,7 +507,8 @@ const enabledValue = computed({
     enabledFilter.value = value === '' ? null : value === 'true'
   }
 })
-const overview = ref(null)
+/** 概览走全局单例（与 App 轮询 / 工作台 / 语料库共享请求与短缓存） */
+const overview = computed(() => overviewState.data)
 
 const testText = ref('')
 const testHits = ref([])
@@ -490,11 +561,15 @@ function hitBarWidth(count) {
   return Math.max(2, Math.round(((count || 0) / maxHits.value) * 100)) + '%'
 }
 
-async function loadOverview() {
+/**
+ * 概览统计：词库写操作（新增 / 编辑 / 启停 / 删除 / 导入 / 批量）后 force 刷新，
+ * 保证 KPI 立即反映变化；挂载时走短缓存，避免与 App 轮询重复请求。
+ */
+async function loadOverview({ force = false } = {}) {
   try {
-    overview.value = await api.overview()
+    await overviewState.load({ force })
   } catch {
-    // 忽略
+    // 概览失败不阻塞列表：KPI 保留上一次成功值
   }
 }
 
@@ -569,7 +644,7 @@ async function save() {
     }
     dialogVisible.value = false
     reload()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 403 等由请求层统一提示
   } finally {
@@ -586,7 +661,7 @@ async function toggle(row, v) {
         : t('dictionary.messages.disabledWord', { word: row.word })
     )
     load()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 403 等由请求层统一提示
   }
@@ -597,7 +672,7 @@ async function remove(row) {
     await api.deleteWord(row.id)
     ElMessage.success(t('dictionary.messages.deleted'))
     load()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 403 等由请求层统一提示
   }
@@ -628,7 +703,7 @@ async function bulkUpdate(enabled) {
     )
     clearSelection()
     load()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 403 等由请求层统一提示
   } finally {
@@ -718,7 +793,7 @@ async function submitImport() {
       })
     )
     reload()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 403 / 校验失败由请求层统一提示，保留文件便于重试
   } finally {

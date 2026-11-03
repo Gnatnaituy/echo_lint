@@ -2,10 +2,12 @@
   <div class="chart">
     <div class="chart-head">
       <span class="peak">
-        {{ t('reports.trendPeak') }} <b class="num">{{ maxCount }}</b> {{ t('reports.trendCountUnit') }}
+        {{ t('reports.trendPeak') }} <b class="num">{{ maxCount }}</b>
+        {{ t('reports.trendCountUnit') }}
       </span>
       <span class="total tiny dim">
-        {{ t('reports.trend7dTotal') }} <b class="num">{{ totalCount }}</b> {{ t('reports.trendCountUnit') }}
+        {{ t('reports.trend7dTotal') }} <b class="num">{{ totalCount }}</b>
+        {{ t('reports.trendCountUnit') }}
       </span>
     </div>
 
@@ -57,11 +59,7 @@
       </svg>
 
       <!-- 悬停点（HTML 层，避免 viewBox 拉伸变形） -->
-      <div
-        v-if="hover >= 0"
-        class="hover-dot"
-        :style="{ left: dotLeft, top: dotTop }"
-      ></div>
+      <div v-if="hover >= 0" class="hover-dot" :style="{ left: dotLeft, top: dotTop }"></div>
       <div v-if="hover >= 0" class="tooltip" :style="tooltipStyle">
         <div class="tt-date">{{ data[hover].date }}</div>
         <div class="tt-value">
@@ -153,7 +151,12 @@ const tooltipStyle = computed(() => {
   const leftPct = (points.value[hover.value].x / W) * 100
   return {
     left: `${leftPct}%`,
-    transform: leftPct > 72 ? 'translate(-100%, -8px)' : leftPct < 12 ? 'translate(0, -8px)' : 'translate(-50%, -8px)'
+    transform:
+      leftPct > 72
+        ? 'translate(-100%, -8px)'
+        : leftPct < 12
+          ? 'translate(0, -8px)'
+          : 'translate(-50%, -8px)'
   }
 })
 </script>

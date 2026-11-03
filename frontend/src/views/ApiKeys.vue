@@ -15,9 +15,9 @@
             :icon="Refresh"
             circle
             :loading="loading"
-            @click="load"
             :aria-label="t('common.refresh')"
             :title="t('common.refresh')"
+            @click="load"
           />
           <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">
             {{ t('apiKeys.create') }}
@@ -35,7 +35,9 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
+        <el-button link type="primary" size="small" @click="load">{{
+          t('common.retry')
+        }}</el-button>
       </div>
 
       <el-table ref="tableRef" v-loading="loading" :data="pagedRows">
@@ -53,7 +55,9 @@
         <el-table-column :label="t('apiKeys.key')" min-width="180">
           <template #default="{ row }">
             <div class="key-cell">
-              <span class="chip mono key-chip" :title="maskedApiKey(row)">{{ maskedApiKey(row) }}</span>
+              <span class="chip mono key-chip" :title="maskedApiKey(row)">{{
+                maskedApiKey(row)
+              }}</span>
             </div>
           </template>
         </el-table-column>
@@ -77,7 +81,9 @@
 
         <el-table-column v-if="!narrowColumns" :label="t('common.createdBy')" width="132">
           <template #default="{ row }">
-            <span v-if="row.createdBy" class="ellipsis" :title="row.createdBy">{{ row.createdBy }}</span>
+            <span v-if="row.createdBy" class="ellipsis" :title="row.createdBy">{{
+              row.createdBy
+            }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
@@ -145,7 +151,13 @@
       :close-on-click-modal="!creating"
       @closed="resetCreate"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="72px" @submit.prevent="submitCreate">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="72px"
+        @submit.prevent="submitCreate"
+      >
         <el-form-item :label="t('common.name')" prop="name">
           <el-input
             v-model="form.name"
@@ -155,12 +167,7 @@
             autocomplete="off"
           />
         </el-form-item>
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          :title="t('apiKeys.createAlert')"
-        />
+        <el-alert type="info" :closable="false" show-icon :title="t('apiKeys.createAlert')" />
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">{{ t('common.cancel') }}</el-button>
@@ -179,7 +186,9 @@
       :close-on-click-modal="false"
     >
       <div class="secret-head">
-        <div class="secret-icon"><el-icon :size="18"><Key /></el-icon></div>
+        <div class="secret-icon">
+          <el-icon :size="18"><Key /></el-icon>
+        </div>
         <div class="min-w-0">
           <div class="strong">{{ createdSecret.name || t('apiKeys.untitled') }}</div>
           <div class="tiny dim">{{ t('apiKeys.createdHint') }}</div>
@@ -192,7 +201,12 @@
           class="secret-input"
           :title="createdSecret.key || ''"
         />
-        <el-button type="primary" :icon="CopyDocument" :disabled="!createdSecret.key" @click="copySecret">
+        <el-button
+          type="primary"
+          :icon="CopyDocument"
+          :disabled="!createdSecret.key"
+          @click="copySecret"
+        >
           {{ t('apiKeys.copyKey') }}
         </el-button>
       </div>
@@ -222,6 +236,7 @@ import { formatRelative, formatTime } from '../constants'
 import { useI18n } from '../i18n'
 import { maskedApiKey } from '../utils/apiKeys'
 import { useElementWidth } from '../utils/elementWidth'
+import { Key, WarningFilled } from '../components/icons.js'
 
 const { t, tn } = useI18n()
 

@@ -40,7 +40,7 @@
   --surface-sunken: #f4f6fb;
   /* 浅色侧栏：顶部白色高光 → 底部淡蓝灰，叠加品牌色柔光，形成层次 */
   --surface-sidebar:
-    radial-gradient(120% 70% at 0% 0%, rgba(59, 110, 246, 0.10) 0%, rgba(59, 110, 246, 0) 58%),
+    radial-gradient(120% 70% at 0% 0%, rgba(59, 110, 246, 0.1) 0%, rgba(59, 110, 246, 0) 58%),
     linear-gradient(180deg, #ffffff 0%, #f9fbff 52%, #f1f5fc 100%);
   --border: #e8ecf3;
   --border-strong: #dbe2ec;
@@ -63,9 +63,10 @@
   --sh-brand: 0 6px 18px rgba(59, 110, 246, 0.24);
 
   /* 排版 */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ---------- Element Plus 变量覆盖 ---------- */
   --el-color-primary: #3b6ef6;
@@ -163,7 +164,7 @@ a {
 .num,
 .mono {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+  font-feature-settings: 'tnum';
 }
 
 .mono {
@@ -235,13 +236,13 @@ a {
 }
 
 .dim {
-  /* 说明/次要信息用比 placeholder 深一档的灰，11.5~12px 小字在白色卡片上才够对比 */
-  color: #6b7a90;
+  /* 说明/次要信息用比 placeholder 深一档的灰：白底对比度 4.76:1，满足 WCAG AA 普通文本 */
+  color: #64748b;
 }
 
-/* 卡片内说明文字：比纯 placeholder 再深一档，长段中文更易读 */
+/* 卡片内说明文字：同上，保证小字在白色卡片上仍可读 */
 .hint.dim {
-  color: #6b7a90;
+  color: #64748b;
 }
 
 .tiny {
@@ -267,7 +268,7 @@ a {
 }
 
 .section-title::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -11px;
   top: 50%;
@@ -283,8 +284,12 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035), 0 10px 26px rgba(15, 23, 42, 0.03);
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.035),
+    0 10px 26px rgba(15, 23, 42, 0.03);
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 }
 
 .panel-head {
@@ -385,12 +390,19 @@ a {
 .el-button--primary:not(.is-link):not(.is-text) {
   /* 主按钮加一层极浅的纵向渐变，比纯色更有质感；禁用/加载态保持纯色 */
   background-image: linear-gradient(180deg, #4d79f7 0%, #3b6ef6 100%);
-  box-shadow: 0 1px 2px rgba(37, 74, 180, 0.16), 0 3px 10px rgba(59, 110, 246, 0.18);
-  transition: background-image 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow:
+    0 1px 2px rgba(37, 74, 180, 0.16),
+    0 3px 10px rgba(59, 110, 246, 0.18);
+  transition:
+    background-image 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
 }
 .el-button--primary:not(.is-link):not(.is-text):not(.is-disabled):not(.is-loading):hover {
   background-image: linear-gradient(180deg, #5b85f8 0%, #4677f7 100%);
-  box-shadow: 0 2px 4px rgba(37, 74, 180, 0.18), 0 6px 16px rgba(59, 110, 246, 0.22);
+  box-shadow:
+    0 2px 4px rgba(37, 74, 180, 0.18),
+    0 6px 16px rgba(59, 110, 246, 0.22);
 }
 .el-button--primary.is-disabled:not(.is-link):not(.is-text),
 .el-button--primary.is-loading:not(.is-link):not(.is-text) {
@@ -480,7 +492,7 @@ a {
   border-left: 1px solid var(--border);
 }
 .el-table--scrollable-x .el-table-fixed-column--right::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0 auto 0 -13px;
   width: 12px;
@@ -677,7 +689,6 @@ a {
   font-size: 11.5px;
   color: var(--el-text-color-placeholder);
 }
-
 
 /* ==========================================================================
    Batch 4b：响应式与无障碍（全局）

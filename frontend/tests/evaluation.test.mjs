@@ -17,7 +17,12 @@ import {
 
 test('A/B 配置：契约字段归一化 + 百分数范围校验', () => {
   assert.deepEqual(
-    normalizeAbConfig({ enabled: true, percent: 30, providerId: 'deepseek', model: 'deepseek-flash' }),
+    normalizeAbConfig({
+      enabled: true,
+      percent: 30,
+      providerId: 'deepseek',
+      model: 'deepseek-flash'
+    }),
     {
       enabled: true,
       percent: 30,
@@ -84,8 +89,20 @@ test('评测结果：完整契约字段归一化（小数指标）', () => {
       { label: 'COMPLIANT', total: 4, correct: 3 }
     ],
     results: [
-      { corpusId: 1, expected: 'VIOLATION', predicted: 'VIOLATION', confidence: 0.9, reason: '匹配' },
-      { corpusId: 2, expected: 'COMPLIANT', predicted: 'VIOLATION', confidence: 0.6, reason: '误判' },
+      {
+        corpusId: 1,
+        expected: 'VIOLATION',
+        predicted: 'VIOLATION',
+        confidence: 0.9,
+        reason: '匹配'
+      },
+      {
+        corpusId: 2,
+        expected: 'COMPLIANT',
+        predicted: 'VIOLATION',
+        confidence: 0.6,
+        reason: '误判'
+      },
       { corpusId: 3, expected: 'COMPLIANT', error: 'timeout' }
     ]
   })

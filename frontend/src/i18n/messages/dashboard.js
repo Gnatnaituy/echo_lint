@@ -42,7 +42,12 @@ export default {
     'dashboard.knowledge.violationSub': 'few-shot 正例',
     'dashboard.knowledge.compliantSub': 'few-shot 反例',
     'dashboard.knowledge.loopTip':
-      '人工复检结论自动写入语料库，作为 AI 复筛的 few-shot 参考；确认违规的录音会由 AI 提炼新敏感词入库（默认停用，审核后启用）。'
+      '人工复检结论自动写入语料库，作为 AI 复筛的 few-shot 参考；确认违规的录音会由 AI 提炼新敏感词入库（默认停用，审核后启用）。',
+
+    // 加载失败提示（内联横幅 + 重试）
+    'dashboard.error.forbidden': '当前账号无权限查看工作台数据（请重新登录）',
+    'dashboard.error.notFound': '后端统计接口不可用（HTTP 404），请确认后端版本',
+    'dashboard.error.loadFailed': '工作台数据加载失败，请稍后重试'
   },
   en: {
     // KPI
@@ -82,6 +87,13 @@ export default {
     'dashboard.knowledge.violationSub': 'few-shot positives',
     'dashboard.knowledge.compliantSub': 'few-shot negatives',
     'dashboard.knowledge.loopTip':
-      'Manual review conclusions are written to the corpus automatically as few-shot references for AI screening; recordings confirmed as violations are mined for new sensitive words by AI (disabled by default and enabled after review).'
+      'Manual review conclusions are written to the corpus automatically as few-shot references for AI screening; recordings confirmed as violations are mined for new sensitive words by AI (disabled by default and enabled after review).',
+
+    // Load failure hints (inline banner + retry)
+    'dashboard.error.forbidden':
+      'You do not have permission to view dashboard data. Please sign in again.',
+    'dashboard.error.notFound':
+      'The backend statistics endpoint is unavailable (HTTP 404). Please verify the backend version.',
+    'dashboard.error.loadFailed': 'Failed to load dashboard data. Please try again later.'
   }
 }

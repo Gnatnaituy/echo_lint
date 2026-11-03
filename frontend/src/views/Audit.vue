@@ -16,7 +16,9 @@
             @keyup.enter="reload"
             @clear="reload"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <el-select
             v-model="filters.action"
@@ -35,9 +37,9 @@
           <el-button
             :icon="Refresh"
             circle
-            @click="reload"
             :aria-label="t('common.refresh')"
             :title="t('common.refresh')"
+            @click="reload"
           />
           <el-button :icon="Search" @click="reload">{{ t('audit.search') }}</el-button>
         </div>
@@ -50,7 +52,9 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
+        <el-button link type="primary" size="small" @click="load">{{
+          t('common.retry')
+        }}</el-button>
       </div>
 
       <el-table
@@ -77,7 +81,9 @@
               <span class="chip" :class="actionChip(row.action)">
                 {{ auditActionLabel(row.action) }}
               </span>
-              <span class="action-code mono" :title="row.action || ''">{{ row.action || '—' }}</span>
+              <span class="action-code mono" :title="row.action || ''">{{
+                row.action || '—'
+              }}</span>
             </div>
           </template>
         </el-table-column>
@@ -90,7 +96,12 @@
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" :label="t('common.detail')" min-width="200" show-overflow-tooltip>
+        <el-table-column
+          prop="detail"
+          :label="t('common.detail')"
+          min-width="200"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             <span :class="{ dim: !row.detail }">{{ row.detail || '—' }}</span>
           </template>
@@ -115,13 +126,24 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
 
-    <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" size="520px" :with-header="false" append-to-body>
+    <!-- 详情抽屉：with-header=false 时必须显式给 title，否则 aria-labelledby 指向未渲染的标题节点 -->
+    <el-drawer
+      v-model="detailVisible"
+      :title="t('audit.detailTitle')"
+      size="520px"
+      :with-header="false"
+      append-to-body
+    >
       <template v-if="detail">
         <div class="drawer-head">
           <div class="section-title">{{ t('audit.detailTitle') }}</div>
@@ -129,14 +151,16 @@
             :icon="Close"
             circle
             size="small"
-            @click="detailVisible = false"
             :aria-label="t('common.close')"
             :title="t('common.close')"
+            @click="detailVisible = false"
           />
         </div>
 
         <el-descriptions :column="1" border class="detail-desc">
-          <el-descriptions-item :label="t('audit.time')">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('audit.time')">{{
+            formatTime(detail.createdAt)
+          }}</el-descriptions-item>
           <el-descriptions-item :label="t('audit.actor')">
             <span class="mono">{{ detail.actor || '—' }}</span>
           </el-descriptions-item>
@@ -175,6 +199,7 @@ import {
   formatTime
 } from '../constants'
 import { useI18n } from '../i18n'
+import { List, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 

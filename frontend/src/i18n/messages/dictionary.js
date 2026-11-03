@@ -16,14 +16,14 @@ export default {
     // DFA 检测工具
     'dictionary.dfa.title': 'DFA 检测工具',
     'dictionary.dfa.subtitle': '使用当前启用词典实时匹配',
-    'dictionary.dfa.placeholder': '粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!',
+    'dictionary.dfa.placeholder':
+      '粘贴一段转写文本，例如：you are a f***ing idiot, I will kill you!',
     'dictionary.dfa.test': '检测',
     'dictionary.dfa.clear': '清空',
     'dictionary.dfa.hitCount': '命中 {count} 处',
     'dictionary.dfa.noHit': '未命中，文本干净',
     'dictionary.dfa.preview': '命中预览',
-    'dictionary.dfa.readonlyHint':
-      '只读角色可浏览词库与统计；DFA 检测工具与词条维护仅管理员可用。',
+    'dictionary.dfa.readonlyHint': '只读角色可浏览词库与统计；DFA 检测工具与词条维护仅管理员可用。',
 
     // 匹配规则与维护说明
     'dictionary.rules.title': '匹配规则与维护说明',
@@ -126,7 +126,8 @@ export default {
     // DFA test tool
     'dictionary.dfa.title': 'DFA test tool',
     'dictionary.dfa.subtitle': 'Real-time matching against the enabled dictionary',
-    'dictionary.dfa.placeholder': 'Paste a transcript, e.g. you are a f***ing idiot, I will kill you!',
+    'dictionary.dfa.placeholder':
+      'Paste a transcript, e.g. you are a f***ing idiot, I will kill you!',
     'dictionary.dfa.test': 'Test',
     'dictionary.dfa.clear': 'Clear',
     'dictionary.dfa.hitCount': 'Matches: {count}',
@@ -222,8 +223,10 @@ export default {
     'dictionary.messages.enabledWord': 'Enabled "{word}"',
     'dictionary.messages.disabledWord': 'Disabled "{word}"',
     'dictionary.messages.deleted': 'Deleted',
-    'dictionary.messages.bulkEnabled': 'Enabled entries: {count}. The DFA matcher has been rebuilt.',
-    'dictionary.messages.bulkDisabled': 'Disabled entries: {count}. The DFA matcher has been rebuilt.',
+    'dictionary.messages.bulkEnabled':
+      'Enabled entries: {count}. The DFA matcher has been rebuilt.',
+    'dictionary.messages.bulkDisabled':
+      'Disabled entries: {count}. The DFA matcher has been rebuilt.',
     'dictionary.messages.exported': 'Dictionary exported: {filename}',
     'dictionary.messages.csvRequired': 'Please select a .csv file',
     'dictionary.messages.csvTooLarge': 'CSV file exceeds 5 MB',

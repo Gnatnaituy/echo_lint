@@ -15,10 +15,30 @@ import { asObject, pick, toBoolean, toNumber, toText } from './shape.js'
 
 // label 用 getter：模板 / 计算属性读取时自动跟随语言切换；默认语言为中文
 export const AI_STAGE_META = {
-  SCREEN: { get label() { return t('meta.aiStage.SCREEN') }, type: 'brand' },
-  MINING: { get label() { return t('meta.aiStage.MINING') }, type: 'info' },
-  EMBED_QUERY: { get label() { return t('meta.aiStage.EMBED_QUERY') }, type: 'info' },
-  EMBED_INDEX: { get label() { return t('meta.aiStage.EMBED_INDEX') }, type: 'info' }
+  SCREEN: {
+    get label() {
+      return t('meta.aiStage.SCREEN')
+    },
+    type: 'brand'
+  },
+  MINING: {
+    get label() {
+      return t('meta.aiStage.MINING')
+    },
+    type: 'info'
+  },
+  EMBED_QUERY: {
+    get label() {
+      return t('meta.aiStage.EMBED_QUERY')
+    },
+    type: 'info'
+  },
+  EMBED_INDEX: {
+    get label() {
+      return t('meta.aiStage.EMBED_INDEX')
+    },
+    type: 'info'
+  }
 }
 
 export function aiStageMeta(stage) {
@@ -31,12 +51,27 @@ export function aiStageMeta(stage) {
 export function aiStatusMeta(row) {
   const data = asObject(row)
   if (toBoolean(pick(data, ['success'])) === false) {
-    return { get label() { return t('meta.aiStatus.FAILED') }, type: 'danger' }
+    return {
+      get label() {
+        return t('meta.aiStatus.FAILED')
+      },
+      type: 'danger'
+    }
   }
   if (toBoolean(pick(data, ['degraded'])) === true) {
-    return { get label() { return t('meta.aiStatus.DEGRADED') }, type: 'warn' }
+    return {
+      get label() {
+        return t('meta.aiStatus.DEGRADED')
+      },
+      type: 'warn'
+    }
   }
-  return { get label() { return t('meta.aiStatus.SUCCESS') }, type: 'ok' }
+  return {
+    get label() {
+      return t('meta.aiStatus.SUCCESS')
+    },
+    type: 'ok'
+  }
 }
 
 function normalizeSummary(raw) {

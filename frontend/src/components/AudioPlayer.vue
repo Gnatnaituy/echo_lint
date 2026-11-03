@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import { useI18n } from '../i18n'
 import { formatClock } from '../utils/segments'
@@ -141,10 +141,11 @@ function pause() {
 
 defineExpose({ seekTo, play, pause })
 
-// 切换声道 / 换条录音：重置播放状态（新 src 由 <audio> 自动加载）
+// 切换声道 / 换条录音：先暂停旧音源再重置播放状态（新 src 由 <audio> 自动加载）
 watch(
   () => props.src,
   () => {
+    pause()
     playing.value = false
     currentTime.value = 0
     mediaDuration.value = 0
@@ -152,6 +153,12 @@ watch(
     emit('time-update', 0)
   }
 )
+
+// 组件卸载（关闭抽屉 / 切页 / destroy-on-close）：浏览器不会因 <audio> 移除 DOM 自动暂停，必须显式 pause
+onBeforeUnmount(() => {
+  pause()
+  playing.value = false
+})
 </script>
 
 <style scoped>
@@ -183,7 +190,9 @@ watch(
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   box-shadow: 0 2px 8px rgba(59, 110, 246, 0.28);
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 .play-toggle:hover:not(:disabled) {
   transform: scale(1.05);

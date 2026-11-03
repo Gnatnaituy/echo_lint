@@ -58,7 +58,8 @@ function normalizeSegments(segments) {
       end: typeof s.end === 'number' ? s.end : null,
       text: s.text.trim(),
       speaker: typeof s.speaker === 'string' && s.speaker.trim() ? s.speaker.trim() : null,
-      channel: typeof s.channel === 'string' && s.channel.trim() ? s.channel.trim().toUpperCase() : null
+      channel:
+        typeof s.channel === 'string' && s.channel.trim() ? s.channel.trim().toUpperCase() : null
     }))
 }
 
@@ -147,7 +148,8 @@ export function buildSentenceView({ text, segments, hits, targetSentence } = {})
     const ti = src.indexOf(target)
     let owner = null
     if (ti >= 0) {
-      owner = sentences.find((s) => s.charStart != null && ti >= s.charStart && ti < s.charEnd) || null
+      owner =
+        sentences.find((s) => s.charStart != null && ti >= s.charStart && ti < s.charEnd) || null
     }
     if (!owner) {
       const tl = target.toLowerCase()

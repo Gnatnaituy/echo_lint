@@ -28,9 +28,7 @@ function usageFields(row) {
   return {
     requests: nonNegative(pick(row, ['requests', 'requestCount', 'count'])),
     inputTokens: nonNegative(pick(row, ['inputTokens', 'promptTokens', 'inputTokensCount'])),
-    outputTokens: nonNegative(
-      pick(row, ['outputTokens', 'completionTokens', 'outputTokensCount'])
-    ),
+    outputTokens: nonNegative(pick(row, ['outputTokens', 'completionTokens', 'outputTokensCount'])),
     costUsd: nonNegative(pick(row, ['costUsd', 'cost', 'costUSD']))
   }
 }
@@ -72,10 +70,7 @@ function normalizeByModel(value) {
       ...usageFields(row)
     }))
     .filter((row) => row.model && hasUsage(row))
-    .sort(
-      (a, b) =>
-        byCostDesc(a, b) || String(a.model).localeCompare(String(b.model))
-    )
+    .sort((a, b) => byCostDesc(a, b) || String(a.model).localeCompare(String(b.model)))
 }
 
 /** GET /api/stats/ai-usage 归一化：总计缺字段按 0，明细为空数组 */
@@ -83,9 +78,7 @@ export function normalizeAiUsage(raw) {
   const data = asObject(raw)
   return {
     requests: nonNegative(pick(data, ['requests', 'requestCount', 'totalRequests'])),
-    inputTokens: nonNegative(
-      pick(data, ['inputTokens', 'promptTokens', 'totalInputTokens'])
-    ),
+    inputTokens: nonNegative(pick(data, ['inputTokens', 'promptTokens', 'totalInputTokens'])),
     outputTokens: nonNegative(
       pick(data, ['outputTokens', 'completionTokens', 'totalOutputTokens'])
     ),

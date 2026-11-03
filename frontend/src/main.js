@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import { t } from './i18n'
@@ -9,9 +8,8 @@ import './styles/index.css'
 
 const app = createApp(App)
 
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
+// 图标不再全量全局注册（审计 P3-1）：各组件显式 import（见 components/icons.js），
+// 只打包实际使用的图标，首屏 icons chunk 从 ~293 个降到实际用量。
 
 // Element Plus 内置文案（分页 / 日期 / 空态等）语言由 App.vue 的 <el-config-provider> 跟随站点语言，
 // 这里不再固定中文；默认语言为英文，首帧在 provider 生效前也不会出现中文内置文案。

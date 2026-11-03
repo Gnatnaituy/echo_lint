@@ -55,7 +55,10 @@ export const auth = {
     return ROLE_META[state.user?.role] || null
   },
   get roleLabel() {
-    return ROLE_META[state.user?.role]?.label || (state.user?.role ? String(state.user.role) : t('auth.notLoggedIn'))
+    return (
+      ROLE_META[state.user?.role]?.label ||
+      (state.user?.role ? String(state.user.role) : t('auth.notLoggedIn'))
+    )
   },
   get isAuthenticated() {
     return !!state.user

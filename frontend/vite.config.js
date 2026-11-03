@@ -21,17 +21,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         /**
-         * 手动分包（Batch 4b）：把不常变化的第三方依赖拆成独立 chunk，利于浏览器长期缓存；
-         * 业务路由仍保持动态 import（懒加载），首屏只需 vue + element-plus 基础运行时。
+         * 手动分包（Batch 4b，审计 P2-21 修正）：
+         * - 只把第三方依赖拆成稳定 chunk 便于长期缓存；业务代码保持路由级动态 import（懒加载）
+         * - i18n 词典被入口（App / 路由标题）与几乎所有路由共享，显式拆 `i18n` chunk：
+         *   此前 i18n 被 Rollup 归入给 TrendChart 特判出来的 `charts` chunk，而入口又依赖 i18n，
+         *   结果 charts 被写进 index.html 的 modulepreload（懒加载名不副实，charts 96.7% 是词典）
+         * - 不再为 TrendChart.vue 单独建 charts chunk：它只被 Dashboard/Screen 懒加载，
+         *   回落到 Rollup 默认的共享 chunk，首屏不会 modulepreload
          */
         manualChunks(id) {
-          if (!id.includes('node_modules') && !id.includes('/src/components/TrendChart.vue')) {
-            return undefined
-          }
+          if (id.includes('/src/i18n/')) return 'i18n'
+          if (!id.includes('node_modules')) return undefined
           if (id.includes('@element-plus/icons-vue')) return 'icons'
           if (id.includes('element-plus')) return 'element-plus'
-          if (id.includes('vue-router') || id.includes('/vue/') || id.includes('@vue/')) return 'vue'
-          if (id.includes('TrendChart.vue')) return 'charts'
+          if (id.includes('vue-router') || id.includes('/vue/') || id.includes('@vue/'))
+            return 'vue'
           if (id.includes('axios')) return 'vendor'
           return 'vendor'
         }

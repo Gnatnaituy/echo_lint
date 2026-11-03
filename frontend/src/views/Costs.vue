@@ -21,7 +21,9 @@
             @change="load"
           />
           <div class="filter-actions">
-            <el-button type="primary" :icon="Search" :loading="loading" @click="load">{{ t('costs.query') }}</el-button>
+            <el-button type="primary" :icon="Search" :loading="loading" @click="load">{{
+              t('costs.query')
+            }}</el-button>
             <el-button link @click="resetFilters">{{ t('common.reset') }}</el-button>
           </div>
         </div>
@@ -66,7 +68,9 @@
     <!-- 加载失败：允许原地重试 -->
     <section v-if="error" class="panel">
       <div class="error-block">
-        <div class="error-icon"><el-icon :size="17"><WarningFilled /></el-icon></div>
+        <div class="error-icon">
+          <el-icon :size="17"><WarningFilled /></el-icon>
+        </div>
         <div class="error-text">
           <div class="strong">{{ t('costs.statsLoadFailed') }}</div>
           <div class="tiny dim">{{ error }}</div>
@@ -110,7 +114,9 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="32" class="empty-icon"><DataLine /></el-icon>
-            <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noDailyData') }}</div>
+            <div class="empty-title">
+              {{ error ? t('costs.statsUnavailable') : t('costs.noDailyData') }}
+            </div>
             <div class="tiny dim">
               {{ error ? t('costs.retryHint') : t('costs.noDailyHint') }}
             </div>
@@ -130,7 +136,9 @@
             <template #default="{ row }">
               <div class="cell-name">
                 <span class="strong ellipsis" :title="row.label">{{ row.label || '—' }}</span>
-                <span v-if="row.key && row.key !== row.label" class="mono tiny dim">{{ row.key }}</span>
+                <span v-if="row.key && row.key !== row.label" class="mono tiny dim">{{
+                  row.key
+                }}</span>
               </div>
             </template>
           </el-table-column>
@@ -141,7 +149,9 @@
           </el-table-column>
           <el-table-column :label="t('costs.colTokensInOut')" width="140" align="right">
             <template #default="{ row }">
-              <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
+              <span class="num tiny"
+                >{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span
+              >
             </template>
           </el-table-column>
           <el-table-column :label="t('costs.colCost')" width="100" align="right">
@@ -152,8 +162,12 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><Box /></el-icon>
-              <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noProviderData') }}</div>
-              <div class="tiny dim">{{ error ? t('costs.retryHint') : t('costs.noProviderHint') }}</div>
+              <div class="empty-title">
+                {{ error ? t('costs.statsUnavailable') : t('costs.noProviderData') }}
+              </div>
+              <div class="tiny dim">
+                {{ error ? t('costs.retryHint') : t('costs.noProviderHint') }}
+              </div>
             </div>
           </template>
         </el-table>
@@ -180,7 +194,9 @@
           </el-table-column>
           <el-table-column :label="t('costs.colTokensInOut')" width="140" align="right">
             <template #default="{ row }">
-              <span class="num tiny">{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span>
+              <span class="num tiny"
+                >{{ formatInt(row.inputTokens) }} / {{ formatInt(row.outputTokens) }}</span
+              >
             </template>
           </el-table-column>
           <el-table-column :label="t('costs.colCost')" width="100" align="right">
@@ -191,8 +207,12 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><Cpu /></el-icon>
-              <div class="empty-title">{{ error ? t('costs.statsUnavailable') : t('costs.noModelData') }}</div>
-              <div class="tiny dim">{{ error ? t('costs.retryHint') : t('costs.noModelHint') }}</div>
+              <div class="empty-title">
+                {{ error ? t('costs.statsUnavailable') : t('costs.noModelData') }}
+              </div>
+              <div class="tiny dim">
+                {{ error ? t('costs.retryHint') : t('costs.noModelHint') }}
+              </div>
             </div>
           </template>
         </el-table>
@@ -207,50 +227,37 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 import api from '../api'
 import StatCard from '../components/StatCard.vue'
 import { useI18n } from '../i18n'
+import {
+  dateShortcuts as buildDateShortcuts,
+  defaultRange,
+  rangeText as formatRangeText,
+  statsParams as toStatsParams
+} from '../utils/dateRange'
+import { Box, Cpu, DataLine, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
-/* ---------- 日期范围：默认最近 30 天 ---------- */
-
-function toDateParam(value) {
-  if (!value) return ''
-  const d = value instanceof Date ? value : new Date(String(value).replace(/\//g, '-'))
-  if (Number.isNaN(d.getTime())) return typeof value === 'string' ? value : ''
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function dayOffset(days) {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-function defaultRange() {
-  return [toDateParam(dayOffset(-29)), toDateParam(new Date())]
-}
+/* ---------- 日期范围：默认最近 30 天（utils/dateRange 统一实现） ---------- */
 
 const dateRange = ref(defaultRange())
 
-const dateShortcuts = computed(() => [
-  { text: t('costs.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: t('costs.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: t('costs.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
-])
+const dateShortcuts = computed(() =>
+  buildDateShortcuts({
+    last7Days: t('costs.last7Days'),
+    last30Days: t('costs.last30Days'),
+    last90Days: t('costs.last90Days')
+  })
+)
 
-const statsParams = computed(() => {
-  const from = toDateParam(dateRange.value?.[0])
-  const to = toDateParam(dateRange.value?.[1])
-  return { from: from || undefined, to: to || undefined }
-})
+const statsParams = computed(() => toStatsParams(dateRange.value))
 
-const rangeText = computed(() => {
-  const from = toDateParam(dateRange.value?.[0])
-  const to = toDateParam(dateRange.value?.[1])
-  if (!from && !to) return t('costs.allTime')
-  return `${from || t('costs.rangeEarliest')} ~ ${to || t('costs.rangeUntilNow')}`
-})
+const rangeText = computed(() =>
+  formatRangeText(dateRange.value, {
+    allTime: t('costs.allTime'),
+    earliest: t('costs.rangeEarliest'),
+    untilNow: t('costs.rangeUntilNow')
+  })
+)
 
 /* ---------- 统计 ---------- */
 

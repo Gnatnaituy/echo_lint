@@ -13,7 +13,9 @@
         </div>
 
         <div class="actions">
-          <span v-if="!canWrite" class="chip info read-only-chip">{{ t('recordings.readOnly') }}</span>
+          <span v-if="!canWrite" class="chip info read-only-chip">{{
+            t('recordings.readOnly')
+          }}</span>
           <SegmentedControl
             v-model="assignedFilter"
             :options="assignedOptions"
@@ -38,13 +40,16 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
           <el-button
-            v-if="canWrite"
-            type="primary"
-            :icon="UploadFilled"
-            @click="openUpload"
-          >{{ t('recordings.upload.action') }}</el-button>
+            :icon="Refresh"
+            circle
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+            @click="reload"
+          />
+          <el-button v-if="canWrite" type="primary" :icon="UploadFilled" @click="openUpload">{{
+            t('recordings.upload.action')
+          }}</el-button>
         </div>
       </div>
 
@@ -90,15 +95,20 @@
           link
           type="primary"
           @click="resetMetaFilters"
-        >{{ t('recordings.meta.clear') }}</el-button>
+          >{{ t('recordings.meta.clear') }}</el-button
+        >
       </div>
       <div class="hint">
         <template v-if="canWrite">
           <p class="hint-line">
-            {{ t('recordings.hint.pipelinePrefix') }}<span class="accent">{{ t('recordings.hint.pipelineAccent') }}</span>{{ t('recordings.hint.pipelineSuffix') }}
+            {{ t('recordings.hint.pipelinePrefix')
+            }}<span class="accent">{{ t('recordings.hint.pipelineAccent') }}</span
+            >{{ t('recordings.hint.pipelineSuffix') }}
           </p>
           <p class="hint-line">
-            {{ t('recordings.hint.stuckPrefix') }}<span class="accent">{{ t('recordings.hint.stuckAccent') }}</span>{{ t('recordings.hint.stuckSuffix') }}
+            {{ t('recordings.hint.stuckPrefix')
+            }}<span class="accent">{{ t('recordings.hint.stuckAccent') }}</span
+            >{{ t('recordings.hint.stuckSuffix') }}
           </p>
         </template>
         <p v-else class="hint-line">
@@ -145,11 +155,15 @@
           <template #default="{ row }">
             <div class="agent-cell">
               <div class="agent-line">
-                <span v-if="row.agentName" class="cell-ellipsis" :title="row.agentName">{{ row.agentName }}</span>
+                <span v-if="row.agentName" class="cell-ellipsis" :title="row.agentName">{{
+                  row.agentName
+                }}</span>
                 <span v-else class="dim">—</span>
               </div>
               <div class="agent-line sub">
-                <span v-if="row.teamName" class="cell-ellipsis" :title="row.teamName">{{ row.teamName }}</span>
+                <span v-if="row.teamName" class="cell-ellipsis" :title="row.teamName">{{
+                  row.teamName
+                }}</span>
                 <span v-else class="dim">—</span>
               </div>
             </div>
@@ -167,44 +181,85 @@
                 v-if="row.direction && DIRECTION_META[row.direction] && row.direction !== 'UNKNOWN'"
                 class="chip dir-chip"
                 :class="DIRECTION_META[row.direction].type"
-              >{{ DIRECTION_META[row.direction].label }}</span>
+                >{{ DIRECTION_META[row.direction].label }}</span
+              >
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.dfaHits')" width="108" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          :label="t('recordings.table.dfaHits')"
+          width="108"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span v-if="row.hitCount" class="chip danger hit-chip">
-              <el-icon :size="10"><WarningFilled /></el-icon>{{ countLabel('recordings.table.hitCount', row.hitCount) }}
+              <el-icon :size="10"><WarningFilled /></el-icon
+              >{{ countLabel('recordings.table.hitCount', row.hitCount) }}
             </span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.aiVerdict')" width="136" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          :label="t('recordings.table.aiVerdict')"
+          width="136"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
-            <span v-if="row.aiViolationTypeLabel" class="chip warn">{{ row.aiViolationTypeLabel }}</span>
-            <span v-else-if="row.aiViolation === true" class="chip danger">{{ t('recordings.aiVerdict.violation') }}</span>
-            <span v-else-if="row.aiViolation === false" class="chip ok">{{ t('recordings.aiVerdict.compliant') }}</span>
-            <span v-else-if="row.hitCount && PROCESSING_STATUSES.includes(row.status)" class="chip info">{{ t('recordings.aiVerdict.screening') }}</span>
+            <span v-if="row.aiViolationTypeLabel" class="chip warn">{{
+              row.aiViolationTypeLabel
+            }}</span>
+            <span v-else-if="row.aiViolation === true" class="chip danger">{{
+              t('recordings.aiVerdict.violation')
+            }}</span>
+            <span v-else-if="row.aiViolation === false" class="chip ok">{{
+              t('recordings.aiVerdict.compliant')
+            }}</span>
+            <span
+              v-else-if="row.hitCount && PROCESSING_STATUSES.includes(row.status)"
+              class="chip info"
+              >{{ t('recordings.aiVerdict.screening') }}</span
+            >
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!compactColumns" :label="t('recordings.table.priority')" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          v-if="!compactColumns"
+          :label="t('recordings.table.priority')"
+          width="104"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <PriorityTag :priority="row.priority" class="prio-cell" />
           </template>
         </el-table-column>
 
-        <el-table-column v-if="!narrowColumns" :label="t('recordings.table.assignee')" width="104" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          v-if="!narrowColumns"
+          :label="t('recordings.table.assignee')"
+          width="104"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span
               v-if="row.assignedTo"
               class="chip assignee-chip"
               :class="{ brand: row.assignedTo === auth.username }"
               :title="row.assignedTo"
-            >{{ row.assignedTo === auth.username ? t('recordings.table.me') : row.assignedTo }}</span>
+              >{{
+                row.assignedTo === auth.username ? t('recordings.table.me') : row.assignedTo
+              }}</span
+            >
             <span v-else class="dim">{{ t('recordings.table.unassigned') }}</span>
           </template>
         </el-table-column>
@@ -227,7 +282,9 @@
                 :content="`${row.reviewResult === 'CONFIRMED_VIOLATION' ? STATUS_META.VIOLATION_CONFIRMED.label : STATUS_META.FALSE_POSITIVE.label} · ${formatTime(row.reviewTime)}`"
                 placement="top"
               >
-                <span class="reviewer-line">{{ t('recordings.table.reviewedBy', { name: row.reviewer }) }}</span>
+                <span class="reviewer-line">{{
+                  t('recordings.table.reviewedBy', { name: row.reviewer })
+                }}</span>
               </el-tooltip>
             </div>
           </template>
@@ -236,14 +293,17 @@
         <el-table-column :label="t('common.actions')" width="216" align="right" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">{{ t('common.detail') }}</el-button>
+              <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">{{
+                t('common.detail')
+              }}</el-button>
               <el-button
                 v-if="row.status === 'NEEDS_REVIEW'"
                 class="op-link"
                 link
                 type="danger"
                 @click.stop="$router.push(`/review?id=${row.id}`)"
-              >{{ t('recordings.actions.goReview') }}</el-button>
+                >{{ t('recordings.actions.goReview') }}</el-button
+              >
               <el-popover
                 v-if="canWrite"
                 trigger="click"
@@ -258,12 +318,16 @@
                   </button>
                 </template>
                 <div class="more-list" @click.stop>
-                  <button v-if="canClaimRow(row)" class="more-item" @click.stop="claim(row)">{{ t('recordings.actions.claim') }}</button>
+                  <button v-if="canClaimRow(row)" class="more-item" @click.stop="claim(row)">
+                    {{ t('recordings.actions.claim') }}
+                  </button>
                   <button
                     v-if="isAdmin && row.status === 'NEEDS_REVIEW'"
                     class="more-item"
                     @click.stop="openAssign(row)"
-                  >{{ t('recordings.actions.assign') }}</button>
+                  >
+                    {{ t('recordings.actions.assign') }}
+                  </button>
                   <el-popconfirm
                     v-if="isAdmin && isFinalReviewStatus(row.status)"
                     :title="t('recordings.reopen.confirm')"
@@ -271,7 +335,9 @@
                     @confirm="reopen(row)"
                   >
                     <template #reference>
-                      <button type="button" class="more-item warn" @click.stop>{{ t('recordings.actions.reopen') }}</button>
+                      <button type="button" class="more-item warn" @click.stop>
+                        {{ t('recordings.actions.reopen') }}
+                      </button>
                     </template>
                   </el-popconfirm>
                   <el-popconfirm
@@ -286,7 +352,9 @@
                         class="more-item"
                         :class="`tone-${reprocessInfo(row).tone}`"
                         @click.stop
-                      >{{ reprocessInfo(row).label }}</button>
+                      >
+                        {{ reprocessInfo(row).label }}
+                      </button>
                     </template>
                   </el-popconfirm>
                   <el-popconfirm
@@ -295,7 +363,9 @@
                     @confirm="remove(row)"
                   >
                     <template #reference>
-                      <button type="button" class="more-item danger" @click.stop>{{ t('recordings.actions.delete') }}</button>
+                      <button type="button" class="more-item danger" @click.stop>
+                        {{ t('recordings.actions.delete') }}
+                      </button>
                     </template>
                   </el-popconfirm>
                 </div>
@@ -319,19 +389,33 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
 
     <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" size="720px" :with-header="false" append-to-body>
+    <el-drawer
+      v-model="detailVisible"
+      :title="t('nav.recordings')"
+      size="720px"
+      :with-header="false"
+      append-to-body
+      @closed="workspaceRef?.pause()"
+    >
       <div v-loading="detailLoading" class="detail">
         <template v-if="detail">
           <!-- 抽屉头 -->
           <div class="detail-head">
             <div class="detail-title">
-              <div class="file-icon lg"><el-icon :size="18"><Microphone /></el-icon></div>
+              <div class="file-icon lg">
+                <el-icon :size="18"><Microphone /></el-icon>
+              </div>
               <div class="min-w-0">
                 <div class="detail-name ellipsis">{{ detail.fileName }}</div>
                 <div class="detail-chips">
@@ -340,25 +424,41 @@
                   <span class="chip">{{ formatDuration(detail.durationSeconds) }}</span>
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
-                  <span v-if="detail.channelCount === 2" class="chip brand">{{ t('recordings.detail.stereo') }}</span>
+                  <span v-if="detail.channelCount === 2" class="chip brand">{{
+                    t('recordings.detail.stereo')
+                  }}</span>
                   <span
                     v-if="isSampled(detail)"
                     class="chip warn"
                     :title="t('recordings.sampled.tooltip')"
-                  >{{ t('recordings.sampled.label') }}</span>
+                    >{{ t('recordings.sampled.label') }}</span
+                  >
                   <PriorityTag :priority="detail.priority" />
                   <span class="chip">
-                    {{ detail.assignedTo ? t('recordings.detail.assignedTo', { name: detail.assignedTo }) : t('recordings.table.unassigned') }}
+                    {{
+                      detail.assignedTo
+                        ? t('recordings.detail.assignedTo', { name: detail.assignedTo })
+                        : t('recordings.table.unassigned')
+                    }}
                   </span>
-                  <span v-if="detail.agentName" class="chip">{{ t('recordings.detail.agent', { name: detail.agentName }) }}</span>
-                  <span v-if="detail.teamName" class="chip">{{ t('recordings.detail.team', { name: detail.teamName }) }}</span>
-                  <span v-if="detail.businessLine" class="chip">{{ t('recordings.detail.businessLine', { name: detail.businessLine }) }}</span>
+                  <span v-if="detail.agentName" class="chip">{{
+                    t('recordings.detail.agent', { name: detail.agentName })
+                  }}</span>
+                  <span v-if="detail.teamName" class="chip">{{
+                    t('recordings.detail.team', { name: detail.teamName })
+                  }}</span>
+                  <span v-if="detail.businessLine" class="chip">{{
+                    t('recordings.detail.businessLine', { name: detail.businessLine })
+                  }}</span>
                   <span
                     v-if="detail.direction && DIRECTION_META[detail.direction]"
                     class="chip"
                     :class="directionClass(detail.direction)"
-                  >{{ directionLabel(detail.direction) }}</span>
-                  <span v-if="detail.callTime" class="chip num">{{ t('recordings.detail.callTime', { time: formatTime(detail.callTime) }) }}</span>
+                    >{{ directionLabel(detail.direction) }}</span
+                  >
+                  <span v-if="detail.callTime" class="chip num">{{
+                    t('recordings.detail.callTime', { time: formatTime(detail.callTime) })
+                  }}</span>
                   <span v-if="detailProgress.required > 1" class="chip info">
                     {{ t('recordings.detail.reviewProgress', { progress: detailProgress.text }) }}
                   </span>
@@ -371,18 +471,21 @@
                 type="danger"
                 size="small"
                 @click="$router.push(`/review?id=${detail.id}`)"
-              >{{ t('recordings.actions.goManualReview') }}</el-button>
+                >{{ t('recordings.actions.goManualReview') }}</el-button
+              >
               <el-button
                 v-if="canClaimRow(detail)"
                 type="primary"
                 size="small"
                 @click="claim(detail)"
-              >{{ t('recordings.actions.claim') }}</el-button>
+                >{{ t('recordings.actions.claim') }}</el-button
+              >
               <el-button
                 v-if="isAdmin && detail.status === 'NEEDS_REVIEW'"
                 size="small"
                 @click="openAssign(detail)"
-              >{{ t('recordings.actions.assignShort') }}</el-button>
+                >{{ t('recordings.actions.assignShort') }}</el-button
+              >
               <el-popconfirm
                 v-if="isAdmin && isFinalReviewStatus(detail.status)"
                 :title="t('recordings.reopen.confirm')"
@@ -390,7 +493,9 @@
                 @confirm="reopen(detail)"
               >
                 <template #reference>
-                  <el-button type="warning" size="small">{{ t('recordings.actions.reopenShort') }}</el-button>
+                  <el-button type="warning" size="small">{{
+                    t('recordings.actions.reopenShort')
+                  }}</el-button>
                 </template>
               </el-popconfirm>
               <el-popconfirm
@@ -405,232 +510,81 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-button :icon="Close" circle size="small" @click="detailVisible = false" :aria-label="t('common.close')" :title="t('common.close')" />
+              <el-button
+                :icon="Close"
+                circle
+                size="small"
+                :aria-label="t('common.close')"
+                :title="t('common.close')"
+                @click="detailVisible = false"
+              />
             </div>
           </div>
 
-          <!-- 录音播放 + 分声道试听 -->
-          <div class="player-row">
-            <AudioPlayer
-              v-if="audioUrl"
-              ref="playerRef"
-              :src="audioSrc"
-              :fallback-duration="detail.durationSeconds || 0"
-              @time-update="onTimeUpdate"
-            />
-            <div v-else class="no-audio tiny dim">{{ t('recordings.detail.noAudio') }}</div>
-            <div v-if="channelFiles" class="channel-switch">
-              <button
-                v-for="opt in channelOptions"
-                :key="opt.key"
-                class="ch-btn"
-                :class="{ on: audioChannel === opt.key }"
-                @click="switchChannel(opt.key)"
-              >
-                <span v-if="opt.badge" class="ch-badge sm" :class="opt.key === 'R' ? 'r' : 'l'">{{ opt.badge }}</span>
-                {{ opt.label }}
-              </button>
-            </div>
-          </div>
-
-          <!-- 失败原因 -->
-          <div v-if="detail.errorMessage" class="error-banner">
-            <el-icon><CircleCloseFilled /></el-icon>
-            <div>{{ detail.errorMessage }}</div>
-          </div>
-
-          <!-- AI 复筛 -->
-          <section v-if="aiResult" class="block">
-            <div class="block-title">{{ t('recordings.detail.aiScreening') }}</div>
-            <div class="verdict" :class="aiResult.violation ? 'bad' : 'ok'">
-              <div class="verdict-head">
-                <span class="verdict-badge">
-                  <el-icon :size="14">
-                    <component :is="aiResult.violation ? 'WarningFilled' : 'CircleCheckFilled'" />
-                  </el-icon>
-                  {{ aiResult.violation ? t('recordings.detail.verdictViolation') : t('recordings.detail.verdictCompliant') }}
-                </span>
-                <span v-if="aiTypeLabel" class="chip warn">{{ aiTypeLabel }}</span>
-                <span class="spacer"></span>
-                <span class="conf">
-                  {{ t('recordings.detail.confidence') }}
-                  <b class="num">{{ aiResult.confidence != null ? (aiResult.confidence * 100).toFixed(0) + '%' : '—' }}</b>
-                </span>
-              </div>
-              <div class="conf-track">
-                <div
-                  class="conf-fill"
-                  :class="aiResult.violation ? 'bad' : 'ok'"
-                  :style="{ width: (aiResult.confidence || 0) * 100 + '%' }"
-                ></div>
-              </div>
-              <div class="verdict-reason">{{ aiResult.reason || '—' }}</div>
-              <div v-if="aiResult.screenModel" class="verdict-model tiny">
-                <span class="dim">{{ t('recordings.detail.model') }}</span>
-                <span class="mono">{{ aiResult.screenProviderLabel || aiResult.screenProvider }} · {{ aiResult.screenModel }}</span>
-                <span v-if="aiResult.degraded" class="chip warn">{{ t('recordings.detail.degraded') }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- 转写 -->
-          <section class="block">
-            <div class="block-head">
-              <div class="seg-toggle">
-                <button
-                  v-if="dialogueAvailable"
-                  class="seg-btn"
-                  :class="{ on: transcriptMode === 'dialogue' }"
-                  @click="transcriptMode = 'dialogue'"
-                >
-                  <el-icon :size="12"><Connection /></el-icon>
-                  {{ t('recordings.transcript.dialogue') }}
-                </button>
-                <button
-                  class="seg-btn"
-                  :class="{ on: transcriptMode === 'segment' }"
-                  @click="transcriptMode = 'segment'"
-                >
-                  <el-icon :size="12"><Tickets /></el-icon>
-                  {{ t('recordings.transcript.sentence') }}
-                </button>
-                <button
-                  class="seg-btn"
-                  :class="{ on: transcriptMode === 'full' }"
-                  @click="transcriptMode = 'full'"
-                >
-                  <el-icon :size="12"><Document /></el-icon>
-                  {{ t('recordings.transcript.full') }}
-                </button>
-              </div>
-              <label v-if="transcriptMode !== 'full'" class="follow">
-                <el-switch v-model="follow" size="small" />
-                <span class="tiny dim">{{ t('recordings.transcript.follow') }}</span>
-              </label>
-            </div>
-
-            <SegmentTranscript
-              v-if="transcriptMode !== 'full'"
-              :text="detail.transcript || ''"
-              :segments="segments"
-              :hits="dfaHits"
-              :target-sentence="aiResult?.targetSentence"
-              :current-time="currentTime"
-              :follow="follow"
-              :layout="transcriptMode === 'dialogue' ? 'dialogue' : 'single'"
-              @seek="seekTo"
-            />
-            <TranscriptViewer
-              v-else
-              :text="detail.transcript || t('recordings.transcript.empty')"
-              :hits="dfaHits"
-              :target-sentence="aiResult?.targetSentence"
-            />
-          </section>
-
-          <!-- 人工复检 -->
-          <section v-if="detail.reviewResult" class="block">
-            <div class="block-title">{{ t('recordings.detail.manualReview') }}</div>
-            <div class="review-grid">
-              <div class="review-item">
-                <span class="review-label">{{ t('recordings.review.result') }}</span>
-                <span
-                  class="chip"
-                  :class="detail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
-                >
-                  {{ detail.reviewResult === 'CONFIRMED_VIOLATION' ? STATUS_META.VIOLATION_CONFIRMED.label : STATUS_META.FALSE_POSITIVE.label }}
-                </span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">{{ t('common.type') }}</span>
-                <span>{{ detail.violationTypeLabel || '—' }}</span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">{{ t('recordings.review.reviewer') }}</span>
-                <span>{{ detail.reviewer || '—' }}</span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">{{ t('recordings.review.time') }}</span>
-                <span class="num">{{ formatTime(detail.reviewTime) }}</span>
-              </div>
-              <div class="review-item span-2">
-                <span class="review-label">{{ t('common.remark') }}</span>
-                <span>{{ detail.reviewComment || '—' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- 处理轨迹 -->
-          <section class="block">
-            <div class="block-title">{{ t('recordings.detail.timeline') }}</div>
-            <el-timeline v-if="logs.length" class="timeline">
-              <el-timeline-item
-                v-for="(l, i) in logs"
-                :key="i"
-                :type="l.level === 'ERROR' ? 'danger' : l.level === 'WARN' ? 'warning' : 'primary'"
-                :timestamp="formatTime(l.createdAt)"
-                size="normal"
-              >
-                <span class="log-stage">{{ stageName(l.stage) }}</span>
-                <span class="log-msg">{{ l.message }}</span>
-              </el-timeline-item>
-            </el-timeline>
-            <div v-else class="dim tiny">{{ t('recordings.detail.noLogs') }}</div>
-          </section>
-
-          <!-- AI 调用详情：完整提示词与模型原始回复 -->
-          <section v-if="aiInvocations.length" class="block">
-            <div class="block-head">
-              <div class="block-title">{{ t('recordings.detail.aiInvocations') }}</div>
-              <span class="tiny dim">{{ countLabel('recordings.detail.aiInvocationsHint', aiInvocations.length) }}</span>
-            </div>
-            <el-collapse class="ai-collapse">
-              <el-collapse-item v-for="inv in aiInvocations" :key="inv.id" :name="inv.id">
-                <template #title>
-                  <div class="ai-inv-title">
-                    <span class="chip" :class="inv.stage === 'MINING' || inv.stage === 'EMBED_QUERY' ? 'info' : 'brand'">
-                      {{ stageLabel(inv.stage) }}
-                    </span>
-                    <span class="mono ai-inv-model">{{ inv.providerLabel }} · {{ inv.model }}</span>
-                    <span v-if="!inv.success" class="chip danger">{{ t('common.failed') }}</span>
-                    <span v-else-if="inv.degraded" class="chip warn">{{ t('meta.aiStatus.DEGRADED') }}</span>
-                    <span v-else class="chip ok">{{ t('common.success') }}</span>
-                    <span class="spacer"></span>
-                    <span class="num tiny dim">{{ inv.latencyMs }}ms</span>
-                  </div>
-                </template>
-
-                <div class="ai-meta tiny dim">
-                  <div>{{ t('recordings.detail.endpoint') }}<span class="mono">{{ inv.endpoint || '—' }}</span></div>
-                  <div>
-                    <span class="num">{{ formatTime(inv.createdAt) }}</span>
-                    · {{ t('recordings.detail.requestChars', { count: inv.requestChars }) }} · {{ t('recordings.detail.responseChars', { count: inv.responseChars }) }}
-                  </div>
+          <!-- 详情工作台（播放 / 声道 / 转写 / AI 结论 / AI 留痕）：与复核页共用组件 -->
+          <RecordingWorkspace
+            ref="workspaceRef"
+            :record="detail"
+            :ai-invocations="aiInvocations"
+            :admin="isAdmin"
+            :labels="workspaceLabels"
+          >
+            <!-- 人工复检 -->
+            <section v-if="detail.reviewResult" class="block">
+              <div class="block-title">{{ t('recordings.detail.manualReview') }}</div>
+              <div class="review-grid">
+                <div class="review-item">
+                  <span class="review-label">{{ t('recordings.review.result') }}</span>
+                  <span
+                    class="chip"
+                    :class="detail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
+                  >
+                    {{
+                      detail.reviewResult === 'CONFIRMED_VIOLATION'
+                        ? STATUS_META.VIOLATION_CONFIRMED.label
+                        : STATUS_META.FALSE_POSITIVE.label
+                    }}
+                  </span>
                 </div>
-
-                <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
-                  <div class="ai-part-head">
-                    <span class="ai-role" :class="m.role">
-                      {{ m.role === 'system' ? t('meta.aiRole.SYSTEM') : t('meta.aiRole.USER') }}
-                    </span>
-                    <span class="tiny dim">{{ t('recordings.detail.charCount', { count: (m.content || '').length }) }}</span>
-                  </div>
-                  <pre class="ai-raw">{{ m.content }}</pre>
+                <div class="review-item">
+                  <span class="review-label">{{ t('common.type') }}</span>
+                  <span>{{ detail.violationTypeLabel || '—' }}</span>
                 </div>
-
-                <div v-if="!inv.requestJson" class="tiny dim">{{ t('recordings.detail.noRequestBody') }}</div>
-
-                <div class="ai-part">
-                  <div class="ai-part-head">
-                    <span class="ai-role reply">{{ t('meta.aiRole.ASSISTANT') }}</span>
-                    <span class="tiny dim">{{ t('recordings.detail.charCount', { count: inv.responseChars }) }}</span>
-                  </div>
-                  <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
-                  <pre v-else class="ai-raw error">{{ inv.errorMessage || t('recordings.detail.noReply') }}</pre>
+                <div class="review-item">
+                  <span class="review-label">{{ t('recordings.review.reviewer') }}</span>
+                  <span>{{ detail.reviewer || '—' }}</span>
                 </div>
-              </el-collapse-item>
-            </el-collapse>
-          </section>
+                <div class="review-item">
+                  <span class="review-label">{{ t('recordings.review.time') }}</span>
+                  <span class="num">{{ formatTime(detail.reviewTime) }}</span>
+                </div>
+                <div class="review-item span-2">
+                  <span class="review-label">{{ t('common.remark') }}</span>
+                  <span>{{ detail.reviewComment || '—' }}</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- 处理轨迹 -->
+            <section class="block">
+              <div class="block-title">{{ t('recordings.detail.timeline') }}</div>
+              <el-timeline v-if="logs.length" class="timeline">
+                <el-timeline-item
+                  v-for="(l, i) in logs"
+                  :key="i"
+                  :type="
+                    l.level === 'ERROR' ? 'danger' : l.level === 'WARN' ? 'warning' : 'primary'
+                  "
+                  :timestamp="formatTime(l.createdAt)"
+                  size="normal"
+                >
+                  <span class="log-stage">{{ stageName(l.stage) }}</span>
+                  <span class="log-msg">{{ l.message }}</span>
+                </el-timeline-item>
+              </el-timeline>
+              <div v-else class="dim tiny">{{ t('recordings.detail.noLogs') }}</div>
+            </section>
+          </RecordingWorkspace>
         </template>
       </div>
     </el-drawer>
@@ -661,7 +615,10 @@
             :on-exceed="onUploadExceed"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">{{ t('recordings.upload.dropPrefix') }}<em>{{ t('recordings.upload.dropAccent') }}</em></div>
+            <div class="el-upload__text">
+              {{ t('recordings.upload.dropPrefix')
+              }}<em>{{ t('recordings.upload.dropAccent') }}</em>
+            </div>
             <template #tip>
               <div class="el-upload__tip">
                 {{ t('recordings.upload.tip') }}
@@ -696,7 +653,12 @@
           />
         </el-form-item>
         <el-form-item :label="t('recordings.field.direction')">
-          <el-select v-model="uploadForm.direction" :placeholder="t('recordings.upload.directionPlaceholder')" clearable style="width: 100%">
+          <el-select
+            v-model="uploadForm.direction"
+            :placeholder="t('recordings.upload.directionPlaceholder')"
+            clearable
+            style="width: 100%"
+          >
             <el-option
               v-for="opt in DIRECTION_OPTIONS"
               :key="opt.value"
@@ -719,9 +681,15 @@
       <div v-if="uploadQueue.length" class="upload-queue">
         <div class="uq-head">
           <span class="tiny dim">
-            {{ countLabel('recordings.upload.queueSummary', uploadQueue.length, { done: uploadDoneCount }) }}
+            {{
+              countLabel('recordings.upload.queueSummary', uploadQueue.length, {
+                done: uploadDoneCount
+              })
+            }}
           </span>
-          <span v-if="uploading" class="tiny dim">{{ t('recordings.upload.overallProgress', { percent: uploadOverallPercent }) }}</span>
+          <span v-if="uploading" class="tiny dim">{{
+            t('recordings.upload.overallProgress', { percent: uploadOverallPercent })
+          }}</span>
         </div>
         <div v-for="item in uploadQueue" :key="item.uid" class="uq-row">
           <div class="uq-line">
@@ -741,21 +709,34 @@
       </div>
 
       <div v-if="uploadSummary && !uploading" class="upload-summary tiny">
-        {{ t('recordings.upload.summary', {
-          success: uploadSummary.success,
-          error: uploadSummary.error,
-          canceled: uploadSummary.canceled
-        }) }}
+        {{
+          t('recordings.upload.summary', {
+            success: uploadSummary.success,
+            error: uploadSummary.error,
+            canceled: uploadSummary.canceled
+          })
+        }}
       </div>
 
       <div class="upload-tip tiny dim">
         {{ t('recordings.upload.metadataTip') }}
       </div>
       <template #footer>
-        <el-button :disabled="uploading" @click="uploadVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button v-if="uploading" @click="cancelRemaining">{{ t('recordings.upload.cancelRemaining') }}</el-button>
+        <el-button :disabled="uploading" @click="uploadVisible = false">{{
+          t('common.cancel')
+        }}</el-button>
+        <el-button v-if="uploading" @click="cancelRemaining">{{
+          t('recordings.upload.cancelRemaining')
+        }}</el-button>
         <el-button type="primary" :loading="uploading" @click="submitUpload">
-          {{ uploading ? t('recordings.upload.uploadingProgress', { done: uploadDoneCount, count: uploadQueue.length }) : t('recordings.upload.start') }}
+          {{
+            uploading
+              ? t('recordings.upload.uploadingProgress', {
+                  done: uploadDoneCount,
+                  count: uploadQueue.length
+                })
+              : t('recordings.upload.start')
+          }}
         </el-button>
       </template>
     </el-dialog>
@@ -772,15 +753,14 @@ import { ElMessage } from 'element-plus'
 import { Search, Refresh, UploadFilled, Close } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
+import overviewState from '../state/overview'
 import AssignDialog from '../components/AssignDialog.vue'
-import AudioPlayer from '../components/AudioPlayer.vue'
+import RecordingWorkspace from '../components/RecordingWorkspace.vue'
 import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
-import TranscriptViewer from '../components/TranscriptViewer.vue'
-import SegmentTranscript from '../components/SegmentTranscript.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../i18n'
-import { formatClock } from '../utils/segments'
+import { dateShortcuts as buildDateShortcuts, toDateParam } from '../utils/dateRange'
 import {
   UPLOAD_STATUS,
   UPLOAD_STATUS_LABEL,
@@ -807,6 +787,7 @@ import {
   PROCESSING_STATUSES,
   STATUS_META
 } from '../constants'
+import { ArrowDown, Microphone, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -827,7 +808,8 @@ const statusFilter = ref('')
 const keyword = ref('')
 const priorityFilter = ref('')
 const assignedFilter = ref('')
-const overview = ref(null)
+/** 概览统计与 App 全局轮询 / 其它页面共用一份（state/overview.js 单例，含 15s 缓存与请求去重） */
+const overview = computed(() => overviewState.data)
 
 /* ---------- 列表列宽自适应 ----------
  * 录音列表共 9 列，内容区窄于阈值时收起「优先级」列（该信息仍可在详情抽屉查看），
@@ -859,7 +841,11 @@ const teamFilter = ref('')
 const directionFilter = ref('')
 
 // 上传对话框：文件队列 + 元数据（Batch 4b 起支持多选、顺序上传、逐文件进度）
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+// 上传大小上限：默认 200MB（与后端 APP_MAX_SIZE_BYTES=200MB / nginx 220m 对齐）；
+// 可用 VITE_UPLOAD_MAX_MB 覆盖（如使用有单文件上限的外部 ASR 时调小）
+const uploadMaxMb = Number(import.meta.env.VITE_UPLOAD_MAX_MB)
+const MAX_UPLOAD_BYTES =
+  (Number.isFinite(uploadMaxMb) && uploadMaxMb > 0 ? uploadMaxMb : 200) * 1024 * 1024
 const uploadVisible = ref(false)
 const uploading = ref(false)
 const uploadRef = ref(null)
@@ -893,17 +879,55 @@ function canClaimRow(row) {
 /* 筛选项文案：getter 保证语言切换后 `filters` 计算属性重新求值；
  * 状态类标签复用 constants 的响应式 getter，分组 / 简称（处理中、待复检）单独取词。 */
 const FILTERS = [
-  { key: '', countKey: 'ALL', get label() { return t('common.all') } },
-  { key: 'PROCESSING', countKey: 'PROCESSING', get label() { return t('recordings.filters.processing') } },
-  { key: 'NEEDS_REVIEW', countKey: 'NEEDS_REVIEW', get label() { return t('recordings.filters.needsReview') } },
-  { key: 'COMPLIANT', countKey: 'COMPLIANT', get label() { return STATUS_META.COMPLIANT.label } },
+  {
+    key: '',
+    countKey: 'ALL',
+    get label() {
+      return t('common.all')
+    }
+  },
+  {
+    key: 'PROCESSING',
+    countKey: 'PROCESSING',
+    get label() {
+      return t('recordings.filters.processing')
+    }
+  },
+  {
+    key: 'NEEDS_REVIEW',
+    countKey: 'NEEDS_REVIEW',
+    get label() {
+      return t('recordings.filters.needsReview')
+    }
+  },
+  {
+    key: 'COMPLIANT',
+    countKey: 'COMPLIANT',
+    get label() {
+      return STATUS_META.COMPLIANT.label
+    }
+  },
   {
     key: 'VIOLATION_CONFIRMED',
     countKey: 'VIOLATION_CONFIRMED',
-    get label() { return STATUS_META.VIOLATION_CONFIRMED.label }
+    get label() {
+      return STATUS_META.VIOLATION_CONFIRMED.label
+    }
   },
-  { key: 'FALSE_POSITIVE', countKey: 'FALSE_POSITIVE', get label() { return STATUS_META.FALSE_POSITIVE.label } },
-  { key: 'FAILED', countKey: 'FAILED', get label() { return STATUS_META.FAILED.label } }
+  {
+    key: 'FALSE_POSITIVE',
+    countKey: 'FALSE_POSITIVE',
+    get label() {
+      return STATUS_META.FALSE_POSITIVE.label
+    }
+  },
+  {
+    key: 'FAILED',
+    countKey: 'FAILED',
+    get label() {
+      return STATUS_META.FAILED.label
+    }
+  }
 ]
 
 const filters = computed(() =>
@@ -948,35 +972,22 @@ const directionOptions = computed(() => [
 
 /* ---------- 元数据筛选 ---------- */
 
-/** 日期参数统一转为 yyyy-MM-dd（快捷选项与手选可能给 Date 或字符串） */
-function toDateParam(value) {
-  if (!value) return undefined
-  const d = value instanceof Date ? value : new Date(String(value).replace(/\//g, '-'))
-  if (Number.isNaN(d.getTime())) return typeof value === 'string' ? value : undefined
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function dayOffset(days) {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-/* 快捷日期：文案放在 computed 里，语言切换时重新求值 */
-const dateShortcuts = computed(() => [
-  { text: t('recordings.meta.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: t('recordings.meta.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: t('recordings.meta.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
-])
+/* 快捷日期：文案放在 computed 里，语言切换时重新求值（日期计算复用 utils/dateRange） */
+const dateShortcuts = computed(() =>
+  buildDateShortcuts({
+    last7Days: t('recordings.meta.last7Days'),
+    last30Days: t('recordings.meta.last30Days'),
+    last90Days: t('recordings.meta.last90Days')
+  })
+)
 
 const metaParams = computed(() => ({
   agentName: agentFilter.value.trim() || undefined,
   teamName: teamFilter.value.trim() || undefined,
   direction: directionFilter.value || undefined,
-  from: toDateParam(callDateRange.value?.[0]),
-  to: toDateParam(callDateRange.value?.[1])
+  // 空区间保持「不传」语义：toDateParam 空值返回 ''，这里转 undefined 交给 api 层剔除
+  from: toDateParam(callDateRange.value?.[0]) || undefined,
+  to: toDateParam(callDateRange.value?.[1]) || undefined
 }))
 
 const hasMetaFilters = computed(
@@ -1002,99 +1013,29 @@ function directionClass(direction) {
   return DIRECTION_META[direction]?.type || 'info'
 }
 
-const dfaHits = computed(() => {
-  try {
-    return JSON.parse(detail.value?.dfaHitsJson || '[]')
-  } catch {
-    return []
-  }
-})
-const aiResult = computed(() => {
-  try {
-    return JSON.parse(detail.value?.aiResultJson || 'null')
-  } catch {
-    return null
-  }
-})
-/** AI 判定违规时的类型标签（NONE/无 不展示） */
-const aiTypeLabel = computed(() => {
-  const r = aiResult.value
-  if (!r || r.violationType === 'NONE') return ''
-  return r.violationTypeLabel || ''
-})
-const segments = computed(() => {
-  try {
-    return JSON.parse(detail.value?.segmentsJson || '[]')
-  } catch {
-    return []
-  }
-})
-const audioUrl = computed(() => (detail.value?.filePath ? `/uploads/${detail.value.filePath}` : ''))
-
-// 音画联动 + 分声道试听
-const playerRef = ref(null)
-const currentTime = ref(0)
-const follow = ref(true)
-const transcriptMode = ref('segment')
-const audioChannel = ref('mix')
-const modeInitialized = ref(false)
-
-const channelFiles = computed(() => {
-  try {
-    return JSON.parse(detail.value?.channelFilesJson || 'null')
-  } catch {
-    return null
-  }
-})
-const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
-const channelOptions = computed(() => {
-  const files = channelFiles.value || {}
-  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || t('recordings.channel.left')
-  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || t('recordings.channel.right')
-  return [
-    { key: 'mix', label: t('recordings.channel.mix'), badge: '' },
-    { key: 'L', label: files.L ? leftName : t('recordings.channel.left'), badge: 'L' },
-    { key: 'R', label: files.R ? rightName : t('recordings.channel.right'), badge: 'R' }
-  ]
-})
-const audioSrc = computed(() => {
-  const files = channelFiles.value
-  if (files && audioChannel.value !== 'mix' && files[audioChannel.value]) {
-    return `/uploads/${files[audioChannel.value]}`
-  }
-  return audioUrl.value
-})
-
-function switchChannel(key) {
-  if (audioChannel.value === key) return
-  audioChannel.value = key
-  currentTime.value = 0
-}
-
-function onTimeUpdate(time) {
-  currentTime.value = Number(time) || 0
-}
-
-/** 点击句子 → 跳转到对应音频时间点并播放 */
-function seekTo(time) {
-  if (time == null) return
-  currentTime.value = time
-  if (!audioUrl.value) {
-    ElMessage.info(t('recordings.messages.noAudioSeek', { time: formatClock(time) }))
-    return
-  }
-  playerRef.value?.seekTo(time)
-}
-
 /* 处理轨迹阶段：getter 形式，切换语言后重新求值 */
 const STAGE_NAMES = {
-  get PIPELINE() { return t('recordings.stage.pipeline') },
-  get TRANSCRIBE() { return t('recordings.stage.transcribe') },
-  get DFA() { return t('recordings.stage.dfa') },
-  get AI() { return t('recordings.stage.ai') },
-  get REVIEW() { return t('recordings.stage.review') },
-  get MINING() { return t('recordings.stage.mining') },
-  get RAG() { return t('recordings.stage.rag') }
+  get PIPELINE() {
+    return t('recordings.stage.pipeline')
+  },
+  get TRANSCRIBE() {
+    return t('recordings.stage.transcribe')
+  },
+  get DFA() {
+    return t('recordings.stage.dfa')
+  },
+  get AI() {
+    return t('recordings.stage.ai')
+  },
+  get REVIEW() {
+    return t('recordings.stage.review')
+  },
+  get MINING() {
+    return t('recordings.stage.mining')
+  },
+  get RAG() {
+    return t('recordings.stage.rag')
+  }
 }
 const stageName = (s) => STAGE_NAMES[s] || s
 
@@ -1108,25 +1049,47 @@ const AI_STAGE_KEYS = {
 }
 const stageLabel = (s) => t(AI_STAGE_KEYS[s] || 'meta.aiStage.SCREEN')
 
-/** 从留痕的请求体里取出 messages，供分栏展示 */
-function messagesOf(inv) {
-  try {
-    return JSON.parse(inv.requestJson || '{}').messages || []
-  } catch {
-    return []
-  }
-}
+/* 详情工作台文案：按 recordings.* 域名组装，传给共享的 RecordingWorkspace */
+const workspaceLabels = computed(() => ({
+  channelMix: t('recordings.channel.mix'),
+  channelLeft: t('recordings.channel.left'),
+  channelRight: t('recordings.channel.right'),
+  noAudio: t('recordings.detail.noAudio'),
+  noAudioSeek: (clock) => t('recordings.messages.noAudioSeek', { time: clock }),
+  dialogue: t('recordings.transcript.dialogue'),
+  segment: t('recordings.transcript.sentence'),
+  full: t('recordings.transcript.full'),
+  follow: t('recordings.transcript.follow'),
+  emptyTranscript: t('recordings.transcript.empty'),
+  verdictTitle: t('recordings.detail.aiScreening'),
+  verdictViolation: t('recordings.detail.verdictViolation'),
+  verdictCompliant: t('recordings.detail.verdictCompliant'),
+  confidence: t('recordings.detail.confidence'),
+  modelLabel: t('recordings.detail.model'),
+  degraded: t('recordings.detail.degraded'),
+  reasonFallback: '—',
+  tracesTitle: t('recordings.detail.aiInvocations'),
+  tracesCount: (count) => countLabel('recordings.detail.aiInvocationsHint', count),
+  stageLabel,
+  endpoint: t('recordings.detail.endpoint'),
+  requestChars: (count) => t('recordings.detail.requestChars', { count }),
+  responseChars: (count) => t('recordings.detail.responseChars', { count }),
+  charCount: (count) => t('recordings.detail.charCount', { count }),
+  noRequestBody: t('recordings.detail.noRequestBody'),
+  noReply: t('recordings.detail.noReply')
+}))
 
-/** 模型回复是 JSON 字符串，格式化后更易读；解析失败则原样展示 */
-function prettyJson(raw) {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  } catch {
-    return raw
-  }
-}
+/** 抽屉关闭 / 卸载时暂停试听（详情工作台内部播放器由子组件暴露 pause） */
+const workspaceRef = ref(null)
+
+/**
+ * 列表请求序号：筛选 / 翻页 / 3s 轮询可能并发，只允许最新一次请求写回 rows / total。
+ * 与 KnowledgeIndex.vue 的 chunksToken 同一「最新请求胜出」范式。
+ */
+let loadSeq = 0
 
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
   try {
     const statuses =
@@ -1144,18 +1107,23 @@ async function load() {
       page: page.value,
       size: pageSize
     })
+    if (seq !== loadSeq) return
     rows.value = data.content || []
     total.value = data.totalElements || 0
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
-async function loadOverview() {
+/**
+ * 概览统计：默认复用全局单例缓存（与 App 15s 轮询去重）；
+ * 上传 / 删除 / 重新处理等写操作后传 force:true 立即刷新筛选计数。
+ */
+async function loadOverview({ force = false } = {}) {
   try {
-    overview.value = await api.overview()
+    await overviewState.load({ force })
   } catch {
-    // 忽略
+    // 忽略：失败时单例保留旧数据，计数缺失不阻塞列表
   }
 }
 
@@ -1272,9 +1240,7 @@ async function submitUpload() {
       (item) => item.status === UPLOAD_STATUS.ERROR && item.size > MAX_UPLOAD_BYTES
     )
     ElMessage.warning(
-      hasOversized
-        ? t('recordings.upload.noUploadable')
-        : t('recordings.upload.batchDone')
+      hasOversized ? t('recordings.upload.noUploadable') : t('recordings.upload.batchDone')
     )
     return
   }
@@ -1298,7 +1264,9 @@ async function submitUpload() {
         error: ''
       })
       try {
+        // silent：失败统一由页面汇总提示（api.upload 支持 silent 后不再逐文件弹全局错误）
         const result = await api.upload(current.file, uploadForm.value, {
+          silent: true,
           onUploadProgress: (event) => {
             uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
               progress: progressFromEvent(event)
@@ -1328,7 +1296,7 @@ async function submitUpload() {
   if (success > 0) {
     ElMessage.success(countLabel('recordings.upload.successMessage', success))
     reload()
-    loadOverview()
+    loadOverview({ force: true })
   }
   if (failed > 0) ElMessage.error(countLabel('recordings.upload.failureMessage', failed))
 
@@ -1339,32 +1307,34 @@ async function submitUpload() {
   }
 }
 
+/**
+ * 详情请求序号：连续点开不同录音（或轮询刷新）时只保留最后一次响应。
+ * 同时这里对单条请求分别兜底：AI 留痕接口已收紧为 ADMIN，
+ * 非 ADMIN 不发起请求（避免 403 噪音），任一子请求失败也不影响详情主体。
+ */
+let detailSeq = 0
+
 async function openDetail(row) {
   if (!row?.id) return
+  const seq = ++detailSeq
   detailVisible.value = true
   detailLoading.value = true
   detail.value = null
   logs.value = []
   aiInvocations.value = []
-  currentTime.value = 0
-  audioChannel.value = 'mix'
-  transcriptMode.value = 'segment'
   try {
     const [d, l, inv] = await Promise.all([
-      api.recordingDetail(row.id),
-      api.recordingLogs(row.id),
-      api.recordingAiInvocations(row.id)
+      api.recordingDetail(row.id).catch(() => null),
+      api.recordingLogs(row.id).catch(() => []),
+      isAdmin.value ? api.recordingAiInvocations(row.id).catch(() => []) : Promise.resolve([])
     ])
+    if (seq !== detailSeq) return
+    if (!d) return
     detail.value = d
     logs.value = l || []
     aiInvocations.value = inv || []
-    // 双轨录音首次打开默认双栏对话
-    if (dialogueAvailable.value && !modeInitialized.value) {
-      transcriptMode.value = 'dialogue'
-    }
-    modeInitialized.value = true
   } finally {
-    detailLoading.value = false
+    if (seq === detailSeq) detailLoading.value = false
   }
 }
 
@@ -1378,7 +1348,7 @@ async function reprocess(row) {
     })
   )
   load()
-  loadOverview()
+  loadOverview({ force: true })
   if (detail.value?.id === row.id) openDetail(row)
 }
 
@@ -1387,7 +1357,7 @@ async function remove(row) {
   ElMessage.success(t('recordings.messages.deleted'))
   if (detail.value?.id === row.id) detailVisible.value = false
   load()
-  loadOverview()
+  loadOverview({ force: true })
 }
 
 /* ---------- 复核工作流：认领 / 指派 / 重开 ---------- */
@@ -1399,9 +1369,7 @@ async function claim(row) {
     const saved = await api.claimRecording(row.id)
     const assignedTo = saved?.assignedTo || auth.username
     const patch = saved && typeof saved === 'object' ? saved : {}
-    rows.value = rows.value.map((r) =>
-      r.id === row.id ? { ...r, ...patch, assignedTo } : r
-    )
+    rows.value = rows.value.map((r) => (r.id === row.id ? { ...r, ...patch, assignedTo } : r))
     if (detail.value?.id === row.id) {
       detail.value = { ...detail.value, ...patch, assignedTo }
     }
@@ -1432,7 +1400,7 @@ async function reopen(row) {
     ElMessage.success(t('recordings.messages.reopened'))
     if (detail.value?.id === row.id) detailVisible.value = false
     await load()
-    loadOverview()
+    loadOverview({ force: true })
   } catch {
     // 请求层已统一提示
   }
@@ -1441,25 +1409,41 @@ async function reopen(row) {
 let timer = null
 const hasProcessing = () => rows.value.some((r) => PROCESSING_STATUSES.includes(r.status))
 
+/** 3s 自动刷新：页面不可见 / 已有列表请求在途时跳过，避免无效请求与响应叠加 */
+function tick() {
+  if (document.hidden || loading.value || !hasProcessing()) return
+  load()
+  loadOverview()
+}
+
+function onVisibilityChange() {
+  if (document.hidden || loading.value || !hasProcessing()) return
+  load()
+  loadOverview()
+}
+
 onMounted(async () => {
   observeTableWidth()
   // 支持从工作台/其他页面带条件跳转
   const qs = String(route.query.statuses || '')
   if (qs) statusFilter.value = qs.split(',')[0] === 'FAILED' ? 'FAILED' : qs.split(',')[0]
   loadOverview()
-  await load()
+  // 先启动轮询再拉首屏：首屏请求失败（后端未就绪等）时仍能自动恢复，且不中断后续逻辑
+  timer = setInterval(tick, 3000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  try {
+    await load()
+  } catch {
+    // 请求层已统一提示：保留空列表，定时器会在后端恢复后自动刷新
+  }
   if (route.query.id) {
     openDetail({ id: Number(route.query.id) })
   }
-  timer = setInterval(() => {
-    if (hasProcessing()) {
-      load()
-      loadOverview()
-    }
-  }, 3000)
 })
 onUnmounted(() => {
-  clearInterval(timer)
+  if (timer) clearInterval(timer)
+  timer = null
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   tableObserver?.disconnect()
   tableObserver = null
 })
@@ -1694,7 +1678,9 @@ onUnmounted(() => {
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .more-item:hover {
   background: var(--ink-50);
@@ -1840,85 +1826,6 @@ onUnmounted(() => {
 }
 
 /* 播放器行 + 分声道试听 */
-.player-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.player-row .audio-player {
-  flex: 1 1 300px;
-  min-width: 0;
-}
-.no-audio {
-  flex: 1;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: var(--ink-50);
-}
-.channel-switch {
-  flex: none;
-  display: inline-flex;
-  background: var(--ink-100);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 3px;
-}
-.ch-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--el-text-color-regular);
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.ch-btn.on {
-  background: #fff;
-  color: var(--brand-600);
-  box-shadow: var(--sh-xs);
-}
-.ch-badge.sm {
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: #fff;
-}
-.ch-badge.sm.l {
-  background: var(--brand-500);
-}
-.ch-badge.sm.r {
-  background: #64748b;
-}
-.error-banner {
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-  padding: 11px 13px;
-  border-radius: var(--r-md);
-  background: var(--danger-soft);
-  border: 1px solid #f7c9c9;
-  color: #b3261e;
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-
 .block {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -1940,194 +1847,8 @@ onUnmounted(() => {
 }
 
 /* 逐句 / 全文切换 */
-.seg-toggle {
-  display: inline-flex;
-  background: var(--ink-100);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 3px;
-}
-.seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 11px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--el-text-color-regular);
-  font-size: 12.5px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.seg-btn.on {
-  background: #fff;
-  color: var(--brand-600);
-  box-shadow: var(--sh-xs);
-}
-.follow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
 /* AI 结论 */
-.verdict {
-  border-radius: var(--r-md);
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  background: #fbfcfe;
-}
-.verdict.bad {
-  background: linear-gradient(180deg, #fff6f6, #fffdfd);
-  border-color: #f7d0d0;
-}
-.verdict.ok {
-  background: linear-gradient(180deg, #f5fbf7, #fdfefd);
-  border-color: #cfe9d8;
-}
-.verdict-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.verdict-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.verdict.bad .verdict-badge {
-  color: #c92c2c;
-}
-.verdict.ok .verdict-badge {
-  color: #12823b;
-}
-.conf {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.conf b {
-  color: var(--ink-700);
-  margin-left: 3px;
-}
-.conf-track {
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.07);
-  margin: 10px 0;
-  overflow: hidden;
-}
-.conf-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.5s ease;
-}
-.conf-fill.bad {
-  background: linear-gradient(90deg, #f87171, #ef4444);
-}
-.conf-fill.ok {
-  background: linear-gradient(90deg, #4ade80, #16a34a);
-}
-.verdict-reason {
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: var(--el-text-color-regular);
-}
-
 /* 判定模型标注 */
-.verdict-model {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin-top: 7px;
-  padding-top: 7px;
-  border-top: 1px dashed var(--border);
-}
-.verdict-model .mono {
-  color: var(--ink-600);
-}
-
-/* AI 调用留痕 */
-.ai-collapse {
-  border-top: none;
-}
-.ai-collapse :deep(.el-collapse-item__header) {
-  height: auto;
-  min-height: 34px;
-  padding: 4px 0;
-  line-height: 1.5;
-}
-.ai-inv-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding-right: 10px;
-  min-width: 0;
-}
-.ai-inv-model {
-  font-size: 12px;
-  color: var(--ink-600);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ai-meta {
-  line-height: 1.9;
-  margin-bottom: 4px;
-}
-.ai-part {
-  margin-top: 11px;
-}
-.ai-part-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-}
-.ai-role {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-600);
-}
-.ai-role.system {
-  color: var(--brand-600);
-}
-.ai-role.reply {
-  color: var(--ok);
-}
-.ai-raw {
-  margin: 0;
-  padding: 10px 12px;
-  max-height: 280px;
-  overflow: auto;
-  background: var(--ink-50);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.68;
-  color: var(--ink-600);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.ai-raw.reply {
-  background: var(--ok-soft);
-  border-color: #cfe9d9;
-}
-.ai-raw.error {
-  background: var(--danger-soft);
-  border-color: #f3cccc;
-  color: #a32424;
-}
-
 /* 复检 */
 .review-grid {
   display: grid;

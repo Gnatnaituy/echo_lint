@@ -29,7 +29,9 @@
             @keyup.enter="applyFilters"
             @clear="applyFilters"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <el-select
             v-model="categoryFilter"
@@ -105,7 +107,9 @@
 
         <el-table-column :label="t('knowledge.violationType')" width="104">
           <template #default="{ row }">
-            <span v-if="row.violationType" class="chip warn">{{ violationLabel(row.violationType) }}</span>
+            <span v-if="row.violationType" class="chip warn">{{
+              violationLabel(row.violationType)
+            }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
@@ -124,15 +128,30 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('common.status')" width="92" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          :label="t('common.status')"
+          width="92"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
-            <span class="chip" :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'">
+            <span
+              class="chip"
+              :class="row.enabled === false ? 'info' : row.enabled === true ? 'ok' : 'info'"
+            >
               {{ enabledLabel(row.enabled) }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('knowledge.indexStatus')" width="102" align="center" class-name="col-tight" label-class-name="col-tight">
+        <el-table-column
+          :label="t('knowledge.indexStatus')"
+          width="102"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <el-tooltip
               v-if="isFailedIndex(row)"
@@ -169,7 +188,13 @@
               <el-button size="small" link type="primary" @click.stop="openDetail(row)">
                 {{ t('common.detail') }}
               </el-button>
-              <el-button v-if="canWrite" size="small" link type="primary" @click.stop="openEdit(row)">
+              <el-button
+                v-if="canWrite"
+                size="small"
+                link
+                type="primary"
+                @click.stop="openEdit(row)"
+              >
                 {{ t('common.edit') }}
               </el-button>
               <el-button
@@ -205,9 +230,13 @@
               {{ hasFilters ? t('knowledge.emptyFilteredTitle') : t('knowledge.emptyTitle') }}
             </div>
             <div class="tiny dim">
-              {{ hasFilters
-                ? t('knowledge.emptyFilteredHint')
-                : (canWrite ? t('knowledge.emptyCreateHint') : t('knowledge.emptyReadonlyHint')) }}
+              {{
+                hasFilters
+                  ? t('knowledge.emptyFilteredHint')
+                  : canWrite
+                    ? t('knowledge.emptyCreateHint')
+                    : t('knowledge.emptyReadonlyHint')
+              }}
             </div>
           </div>
         </template>
@@ -219,13 +248,25 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
 
-    <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" size="640px" :with-header="false" append-to-body>
+    <!-- 详情抽屉：with-header=false 时必须显式给 title，否则 el-drawer 的
+         aria-labelledby 会指向未渲染的标题节点，抽屉没有可访问名称 -->
+    <el-drawer
+      v-model="detailVisible"
+      :title="t('knowledge.detailTitle')"
+      size="640px"
+      :with-header="false"
+      append-to-body
+    >
       <div v-if="detail" class="detail">
         <div class="detail-head">
           <div class="min-w-0">
@@ -234,7 +275,9 @@
               <span class="chip" :class="detail.enabled === false ? 'info' : 'ok'">
                 {{ detail.enabled === false ? t('knowledge.disabledState') : t('common.enabled') }}
               </span>
-              <span v-if="detail.category" class="chip info">{{ categoryLabel(detail.category) }}</span>
+              <span v-if="detail.category" class="chip info">{{
+                categoryLabel(detail.category)
+              }}</span>
               <span v-if="detail.violationType" class="chip warn">
                 {{ violationLabel(detail.violationType) }}
               </span>
@@ -256,9 +299,9 @@
               :icon="Close"
               circle
               size="small"
-              @click="detailVisible = false"
               :aria-label="t('common.close')"
               :title="t('common.close')"
+              @click="detailVisible = false"
             />
           </div>
         </div>
@@ -286,11 +329,13 @@
           <div class="index-item">
             <span class="tiny dim">{{ t('knowledge.source') }}</span>
             <span class="ellipsis" :title="detail.sourceType || ''">
-              {{ detail.sourceType === 'DOCUMENT'
-                ? t('knowledge.sourceDocument')
-                : detail.sourceType === 'MANUAL'
-                  ? t('knowledge.sourceManual')
-                  : (detail.sourceType || '—') }}
+              {{
+                detail.sourceType === 'DOCUMENT'
+                  ? t('knowledge.sourceDocument')
+                  : detail.sourceType === 'MANUAL'
+                    ? t('knowledge.sourceManual')
+                    : detail.sourceType || '—'
+              }}
             </span>
           </div>
           <div class="index-item">
@@ -332,7 +377,13 @@
       class="knowledge-dialog"
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="96px" @submit.prevent="submit">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="96px"
+        @submit.prevent="submit"
+      >
         <el-form-item :label="t('knowledge.title')" prop="title">
           <el-input
             v-model="form.title"
@@ -359,7 +410,12 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('knowledge.violationType')">
-          <el-select v-model="form.violationType" clearable :placeholder="t('knowledge.violationTypePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="form.violationType"
+            clearable
+            :placeholder="t('knowledge.violationTypePlaceholder')"
+            style="width: 100%"
+          >
             <el-option
               v-for="(label, value) in VIOLATION_TYPES"
               :key="value"
@@ -494,7 +550,9 @@
           :disabled="searching"
           @keyup.enter="runSearchPreview"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-input-number
           v-model="searchForm.topK"
@@ -568,6 +626,7 @@ import {
 import { formatFileSize, indexStatusMeta, isIndexInProgress } from '../utils/rag'
 import { useElementWidth } from '../utils/elementWidth'
 import { useI18n } from '../i18n'
+import { Document, Loading, Reading, UploadFilled, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -633,37 +692,52 @@ function knowledgeErrorMessage(err) {
   return err?.message || t('knowledge.errorLoadFailed')
 }
 
+/** 加载序号：手动刷新与 3s 轮询可能交错，只允许最新一次响应落库（避免旧响应覆盖新数据） */
+let loadSeq = 0
+/** 是否有列表请求在途：后台轮询据此跳过，避免慢请求把 3s 轮询堆叠起来 */
+let loadInflight = false
+
+const fetchPage = () =>
+  api.listKnowledge({
+    keyword: keyword.value.trim() || undefined,
+    category: categoryFilter.value || undefined,
+    enabled: enabledFilter.value || undefined,
+    page: page.value,
+    size: pageSize
+  })
+
 async function load({ background = false } = {}) {
-  if (background && loading.value) return
+  // 后台轮询：已有请求在途时跳过（前台加载中也不重复请求）
+  if (background && (loadInflight || loading.value)) return
+  const seq = ++loadSeq
+  loadInflight = true
   if (!background) {
     loading.value = true
     error.value = ''
   }
   try {
-    const data = await api.listKnowledge({
-      keyword: keyword.value.trim() || undefined,
-      category: categoryFilter.value || undefined,
-      enabled: enabledFilter.value || undefined,
-      page: page.value,
-      size: pageSize
-    })
+    let data = await fetchPage()
+    // 删除 / 过滤后当前页可能越界：回退到最后一页重拉（同一次加载内完成，不叠加请求）
+    if (!data.items.length && page.value > 0 && data.total > 0) {
+      page.value = Math.max(0, Math.ceil(data.total / pageSize) - 1)
+      data = await fetchPage()
+    }
+    if (seq !== loadSeq) return // 已被更新的请求取代：丢弃过期响应
     rows.value = data.items
     total.value = data.total
     error.value = ''
-    // 删除 / 过滤后当前页可能越界：回退到最后一页重拉
-    const maxPage = Math.max(1, Math.ceil(data.total / pageSize))
-    if (!data.items.length && page.value > 0 && data.total > 0) {
-      page.value = maxPage - 1
-      await load({ background })
-    }
   } catch (e) {
+    if (seq !== loadSeq) return
     // 自动刷新失败时保留当前列表，避免静默轮询把界面清空
     if (background) return
     rows.value = []
     total.value = 0
     error.value = knowledgeErrorMessage(e)
   } finally {
-    if (!background) loading.value = false
+    if (seq === loadSeq) {
+      loadInflight = false
+      if (!background) loading.value = false
+    }
   }
 }
 
@@ -838,7 +912,9 @@ function resetImport() {
 }
 
 function documentExtension(name) {
-  const text = String(name || '').trim().toLowerCase()
+  const text = String(name || '')
+    .trim()
+    .toLowerCase()
   const dot = text.lastIndexOf('.')
   return dot >= 0 ? text.slice(dot + 1) : ''
 }
@@ -860,9 +936,7 @@ function acceptDocument(file) {
 
 function onFileChange(file, fileList) {
   // limit=1 时替换选择应以最后一份为准
-  const chosen = Array.isArray(fileList) && fileList.length
-    ? fileList[fileList.length - 1]
-    : file
+  const chosen = Array.isArray(fileList) && fileList.length ? fileList[fileList.length - 1] : file
   const raw = acceptDocument(chosen)
   if (!raw) {
     selectedFile.value = null
@@ -961,17 +1035,29 @@ function formatScore(score) {
 // 索引处理中的条目每 3 秒静默刷新，等待后台解析 / 索引完成
 let refreshTimer = null
 
+/** 3s 轮询 tick：页面不可见 / 没有进行中的索引时跳过，避免后台标签页空转请求 */
+function tick() {
+  if (typeof document !== 'undefined' && document.hidden) return
+  if (!rows.value.some((row) => isIndexInProgress(row.indexStatus))) return
+  load({ background: true })
+}
+
+/** 从后台切回前台：立即补一次刷新，不必等下一个 3s 周期 */
+function onVisibilityChange() {
+  if (typeof document === 'undefined' || document.hidden) return
+  tick()
+}
+
 onMounted(async () => {
   await load()
-  refreshTimer = setInterval(() => {
-    if (loading.value) return
-    if (rows.value.some((row) => isIndexInProgress(row.indexStatus))) load({ background: true })
-  }, REFRESH_SECONDS * 1000)
+  refreshTimer = setInterval(tick, REFRESH_SECONDS * 1000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   refreshTimer = null
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
 

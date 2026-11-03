@@ -4,7 +4,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { dateStamp, filenameFromDisposition } from '../src/utils/download.js'
-import { DIRECTION_META, DIRECTION_OPTIONS, directionLabel, directionMeta } from '../src/constants.js'
+import {
+  DIRECTION_META,
+  DIRECTION_OPTIONS,
+  directionLabel,
+  directionMeta
+} from '../src/constants.js'
 
 test('文件名：普通 filename 带引号 / 不带引号', () => {
   assert.equal(
@@ -18,13 +23,13 @@ test('文件名：普通 filename 带引号 / 不带引号', () => {
 })
 
 test('文件名：RFC 5987 编码优先并解码中文', () => {
-  const header = "attachment; filename=\"fallback.csv\"; filename*=UTF-8''%E5%BD%95%E9%9F%B3.csv"
+  const header = 'attachment; filename="fallback.csv"; filename*=UTF-8\'\'%E5%BD%95%E9%9F%B3.csv'
   assert.equal(filenameFromDisposition(header), '录音.csv')
 })
 
 test('文件名：编码非法时回退 filename=；无头时用兜底名', () => {
   assert.equal(
-    filenameFromDisposition("attachment; filename=\"ok.csv\"; filename*=UTF-8''%E5%BD"),
+    filenameFromDisposition('attachment; filename="ok.csv"; filename*=UTF-8\'\'%E5%BD'),
     'ok.csv'
   )
   assert.equal(filenameFromDisposition('attachment'), 'download.csv')

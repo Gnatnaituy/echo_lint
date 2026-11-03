@@ -18,7 +18,9 @@
     </div>
 
     <div v-if="hits && hits.length" class="legend">
-      <span class="legend-title">{{ countLabel('components.transcriptViewer.hitCount', hits.length) }}</span>
+      <span class="legend-title">{{
+        countLabel('components.transcriptViewer.hitCount', hits.length)
+      }}</span>
       <span v-for="(h, i) in hits" :key="i" class="legend-chip">
         <b>{{ h.word }}</b>
         <span class="dim mono">[{{ h.start }},{{ h.end }})</span>
@@ -30,6 +32,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
+import { Aim } from './icons.js'
 
 const { t } = useI18n()
 

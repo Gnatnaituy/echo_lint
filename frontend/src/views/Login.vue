@@ -56,12 +56,7 @@
             :prefix-icon="Lock"
           />
         </el-form-item>
-        <el-button
-          type="primary"
-          native-type="submit"
-          class="submit"
-          :loading="submitting"
-        >
+        <el-button type="primary" native-type="submit" class="submit" :loading="submitting">
           {{ t('login.submit') }}
         </el-button>
       </el-form>
@@ -84,6 +79,7 @@ import { User, Lock } from '@element-plus/icons-vue'
 import auth from '../auth'
 import { safeRedirect } from '../constants'
 import { useI18n } from '../i18n'
+import { Headset } from '../components/icons.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,9 +108,7 @@ async function submit() {
   submitting.value = true
   try {
     const user = await auth.login(form.username, form.password)
-    ElMessage.success(
-      t('login.welcome', { name: user?.displayName || user?.username || '' })
-    )
+    ElMessage.success(t('login.welcome', { name: user?.displayName || user?.username || '' }))
     // 登录后回到被拦截的原地址（仅接受站内路径，避免开放重定向）
     router.replace(safeRedirect(route.query.redirect))
   } catch (e) {
@@ -176,7 +170,9 @@ onMounted(() => {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 20px;
-  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.04);
+  box-shadow:
+    0 22px 56px rgba(15, 23, 42, 0.1),
+    0 2px 8px rgba(15, 23, 42, 0.04);
   animation: card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes card-in {
@@ -269,7 +265,9 @@ onMounted(() => {
 }
 /* 自动聚焦与键盘 Tab 都保持一致的品牌色聚焦环（错误态仍用红色） */
 .login-card :deep(.el-form-item:not(.is-error) .el-input__wrapper:focus-within) {
-  box-shadow: 0 0 0 1px var(--brand-500) inset, 0 0 0 3px rgba(59, 110, 246, 0.14);
+  box-shadow:
+    0 0 0 1px var(--brand-500) inset,
+    0 0 0 3px rgba(59, 110, 246, 0.14);
 }
 
 .submit {

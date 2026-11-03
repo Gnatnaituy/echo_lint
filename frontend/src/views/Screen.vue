@@ -2,12 +2,16 @@
   <div class="screen">
     <header class="screen-head">
       <div class="head-left">
-        <div class="head-mark"><el-icon :size="22"><Monitor /></el-icon></div>
+        <div class="head-mark">
+          <el-icon :size="22"><Monitor /></el-icon>
+        </div>
         <div class="head-text">
           <div class="screen-title">{{ t('screen.title') }}</div>
           <div class="screen-sub">
             {{ t('screen.autoRefresh', { seconds: REFRESH_SECONDS }) }}
-            <span v-if="lastUpdatedText">· {{ t('screen.updatedAt', { time: lastUpdatedText }) }}</span>
+            <span v-if="lastUpdatedText"
+              >· {{ t('screen.updatedAt', { time: lastUpdatedText }) }}</span
+            >
           </div>
         </div>
       </div>
@@ -51,7 +55,7 @@
         <div class="kpi danger">
           <div class="kpi-label">{{ t('screen.kpiViolationRate') }}</div>
           <div class="kpi-value num">{{ formatRate(metrics.violationRate) }}</div>
-          <div class="kpi-sub">{{ t('screen.rateNote') }}</div>
+          <div class="kpi-sub">{{ rateNote }}</div>
         </div>
       </div>
 
@@ -61,7 +65,9 @@
           <div class="panel-title">{{ t('screen.trend7d') }}</div>
           <TrendChart v-if="trend.length" :data="trend" :height="250" />
           <div v-else class="scr-empty">
-            <div class="empty-icon"><el-icon :size="26"><TrendCharts /></el-icon></div>
+            <div class="empty-icon">
+              <el-icon :size="26"><TrendCharts /></el-icon>
+            </div>
             <div class="empty-text">{{ t('screen.empty') }}</div>
           </div>
         </section>
@@ -80,7 +86,9 @@
             </div>
           </div>
           <div v-else class="scr-empty">
-            <div class="empty-icon"><el-icon :size="26"><PieChart /></el-icon></div>
+            <div class="empty-icon">
+              <el-icon :size="26"><PieChart /></el-icon>
+            </div>
             <div class="empty-text">{{ t('screen.empty') }}</div>
           </div>
         </section>
@@ -94,12 +102,16 @@
             <div v-for="(row, i) in agentRows" :key="`a-${row.name}`" class="rank-row">
               <span class="rank-index num">{{ String(i + 1).padStart(2, '0') }}</span>
               <span class="rank-name ellipsis" :title="row.name">{{ row.name }}</span>
-              <div class="rank-track"><div class="rank-fill" :style="{ width: rankWidth(row.count, agentMax) }"></div></div>
+              <div class="rank-track">
+                <div class="rank-fill" :style="{ width: rankWidth(row.count, agentMax) }"></div>
+              </div>
               <span class="rank-count num">{{ formatCount(row.count) }}</span>
             </div>
           </div>
           <div v-else class="scr-empty">
-            <div class="empty-icon"><el-icon :size="24"><User /></el-icon></div>
+            <div class="empty-icon">
+              <el-icon :size="24"><User /></el-icon>
+            </div>
             <div class="empty-text">{{ t('screen.empty') }}</div>
           </div>
         </section>
@@ -110,12 +122,16 @@
             <div v-for="(row, i) in teamRows" :key="`t-${row.name}`" class="rank-row">
               <span class="rank-index num">{{ String(i + 1).padStart(2, '0') }}</span>
               <span class="rank-name ellipsis" :title="row.name">{{ row.name }}</span>
-              <div class="rank-track"><div class="rank-fill team" :style="{ width: rankWidth(row.count, teamMax) }"></div></div>
+              <div class="rank-track">
+                <div class="rank-fill team" :style="{ width: rankWidth(row.count, teamMax) }"></div>
+              </div>
               <span class="rank-count num">{{ formatCount(row.count) }}</span>
             </div>
           </div>
           <div v-else class="scr-empty">
-            <div class="empty-icon"><el-icon :size="24"><OfficeBuilding /></el-icon></div>
+            <div class="empty-icon">
+              <el-icon :size="24"><OfficeBuilding /></el-icon>
+            </div>
             <div class="empty-text">{{ t('screen.empty') }}</div>
           </div>
         </section>
@@ -138,6 +154,16 @@ import {
   normalizeTopRows,
   normalizeViolationDistribution
 } from '../utils/screen'
+import { defaultRange, nowText as formatNowText } from '../utils/dateRange'
+import {
+  Monitor,
+  OfficeBuilding,
+  PieChart,
+  SwitchButton,
+  TrendCharts,
+  User,
+  WarningFilled
+} from '../components/icons.js'
 
 const REFRESH_SECONDS = 15
 const router = useRouter()
@@ -154,13 +180,21 @@ const agentRows = ref([])
 const teamRows = ref([])
 
 const metrics = computed(() => normalizeScreenMetrics(overview.value, report.value))
+/** 违规率副标题：标注「近 30 天同窗口」口径，并给出分子 / 分母便于核对；报表缺失时只说明口径 */
+const rateNote = computed(() => {
+  if (metrics.value.windowTotal <= 0) return t('screen.rateNoteEmpty')
+  return t('screen.rateNote', {
+    confirmed: formatCount(metrics.value.confirmed),
+    total: formatCount(metrics.value.windowTotal)
+  })
+})
 const agentMax = computed(() => Math.max(1, ...agentRows.value.map((r) => r.count)))
 const teamMax = computed(() => Math.max(1, ...teamRows.value.map((r) => r.count)))
 
 const violationLabel = (row) => row?.label || row?.key || '—'
 const rateWidth = (percent) => `${Math.max(2, Math.round((Number(percent) || 0) * 100))}%`
 const rankWidth = (count, max) =>
-  `${Math.max(4, Math.round((Number(count) || 0) / Math.max(1, Number(max) || 1) * 100))}%`
+  `${Math.max(4, Math.round(((Number(count) || 0) / Math.max(1, Number(max) || 1)) * 100))}%`
 
 /* ---------- 时钟 ---------- */
 
@@ -186,22 +220,10 @@ const clockDate = computed(() => {
 
 /* ---------- 数据加载 ---------- */
 
-function toDateParam(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
+/** 报表窗口：最近 30 天（含今天），与违规率分子的窗口一致（P2-20） */
 function reportRange() {
-  const to = new Date()
-  const from = new Date()
-  from.setDate(to.getDate() - 29)
-  return { from: toDateParam(from), to: toDateParam(to) }
-}
-
-function nowText() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const [from, to] = defaultRange()
+  return { from, to }
 }
 
 function errorMessage(reason) {
@@ -216,10 +238,7 @@ async function load({ background = false } = {}) {
   error.value = ''
   try {
     // 允许部分失败：overview 失败时仍展示 report 的分布/Top 数据（反之亦然）
-    const [ov, rp] = await Promise.allSettled([
-      api.overview(),
-      api.statsReport(reportRange())
-    ])
+    const [ov, rp] = await Promise.allSettled([api.overview(), api.statsReport(reportRange())])
     overview.value = ov.status === 'fulfilled' ? ov.value : null
     report.value = rp.status === 'fulfilled' ? rp.value : null
     if (ov.status === 'rejected' && rp.status === 'rejected') {
@@ -229,7 +248,7 @@ async function load({ background = false } = {}) {
     violationRows.value = normalizeViolationDistribution(report.value)
     agentRows.value = normalizeTopRows(report.value?.topAgents, 5)
     teamRows.value = normalizeTopRows(report.value?.topTeams, 5)
-    lastUpdatedText.value = nowText()
+    lastUpdatedText.value = formatNowText()
   } finally {
     loading.value = false
   }
@@ -372,9 +391,15 @@ onUnmounted(() => {
   animation: pulse 1.8s infinite;
 }
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
-  70% { box-shadow: 0 0 0 9px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
 }
 .exit-btn {
   display: inline-flex;
@@ -453,8 +478,12 @@ onUnmounted(() => {
   width: 4px;
   background: #3b6ef6;
 }
-.kpi.warn::before { background: #f59e0b; }
-.kpi.danger::before { background: #ef4444; }
+.kpi.warn::before {
+  background: #f59e0b;
+}
+.kpi.danger::before {
+  background: #ef4444;
+}
 .kpi-label {
   font-size: clamp(12px, 0.85vw, 15px);
   color: rgba(196, 210, 240, 0.72);
@@ -467,8 +496,12 @@ onUnmounted(() => {
   color: #fff;
   letter-spacing: -0.01em;
 }
-.kpi.warn .kpi-value { color: #fbbf24; }
-.kpi.danger .kpi-value { color: #f87171; }
+.kpi.warn .kpi-value {
+  color: #fbbf24;
+}
+.kpi.danger .kpi-value {
+  color: #f87171;
+}
 .kpi-sub {
   margin-top: 5px;
   font-size: clamp(10px, 0.7vw, 12.5px);

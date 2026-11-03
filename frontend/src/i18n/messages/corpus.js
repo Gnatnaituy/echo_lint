@@ -48,7 +48,7 @@ export default {
     'corpus.messages.transcriptRequired': '请输入语料文本',
     'corpus.messages.created': '已新增语料',
     'corpus.messages.deleted': '已删除',
-    'corpus.messages.exportFailed': '导出失败'
+    'corpus.messages.exported': '语料已导出：{filename}'
   },
   en: {
     // Overview
@@ -62,8 +62,10 @@ export default {
     // Feedback loop
     'corpus.loop.title': 'Manual review → Corpus → AI screening self-reinforcing loop',
     'corpus.loop.step1': 'Reviewer conclusions are written to the corpus automatically',
-    'corpus.loop.step2': 'AI screening uses the latest violation / compliant samples as few-shot prompts',
-    'corpus.loop.step3': 'Confirmed violations are mined for new sensitive words by AI (disabled pending review)',
+    'corpus.loop.step2':
+      'AI screening uses the latest violation / compliant samples as few-shot prompts',
+    'corpus.loop.step3':
+      'Confirmed violations are mined for new sensitive words by AI (disabled pending review)',
     'corpus.exportJson': 'Export JSON',
 
     // Toolbar
@@ -88,12 +90,13 @@ export default {
     // Create corpus sample
     'corpus.dialog.createTitle': 'New Corpus Sample',
     'corpus.form.transcriptPlaceholder': 'Paste a customer service call transcript',
-    'corpus.form.reasonPlaceholder': 'Why was it judged this way? (optional, used as an AI reference)',
+    'corpus.form.reasonPlaceholder':
+      'Why was it judged this way? (optional, used as an AI reference)',
 
     // Feedback messages
     'corpus.messages.transcriptRequired': 'Please enter a transcript',
     'corpus.messages.created': 'Sample created',
     'corpus.messages.deleted': 'Deleted',
-    'corpus.messages.exportFailed': 'Export failed'
+    'corpus.messages.exported': 'Corpus exported: {filename}'
   }
 }

@@ -8,8 +8,7 @@ export default {
   zh: {
     // 页面 / 工具栏
     'knowledgeIndex.pageTitle': '索引明细',
-    'knowledgeIndex.intro':
-      '查看全部知识库文档的索引状态与分块明细；处理中的条目会自动刷新。',
+    'knowledgeIndex.intro': '查看全部知识库文档的索引状态与分块明细；处理中的条目会自动刷新。',
     'knowledgeIndex.keywordPlaceholder': '标题 / 来源文件',
     'knowledgeIndex.allIndexStatuses': '全部索引状态',
     'knowledgeIndex.allSourceTypes': '全部来源',
@@ -97,8 +96,7 @@ export default {
     'knowledgeIndex.openChunks': 'Chunk details',
     'knowledgeIndex.emptyTitle': 'No documents yet',
     'knowledgeIndex.emptyFilteredTitle': 'No matching documents',
-    'knowledgeIndex.emptyFilteredHint':
-      'Try clearing the keyword, index status or source filters',
+    'knowledgeIndex.emptyFilteredHint': 'Try clearing the keyword, index status or source filters',
     'knowledgeIndex.emptyHint':
       'The knowledge base has no documents yet. Import or create entries on the Knowledge Base page first',
     'knowledgeIndex.reindexQueued': 'Rebuild requested for "{title}"; processing in the background',
@@ -120,8 +118,7 @@ export default {
     'knowledgeIndex.chunks.column.contentHash': 'Content hash',
     'knowledgeIndex.chunks.column.embedding': 'Embedding',
     'knowledgeIndex.chunks.emptyTitle': 'No chunks yet',
-    'knowledgeIndex.chunks.emptyHint':
-      'The entry may not be indexed yet or its content is empty',
+    'knowledgeIndex.chunks.emptyHint': 'The entry may not be indexed yet or its content is empty',
     'knowledgeIndex.chunks.emptyContent': '(No content)',
     'knowledgeIndex.chunks.loadFailed': 'Failed to load chunk details. Please try again later',
     'knowledgeIndex.chunks.forbidden':

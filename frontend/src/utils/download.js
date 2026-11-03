@@ -47,16 +47,26 @@ export function filenameFromDisposition(disposition, fallback = 'download.csv') 
   return fallback
 }
 
+/** JSON 错误体解析上限：超过该大小按成功文件处理，避免把大导出整块读进内存再丢弃 */
+const JSON_ERROR_MAX_BYTES = 1024 * 1024
+
 /**
  * 若 Blob 实为 JSON 错误体（例如 200 + {"message":"无权限"}），返回其中的 message；
- * 正常 CSV（text/csv）返回空串，调用方据此决定是否保存文件。
+ * 正常文件（text/csv 等）返回空串，调用方据此决定是否保存文件。
+ *
+ * @param {Blob} blob 下载接口的响应体
+ * @param {{jsonAsData?: boolean}} [options] jsonAsData=true 表示该接口成功时本身就是 JSON
+ *        （如语料导出）：合法 JSON 数组视为文件内容，只有错误对象（{message}/{error}）才拦截
  */
-export async function blobErrorMessage(blob) {
+export async function blobErrorMessage(blob, { jsonAsData = false } = {}) {
   if (!blob || typeof blob.type !== 'string' || !blob.type.toLowerCase().includes('json')) return ''
+  if (jsonAsData && Number(blob.size) > JSON_ERROR_MAX_BYTES) return ''
   try {
     const text = (await blob.text()).trim()
     if (!text) return ''
     const data = JSON.parse(text)
+    // 合法导出内容（语料导出为 JSON 数组）：不是错误体
+    if (jsonAsData && Array.isArray(data)) return ''
     if (typeof data === 'string') return data
     return data?.message || data?.error || ''
   } catch {

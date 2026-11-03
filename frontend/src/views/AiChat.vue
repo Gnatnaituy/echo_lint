@@ -93,7 +93,9 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
+        <el-button link type="primary" size="small" @click="load">{{
+          t('common.retry')
+        }}</el-button>
       </div>
 
       <el-table
@@ -146,7 +148,12 @@
             <span class="chip" :class="aiStatusMeta(row).type">{{ aiStatusMeta(row).label }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" :label="t('aiChat.latency')" width="92" align="right">
+        <el-table-column
+          v-if="!compactColumns"
+          :label="t('aiChat.latency')"
+          width="92"
+          align="right"
+        >
           <template #default="{ row }">
             <span class="num">{{ formatLatency(row.latencyMs) }}</span>
           </template>
@@ -161,7 +168,12 @@
             <span class="num">{{ formatCostUsd(row.costMicros) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!compactColumns" :label="t('aiChat.requestResponse')" width="156" align="right">
+        <el-table-column
+          v-if="!compactColumns"
+          :label="t('aiChat.requestResponse')"
+          width="156"
+          align="right"
+        >
           <template #default="{ row }">
             <span class="num tiny dim">
               {{ formatChars(row.requestChars) }} / {{ formatChars(row.responseChars) }}
@@ -170,7 +182,9 @@
         </el-table-column>
         <el-table-column :label="t('common.actions')" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click.stop="openDetail(row)">{{ t('common.view') }}</el-button>
+            <el-button link type="primary" @click.stop="openDetail(row)">{{
+              t('common.view')
+            }}</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -188,13 +202,24 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
 
-    <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" size="680px" :with-header="false" append-to-body>
+    <!-- 详情抽屉：with-header=false 时必须显式给 title，否则 aria-labelledby 指向未渲染的标题节点 -->
+    <el-drawer
+      v-model="detailVisible"
+      :title="t('aiChat.detailTitle')"
+      size="680px"
+      :with-header="false"
+      append-to-body
+    >
       <div class="drawer-head">
         <div>
           <div class="section-title">{{ t('aiChat.detailTitle') }}</div>
@@ -219,7 +244,9 @@
       </div>
       <template v-else-if="detail">
         <el-descriptions :column="compactColumns ? 1 : 2" border size="small" class="detail-desc">
-          <el-descriptions-item :label="t('aiChat.time')">{{ formatTime(detail.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.time')">{{
+            formatTime(detail.createdAt)
+          }}</el-descriptions-item>
           <el-descriptions-item :label="t('aiChat.stage')">
             <span class="chip" :class="aiStageMeta(detail.stage).type">
               {{ aiStageMeta(detail.stage).label }}
@@ -231,12 +258,7 @@
             </span>
           </el-descriptions-item>
           <el-descriptions-item :label="t('aiChat.recordingLinked')">
-            <el-button
-              v-if="detail.recordingId"
-              link
-              type="primary"
-              @click="openRecording(detail)"
-            >
+            <el-button v-if="detail.recordingId" link type="primary" @click="openRecording(detail)">
               #{{ detail.recordingId }}
             </el-button>
             <span v-else class="dim">—</span>
@@ -244,10 +266,18 @@
           <el-descriptions-item :label="t('aiChat.provider')">
             {{ detail.providerLabel || detail.providerId || '—' }}
           </el-descriptions-item>
-          <el-descriptions-item :label="t('aiChat.model')">{{ detail.model || '—' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('aiChat.latency')">{{ formatLatency(detail.latencyMs) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('aiChat.tokens')">{{ formatTokens(detail) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('aiChat.cost')">{{ formatCostUsd(detail.costMicros) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.model')">{{
+            detail.model || '—'
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.latency')">{{
+            formatLatency(detail.latencyMs)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.tokens')">{{
+            formatTokens(detail)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('aiChat.cost')">{{
+            formatCostUsd(detail.costMicros)
+          }}</el-descriptions-item>
           <el-descriptions-item :label="t('aiChat.requestResponseDetail')">
             {{ charsPair(detail) }}
           </el-descriptions-item>
@@ -280,11 +310,15 @@
         </template>
         <template v-else>
           <div class="block-title">{{ t('aiChat.requestContent') }}</div>
-          <pre class="ai-raw">{{ prettyJson(detail.requestJson) || t('aiChat.requestNotRecorded') }}</pre>
+          <pre class="ai-raw">{{
+            prettyJson(detail.requestJson) || t('aiChat.requestNotRecorded')
+          }}</pre>
         </template>
 
         <div class="block-title">{{ t('aiChat.rawResponse') }}</div>
-        <pre v-if="detail.responseJson" class="ai-raw reply">{{ prettyJson(detail.responseJson) }}</pre>
+        <pre v-if="detail.responseJson" class="ai-raw reply">{{
+          prettyJson(detail.responseJson)
+        }}</pre>
         <div v-else class="tiny dim">{{ t('aiChat.noResponse') }}</div>
 
         <el-collapse v-if="detail.requestJson && messages.length" class="raw-collapse">
@@ -318,6 +352,7 @@ import {
   prettyJson,
   roleLabel
 } from '../utils/aiChat'
+import { ChatDotRound, WarningFilled } from '../components/icons.js'
 
 const { t, tn } = useI18n()
 
@@ -367,7 +402,10 @@ const messages = computed(() => parseAiMessages(detail.value?.requestJson))
 
 /** 请求 / 回复字符数：两段数值合并为一个插值展示 */
 function charsPair(row) {
-  return tn('aiChat.charsCount', `${formatChars(row?.requestChars)} / ${formatChars(row?.responseChars)}`)
+  return tn(
+    'aiChat.charsCount',
+    `${formatChars(row?.requestChars)} / ${formatChars(row?.responseChars)}`
+  )
 }
 
 async function loadFacets() {
@@ -403,8 +441,7 @@ async function load() {
       stage: filters.stage || undefined,
       providerId: filters.providerId || undefined,
       model: filters.model || undefined,
-      success:
-        filters.success === 'true' ? true : filters.success === 'false' ? false : undefined,
+      success: filters.success === 'true' ? true : filters.success === 'false' ? false : undefined,
       recordingId,
       from: dateRange.value?.[0],
       to: dateRange.value?.[1]

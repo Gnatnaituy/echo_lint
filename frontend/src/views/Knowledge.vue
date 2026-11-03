@@ -138,7 +138,10 @@ async function onTabKeydown(event, tab) {
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 .view-tab:hover:not(.on) {
   color: var(--brand-600);

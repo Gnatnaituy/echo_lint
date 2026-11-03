@@ -31,9 +31,7 @@ export function normalizeProvider(raw) {
     models,
     jsonMode: toBoolean(pick(data, ['jsonMode', 'json_mode'])),
     maxTokens: toNumber(pick(data, ['maxTokens', 'max_tokens'])),
-    inputPricePer1k: toNumber(
-      pick(data, ['inputPricePer1k', 'input_price_per_1k', 'inputPrice'])
-    ),
+    inputPricePer1k: toNumber(pick(data, ['inputPricePer1k', 'input_price_per_1k', 'inputPrice'])),
     outputPricePer1k: toNumber(
       pick(data, ['outputPricePer1k', 'output_price_per_1k', 'outputPrice'])
     ),

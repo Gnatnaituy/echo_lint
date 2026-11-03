@@ -6,6 +6,10 @@
  * - GET /api/stats/report   -> total / byStatus / byViolationType[] / topAgents[] / topTeams[]
  *
  * 与 Reports 页保持一致的容错策略：缺失字段显示占位，不臆造数值。
+ *
+ * 口径约定（审计 P2-20）：报表接口按 from/to 时间窗聚合（callTime 优先、缺失回退 uploadTime），
+ * 因此「违规率」的分子（窗口内 VIOLATION_CONFIRMED）与分母（report.total）必须同窗口；
+ * 不能用 overview.totalUploads（全量历史）做分母，否则长历史数据会把近期违规率系统性稀释。
  */
 
 import { t } from '../i18n/index.js'
@@ -18,26 +22,35 @@ function nonNegative(value) {
 
 /* ---------- KPI ---------- */
 
+/**
+ * 大屏 KPI。
+ *
+ * @param {object} overviewRaw GET /api/stats/overview 响应（全量口径：总量 / 今日 / 当前状态）
+ * @param {object} reportRaw   GET /api/stats/report 响应（时间窗口口径：total / byStatus）
+ * @returns {{total:number,today:number,needsReview:number,confirmed:number,windowTotal:number,violationRate:number|null}}
+ *          total 为全量录音总数（KPI 展示），windowTotal 为报表窗口内录音数（违规率分母）
+ */
 export function normalizeScreenMetrics(overviewRaw, reportRaw) {
   const overview = asObject(overviewRaw)
   const report = asObject(reportRaw)
   const byStatus = asObject(report.byStatus)
 
-  const total = toNumber(pick(overview, ['totalUploads', 'total']))
-    ?? toNumber(pick(report, ['total']))
-    ?? 0
+  const overviewTotal = toNumber(pick(overview, ['totalUploads', 'total']))
+  const reportTotal = toNumber(pick(report, ['total']))
+  // KPI「录音总量」沿用 overview 的全量口径；overview 缺失时按报表 total 回退
+  const total = overviewTotal ?? reportTotal ?? 0
   const today = nonNegative(pick(overview, ['todayUploads']))
   const needsReviewSource = pick(overview, ['statusCounts'])
   const needsReviewCounts = asObject(needsReviewSource)
   const needsReview = nonNegative(
     pick(needsReviewCounts, ['NEEDS_REVIEW']) ?? pick(byStatus, ['NEEDS_REVIEW'])
   )
-  const confirmed = nonNegative(
-    pick(byStatus, ['VIOLATION_CONFIRMED'])
-  )
-  const violationRate = total > 0 ? confirmed / total : null
+  const confirmed = nonNegative(pick(byStatus, ['VIOLATION_CONFIRMED']))
+  // 违规率分母：与 confirmed 同窗口的报表录音总数；窗口数据缺失时给 null（展示占位，不臆造 0%）
+  const windowTotal = nonNegative(reportTotal)
+  const violationRate = windowTotal > 0 ? confirmed / windowTotal : null
 
-  return { total: nonNegative(total), today, needsReview, confirmed, violationRate }
+  return { total: nonNegative(total), today, needsReview, confirmed, windowTotal, violationRate }
 }
 
 /* ---------- 近 7 日趋势 ---------- */
@@ -98,7 +111,8 @@ export function normalizeTopRows(raw, limit = 5) {
     .map((row) => {
       const data = asObject(row)
       return {
-        name: toText(pick(data, ['name', 'label', 'agentName', 'teamName'])) || t('screen.notFilled'),
+        name:
+          toText(pick(data, ['name', 'label', 'agentName', 'teamName'])) || t('screen.notFilled'),
         count: nonNegative(pick(data, ['count', 'total']))
       }
     })

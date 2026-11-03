@@ -278,9 +278,7 @@ test('侧栏：知识组只剩词典 / 语料 / 知识库三项，不再挂索�
   assert.ok(!sidebar.includes('/knowledge-index'), '侧栏不应再有 /knowledge-index 入口')
   assert.ok(!sidebar.includes('nav.knowledgeIndex'), '侧栏不应再引用 nav.knowledgeIndex')
 
-  const group = sidebar.match(
-    /titleKey:\s*'nav\.group\.knowledge',\s*items:\s*\[([\s\S]*?)\]/
-  )
+  const group = sidebar.match(/titleKey:\s*'nav\.group\.knowledge',\s*items:\s*\[([\s\S]*?)\]/)
   assert.ok(group, '未找到知识组配置')
   const paths = [...group[1].matchAll(/path:\s*'([^']+)'/g)].map((match) => match[1])
   assert.deepEqual(paths, ['/dictionary', '/corpus', '/knowledge'])

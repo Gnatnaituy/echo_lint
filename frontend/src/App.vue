@@ -51,10 +51,10 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import elementEn from 'element-plus/es/locale/lang/en'
-import api from './api'
 import AppSidebar from './components/AppSidebar.vue'
 import AppHeader from './components/AppHeader.vue'
 import { applyDocumentLang, t, useI18n } from './i18n'
+import overviewState from './state/overview'
 import { isEscapeKey, isNarrowWidth } from './utils/ui'
 
 const route = useRoute()
@@ -84,11 +84,16 @@ const routeTitle = computed(() => {
   return meta.title || ''
 })
 
+/**
+ * 刷新顶栏状态（待复检角标 + 后端健康态）。
+ * 走 overview 单例：与工作台 / 语料库 / 敏感词库共享 in-flight 请求与短缓存，
+ * 路由切换时不会重复打后端（force 保证轮询每次都取最新值）。
+ */
 async function refreshStatus() {
   if (isPublic.value || isFullscreen.value) return
   try {
-    const data = await api.overview()
-    pendingReview.value = data.statusCounts?.NEEDS_REVIEW || 0
+    const data = await overviewState.load({ force: true })
+    pendingReview.value = data?.statusCounts?.NEEDS_REVIEW || 0
     healthy.value = true
   } catch {
     healthy.value = false
@@ -166,11 +171,26 @@ function onKeydown(event) {
 
 /* ---------- 轮询 ---------- */
 
+const POLL_INTERVAL_MS = 15000
+
 let timer = null
+
+/** 轮询 tick：页面不可见时跳过请求（后台标签页不占带宽也不打扰后端） */
+function tick() {
+  if (typeof document !== 'undefined' && document.hidden) return
+  refreshStatus()
+}
+
+/** 从后台切回前台：立即补一次，避免等到下一个 15s 才恢复角标/健康态 */
+function onVisibilityChange() {
+  if (typeof document === 'undefined' || document.hidden) return
+  refreshStatus()
+}
+
 function startPolling() {
   if (timer) return
   refreshStatus()
-  timer = setInterval(refreshStatus, 15000)
+  timer = setInterval(tick, POLL_INTERVAL_MS)
 }
 function stopPolling() {
   if (!timer) return
@@ -196,11 +216,13 @@ onMounted(() => {
   applyDocumentLang(locale.value)
   window.addEventListener('resize', syncLayout)
   window.addEventListener('keydown', onKeydown)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   if (!isPublic.value && !isFullscreen.value) startPolling()
 })
 onUnmounted(() => {
   window.removeEventListener('resize', syncLayout)
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
 })
 </script>
@@ -231,8 +253,16 @@ onUnmounted(() => {
   border: 1px solid rgba(226, 232, 240, 0.92);
   border-radius: 18px;
   background:
-    radial-gradient(1200px 380px at 8% -12%, rgba(59, 110, 246, 0.09) 0%, rgba(59, 110, 246, 0) 55%),
-    radial-gradient(900px 300px at 105% -5%, rgba(107, 142, 249, 0.07) 0%, rgba(107, 142, 249, 0) 60%),
+    radial-gradient(
+      1200px 380px at 8% -12%,
+      rgba(59, 110, 246, 0.09) 0%,
+      rgba(59, 110, 246, 0) 55%
+    ),
+    radial-gradient(
+      900px 300px at 105% -5%,
+      rgba(107, 142, 249, 0.07) 0%,
+      rgba(107, 142, 249, 0) 60%
+    ),
     linear-gradient(180deg, #ffffff 0%, #fbfcff 48%, #f3f7fd 100%);
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.03),

@@ -90,7 +90,8 @@ function normalizeByLabel(raw) {
     .map((row) => {
       const data = asObject(row)
       return {
-        label: toText(pick(data, ['label', 'type', 'category', 'expected'])) || t('common.unlabeled'),
+        label:
+          toText(pick(data, ['label', 'type', 'category', 'expected'])) || t('common.unlabeled'),
         total: nonNegative(pick(data, ['total', 'count', 'samples'])),
         correct: nonNegative(pick(data, ['correct', 'passed', 'hits']))
       }
@@ -105,12 +106,17 @@ function normalizeResults(raw) {
     .map((row) => {
       const data = asObject(row)
       const errorRaw = pick(data, ['error', 'errorMessage', 'failure', 'failed'])
-      const error = typeof errorRaw === 'boolean'
-        ? (errorRaw ? t('settings.eval.callFailed') : '')
-        : toText(errorRaw)
+      const error =
+        typeof errorRaw === 'boolean'
+          ? errorRaw
+            ? t('settings.eval.callFailed')
+            : ''
+          : toText(errorRaw)
       return {
         corpusId: toText(pick(data, ['corpusId', 'corpus_id', 'id'])),
-        expected: toText(pick(data, ['expected', 'expectedLabel', 'truth', 'groundTruth'])).toUpperCase(),
+        expected: toText(
+          pick(data, ['expected', 'expectedLabel', 'truth', 'groundTruth'])
+        ).toUpperCase(),
         predicted: toText(pick(data, ['predicted', 'prediction', 'actual'])).toUpperCase(),
         confidence: normalizeRatio(pick(data, ['confidence', 'score'])),
         reason: toText(pick(data, ['reason', 'detail', 'message'])),
@@ -133,8 +139,9 @@ export function normalizeEvaluation(raw) {
   const byLabel = normalizeByLabel(pick(data, ['byLabel', 'labels']))
 
   const confusionSum = tp + fp + tn + fn
-  const evaluated = toNumber(pick(data, ['evaluated', 'evaluatedCount']))
-    ?? (confusionSum > 0 ? confusionSum : null)
+  const evaluated =
+    toNumber(pick(data, ['evaluated', 'evaluatedCount'])) ??
+    (confusionSum > 0 ? confusionSum : null)
   const total = toNumber(pick(data, ['total', 'totalCount']))
   const correctRaw = toNumber(pick(data, ['correct', 'correctCount']))
   const correct = correctRaw ?? (tp + tn > 0 ? tp + tn : null)
@@ -142,12 +149,12 @@ export function normalizeEvaluation(raw) {
   const failedRaw = toNumber(pick(data, ['failed', 'failedCount', 'errorCount']))
   const failed = failedRaw ?? (results.length ? results.filter((r) => r.error).length : null)
 
-  const accuracy = normalizeRatio(pick(data, ['accuracy']))
-    ?? (evaluated && correct !== null ? correct / evaluated : null)
-  const precision = normalizeRatio(pick(data, ['precision']))
-    ?? (tp + fp > 0 ? tp / (tp + fp) : null)
-  const recall = normalizeRatio(pick(data, ['recall']))
-    ?? (tp + fn > 0 ? tp / (tp + fn) : null)
+  const accuracy =
+    normalizeRatio(pick(data, ['accuracy'])) ??
+    (evaluated && correct !== null ? correct / evaluated : null)
+  const precision =
+    normalizeRatio(pick(data, ['precision'])) ?? (tp + fp > 0 ? tp / (tp + fp) : null)
+  const recall = normalizeRatio(pick(data, ['recall'])) ?? (tp + fn > 0 ? tp / (tp + fn) : null)
 
   return {
     total,
