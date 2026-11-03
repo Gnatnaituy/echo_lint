@@ -27,7 +27,7 @@ jobs:
         with:
           # Spotless ratchet 需要与 origin/main 比对，必须拉全量历史
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
