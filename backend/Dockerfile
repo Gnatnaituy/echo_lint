@@ -1,5 +1,5 @@
 # ---- 构建阶段 ----
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3.9.16-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # 先拷贝 pom 以利用依赖层缓存
@@ -10,7 +10,7 @@ COPY src ./src
 RUN mvn -q -B -DskipTests package
 
 # ---- 运行阶段 ----
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17.0.20_8-jre
 WORKDIR /app
 
 # ffmpeg / ffprobe：双声道（双轨）录音的声道探测与左右声道分离

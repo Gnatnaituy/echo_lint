@@ -1,0 +1,11 @@
+# 依赖与构建产物
+node_modules/
+dist/
+coverage/
+
+# 锁文件由 npm 维护，不参与格式化（避免每次安装产生无关 diff）
+package-lock.json
+
+# 静态资源与压缩产物
+public/
+*.min.js

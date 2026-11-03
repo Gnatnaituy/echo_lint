@@ -13,10 +13,10 @@ const { t, tn } = useI18n()
 // 纯 JS 工具 / 常量（参与 node --test，必须带 index.js，Node ESM 不支持目录导入）
 import { t } from '../i18n/index.js'
 
-t('nav.dashboard')                  // 当前语言 → 中文回退 → key 本身
+t('nav.dashboard') // 当前语言 → 中文回退 → key 本身
 t('login.welcome', { name: '张三' }) // 支持 {param} 插值
-tn('apiKeys.count', n)              // 复数感知：按数量选 <key>.one / <key>.other
-setLocale('en')                     // 切换并持久化到 localStorage（echolint.locale）
+tn('apiKeys.count', n) // 复数感知：按数量选 <key>.one / <key>.other
+setLocale('en') // 切换并持久化到 localStorage（echolint.locale）
 ```
 
 - 缺失 key：英文缺失自动回退中文；中文也缺失时原样返回 key，便于发现漏翻译。

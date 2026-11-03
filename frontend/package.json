@@ -3,22 +3,36 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "i18n:audit": "node scripts/i18n-audit.mjs",
-    "test": "node --test tests/segments.test.mjs tests/recording-actions.test.mjs tests/workflow.test.mjs tests/download.test.mjs tests/notifications.test.mjs tests/ai-governance.test.mjs tests/tasks.test.mjs tests/evaluation.test.mjs tests/ai-chat.test.mjs tests/batch4a.test.mjs tests/rag.test.mjs tests/knowledgeIndex.test.mjs tests/i18n.test.mjs tests/i18n-coverage.test.mjs tests/ui.test.mjs tests/screen.test.mjs tests/uploadQueue.test.mjs tests/reviewQueue.test.mjs"
+    "test": "node --test tests/segments.test.mjs tests/recording-actions.test.mjs tests/workflow.test.mjs tests/download.test.mjs tests/notifications.test.mjs tests/ai-governance.test.mjs tests/tasks.test.mjs tests/evaluation.test.mjs tests/ai-chat.test.mjs tests/batch4a.test.mjs tests/rag.test.mjs tests/knowledgeIndex.test.mjs tests/i18n.test.mjs tests/i18n-coverage.test.mjs tests/ui.test.mjs tests/screen.test.mjs tests/uploadQueue.test.mjs tests/reviewQueue.test.mjs tests/api.test.mjs tests/dateRange.test.mjs"
   },
   "dependencies": {
-    "axios": "^1.7.7",
-    "element-plus": "^2.8.4",
-    "@element-plus/icons-vue": "^2.3.1",
-    "vue": "^3.5.12",
-    "vue-router": "^4.4.5"
+    "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.21.0",
+    "element-plus": "^2.14.7",
+    "vue": "^3.5.44",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.1.4",
-    "vite": "^5.4.9"
+    "@eslint/js": "^9.39.5",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.12.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "vite": "^7.3.7",
+    "vue-eslint-parser": "^10.4.1"
   }
 }

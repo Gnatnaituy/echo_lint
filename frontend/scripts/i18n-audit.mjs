@@ -181,13 +181,19 @@ function splitSfc(source) {
   })
 
   while ((match = scriptRe.exec(source))) {
-    regions.push(fits(match[1], match.index + match[0].indexOf('>') + 1, match.index + match[0].length))
+    regions.push(
+      fits(match[1], match.index + match[0].indexOf('>') + 1, match.index + match[0].length)
+    )
   }
   while ((match = styleRe.exec(source))) {
-    regions.push(fits(match[1], match.index + match[0].indexOf('>') + 1, match.index + match[0].length))
+    regions.push(
+      fits(match[1], match.index + match[0].indexOf('>') + 1, match.index + match[0].length)
+    )
   }
   // template = 原文去掉 script/style 块
-  const cut = source.replace(scriptRe, (m) => m.replace(/[^\n]/g, ' ')).replace(styleRe, (m) => m.replace(/[^\n]/g, ' '))
+  const cut = source
+    .replace(scriptRe, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(styleRe, (m) => m.replace(/[^\n]/g, ' '))
   return { template: cut, scripts: regions }
 }
 
@@ -272,7 +278,9 @@ if (isMain) {
   }
   const scanned = reports.length
   if (total === 0) {
-    process.stdout.write(`✔ i18n audit: ${scanned} files, no hardcoded Chinese outside i18n dictionaries.\n`)
+    process.stdout.write(
+      `✔ i18n audit: ${scanned} files, no hardcoded Chinese outside i18n dictionaries.\n`
+    )
     process.exit(0)
   }
   process.stdout.write(`\n✖ i18n audit: ${total} hardcoded Chinese line(s) in ${scanned} files.\n`)

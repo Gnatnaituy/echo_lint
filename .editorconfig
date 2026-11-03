@@ -1,0 +1,24 @@
+# 统一编辑器基础风格（审计 P2-29）。
+# 详细格式由各语言工具链负责：前端 Prettier（frontend/.prettierrc.json）、
+# 后端 Spotless + google-java-format（backend/pom.xml）。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+[*.java]
+indent_size = 4
+
+[*.{yml,yaml,json,jsonc}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
