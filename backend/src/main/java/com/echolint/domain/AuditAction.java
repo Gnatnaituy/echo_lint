@@ -1,10 +1,10 @@
 package com.echolint.domain;
 
-/**
- * 操作审计动作。审计写入失败不影响主流程（见 AuditService）。
- */
+/** 操作审计动作。审计写入失败不影响主流程（见 AuditService）。 */
 public enum AuditAction {
     LOGIN,
+    /** 登录失败（审计 P2-7）：actor 为尝试的用户名，detail 含客户端 IP，不含密码 */
+    LOGIN_FAILED,
     LOGOUT,
     USER_CREATE,
     USER_UPDATE,

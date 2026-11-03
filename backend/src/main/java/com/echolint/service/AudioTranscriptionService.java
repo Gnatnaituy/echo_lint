@@ -1,13 +1,9 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.echolint.config.AppProperties;
 import com.echolint.domain.TranscriptSegment;
 import com.echolint.exception.BizException;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,13 +13,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
- * 转写编排：
- * - 单声道：一次 Whisper 调用；
- * - 双声道（双轨录音）：ffmpeg 分离左右声道 → 两路分别 Whisper 转写 → 按时间对齐合并为对话分段。
+ * 转写编排： - 单声道：一次 Whisper 调用； - 双声道（双轨录音）：ffmpeg 分离左右声道 → 两路分别 Whisper 转写 → 按时间对齐合并为对话分段。
  *
- * 全文 transcript 由分段文本按顺序用空格拼接，保证前端「分段 ↔ 全文偏移」精确对应。
+ * <p>全文 transcript 由分段文本按顺序用空格拼接，保证前端「分段 ↔ 全文偏移」精确对应。
  */
 @Slf4j
 @Service
@@ -42,8 +39,7 @@ public class AudioTranscriptionService {
             String channelFilesJson,
             String language,
             int durationSeconds,
-            boolean stereo) {
-    }
+            boolean stereo) {}
 
     public TranscriptionOutcome transcribe(Path audioFile) {
         AppProperties.Stereo stereo = props.getStereo();
@@ -65,53 +61,84 @@ public class AudioTranscriptionService {
         List<TranscriptSegment> segments = t.segments();
         String transcript = joinTranscript(segments, t.text());
         log.info("单路转写完成：分段 {} 段", segments.size());
-        return new TranscriptionOutcome(transcript, toJson(segments), 1, null,
-                t.language(), t.durationSeconds(), false);
+        return new TranscriptionOutcome(
+                transcript, toJson(segments), 1, null, t.language(), t.durationSeconds(), false);
     }
 
+    /**
+     * 尝试双声道转写：成功返回结果；ASR 调用失败时返回 empty 表示「降级单路」； 「两路都没有有效语音」属于确定性失败，抛 {@link BizException} 让整条录音失败。
+     *
+     * <p>只要没有成功返回（降级/抛错），finally 都会清理 {@code .L.wav/.R.wav} 分轨文件， 避免失败录音在 uploads
+     * 卷留下与源文件同体积的孤儿文件（审计 P2-1）。
+     */
     private Optional<TranscriptionOutcome> tryStereo(Path audioFile, AppProperties.Stereo stereo) {
-        Optional<AudioChannelService.ChannelSplit> split = audioChannelService.splitStereo(audioFile);
+        Optional<AudioChannelService.ChannelSplit> split =
+                audioChannelService.splitStereo(audioFile);
         if (split.isEmpty()) {
             return Optional.empty();
         }
         AudioChannelService.ChannelSplit files = split.get();
+        boolean success = false;
         try {
-            TranscriptionService.ChannelTranscript left =
-                    transcriptionService.transcribe(files.left());
-            TranscriptionService.ChannelTranscript right =
-                    transcriptionService.transcribe(files.right());
+            TranscriptionService.ChannelTranscript left;
+            TranscriptionService.ChannelTranscript right;
+            try {
+                left = transcriptionService.transcribe(files.left());
+                right = transcriptionService.transcribe(files.right());
+            } catch (Exception e) {
+                // ASR 调用失败（网络/whisper 异常/返回格式错误）：降级单路转写，
+                // 不让整条录音失败（finally 会清理已经生成的分轨文件）
+                log.warn("双声道 ASR 调用失败，降级单路转写: {}", e.getMessage());
+                return Optional.empty();
+            }
 
-            List<TranscriptSegment> merged = merge(
-                    tag(left.segments(), stereo.getLeftSpeaker(), "L"),
-                    tag(right.segments(), stereo.getRightSpeaker(), "R"));
+            List<TranscriptSegment> merged =
+                    merge(
+                            tag(left.segments(), stereo.getLeftSpeaker(), "L"),
+                            tag(right.segments(), stereo.getRightSpeaker(), "R"));
 
             if (merged.isEmpty()) {
                 throw new BizException("双声道转写未识别到有效语音内容");
             }
 
             String transcript = joinTranscript(merged, null);
-            String channelFilesJson = toJson(Map.of(
-                    "L", files.left().getFileName().toString(),
-                    "R", files.right().getFileName().toString()));
+            String channelFilesJson =
+                    toJson(
+                            Map.of(
+                                    "L", files.left().getFileName().toString(),
+                                    "R", files.right().getFileName().toString()));
             int duration = Math.max(left.durationSeconds(), right.durationSeconds());
-            String language = left.language() != null && !left.language().isBlank()
-                    ? left.language() : right.language();
+            String language =
+                    left.language() != null && !left.language().isBlank()
+                            ? left.language()
+                            : right.language();
 
-            log.info("双声道转写完成：左 {} 段 / 右 {} 段 → 合并 {} 段，时长 {}s",
-                    left.segments().size(), right.segments().size(), merged.size(), duration);
-            return Optional.of(new TranscriptionOutcome(transcript, toJson(merged), 2, channelFilesJson,
-                    language, duration, true));
-        } catch (BizException e) {
-            throw e;
-        } catch (Exception e) {
-            log.warn("双声道转写失败，降级单路: {}", e.getMessage());
-            cleanup(files);
-            return Optional.empty();
+            log.info(
+                    "双声道转写完成：左 {} 段 / 右 {} 段 → 合并 {} 段，时长 {}s",
+                    left.segments().size(),
+                    right.segments().size(),
+                    merged.size(),
+                    duration);
+            success = true;
+            return Optional.of(
+                    new TranscriptionOutcome(
+                            transcript,
+                            toJson(merged),
+                            2,
+                            channelFilesJson,
+                            language,
+                            duration,
+                            true));
+        } finally {
+            if (!success) {
+                cleanup(files);
+            }
         }
     }
 
     /** 按时间对齐合并两路分段（同一起点时左声道在前，稳定排序） */
-    public static List<TranscriptSegment> merge(List<TranscriptSegment> left, List<TranscriptSegment> right) {
+    public static List<TranscriptSegment> merge(
+            List<TranscriptSegment> left, List<TranscriptSegment> right) {
         List<TranscriptSegment> all = new ArrayList<>();
         if (left != null) {
             all.addAll(left);
@@ -124,7 +151,8 @@ public class AudioTranscriptionService {
         return all;
     }
 
-    private List<TranscriptSegment> tag(List<TranscriptSegment> segments, String speaker, String channel) {
+    private List<TranscriptSegment> tag(
+            List<TranscriptSegment> segments, String speaker, String channel) {
         List<TranscriptSegment> tagged = new ArrayList<>();
         for (TranscriptSegment s : segments) {
             if (s.isBlank()) {

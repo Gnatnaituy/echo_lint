@@ -1,26 +1,51 @@
 package com.echolint.service;
 
-import com.echolint.domain.TranscriptSegment;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.echolint.config.AppProperties;
+import com.echolint.domain.TranscriptSegment;
+import com.echolint.exception.BizException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class AudioTranscriptionServiceTest {
 
-    private TranscriptSegment seg(String speaker, String channel, double start, double end, String text) {
+    private TranscriptSegment seg(
+            String speaker, String channel, double start, double end, String text) {
         return TranscriptSegment.of(speaker, channel, start, end, text);
+    }
+
+    private AudioTranscriptionService stereoService(
+            Path source,
+            Path left,
+            Path right,
+            AudioChannelService channelService,
+            TranscriptionService transcriptionService) {
+        when(channelService.detectChannels(source)).thenReturn(2);
+        when(channelService.splitStereo(source))
+                .thenReturn(Optional.of(new AudioChannelService.ChannelSplit(left, right)));
+        return new AudioTranscriptionService(
+                new AppProperties(), channelService, transcriptionService, new ObjectMapper());
     }
 
     @Test
     void mergeAlignsTwoChannelsByTime() {
-        List<TranscriptSegment> left = List.of(
-                seg("坐席", "L", 0.0, 2.0, "Thank you for calling."),
-                seg("坐席", "L", 6.0, 8.5, "I can help with that."));
-        List<TranscriptSegment> right = List.of(
-                seg("客户", "R", 2.4, 5.8, "I want a refund."),
-                seg("客户", "R", 9.0, 10.2, "Right now."));
+        List<TranscriptSegment> left =
+                List.of(
+                        seg("坐席", "L", 0.0, 2.0, "Thank you for calling."),
+                        seg("坐席", "L", 6.0, 8.5, "I can help with that."));
+        List<TranscriptSegment> right =
+                List.of(
+                        seg("客户", "R", 2.4, 5.8, "I want a refund."),
+                        seg("客户", "R", 9.0, 10.2, "Right now."));
 
         List<TranscriptSegment> merged = AudioTranscriptionService.merge(left, right);
 
@@ -42,9 +67,8 @@ class AudioTranscriptionServiceTest {
 
     @Test
     void mergeDropsBlankSegmentsAndHandlesNulls() {
-        List<TranscriptSegment> left = List.of(
-                seg("坐席", "L", 0.0, 1.0, "   "),
-                seg("坐席", "L", 1.0, 2.0, " hello "));
+        List<TranscriptSegment> left =
+                List.of(seg("坐席", "L", 0.0, 1.0, "   "), seg("坐席", "L", 1.0, 2.0, " hello "));
         List<TranscriptSegment> merged = AudioTranscriptionService.merge(left, null);
 
         assertEquals(1, merged.size());
@@ -66,10 +90,11 @@ class AudioTranscriptionServiceTest {
 
     @Test
     void joinTranscriptUsesSingleSpaceAndKeepsOffsetsExact() {
-        List<TranscriptSegment> segments = List.of(
-                seg("坐席", "L", 0, 1, " Thank you. "),
-                seg("客户", "R", 1, 2, "Hi there."),
-                seg("坐席", "L", 2, 3, "   "));
+        List<TranscriptSegment> segments =
+                List.of(
+                        seg("坐席", "L", 0, 1, " Thank you. "),
+                        seg("客户", "R", 1, 2, "Hi there."),
+                        seg("坐席", "L", 2, 3, "   "));
 
         String transcript = AudioTranscriptionService.joinTranscript(segments, "fallback");
 
@@ -88,7 +113,55 @@ class AudioTranscriptionServiceTest {
 
     @Test
     void joinTranscriptFallsBackWhenNoSegments() {
-        assertEquals("plain text", AudioTranscriptionService.joinTranscript(List.of(), "  plain text  "));
+        assertEquals(
+                "plain text",
+                AudioTranscriptionService.joinTranscript(List.of(), "  plain text  "));
         assertEquals("", AudioTranscriptionService.joinTranscript(null, null));
+    }
+
+    @Test
+    void stereoAsrFailureDegradesToSingleAndCleansSplitFiles(@TempDir Path dir) throws IOException {
+        Path source = Files.writeString(dir.resolve("call.wav"), "audio");
+        Path left = Files.writeString(dir.resolve("call.wav.L.wav"), "left");
+        Path right = Files.writeString(dir.resolve("call.wav.R.wav"), "right");
+        AudioChannelService channelService = mock(AudioChannelService.class);
+        TranscriptionService transcriptionService = mock(TranscriptionService.class);
+        AudioTranscriptionService service =
+                stereoService(source, left, right, channelService, transcriptionService);
+
+        when(transcriptionService.transcribe(left)).thenThrow(new BizException("whisper down"));
+        when(transcriptionService.transcribe(source))
+                .thenReturn(
+                        new TranscriptionService.ChannelTranscript(
+                                "hello", "en", 8, List.of(seg(null, null, 0, 1, "hello"))));
+
+        var outcome = service.transcribe(source);
+
+        assertFalse(outcome.stereo(), "ASR 调用失败应降级单路，而不是让整条录音失败");
+        assertEquals("hello", outcome.transcript());
+        assertFalse(Files.exists(left), "降级后必须清理左声道分轨文件");
+        assertFalse(Files.exists(right), "降级后必须清理右声道分轨文件");
+    }
+
+    @Test
+    void stereoWithoutSpeechThrowsButCleansSplitFiles(@TempDir Path dir) throws IOException {
+        Path source = Files.writeString(dir.resolve("call.wav"), "audio");
+        Path left = Files.writeString(dir.resolve("call.wav.L.wav"), "left");
+        Path right = Files.writeString(dir.resolve("call.wav.R.wav"), "right");
+        AudioChannelService channelService = mock(AudioChannelService.class);
+        TranscriptionService transcriptionService = mock(TranscriptionService.class);
+        AudioTranscriptionService service =
+                stereoService(source, left, right, channelService, transcriptionService);
+
+        when(transcriptionService.transcribe(left))
+                .thenReturn(new TranscriptionService.ChannelTranscript("", "en", 8, List.of()));
+        when(transcriptionService.transcribe(right))
+                .thenReturn(new TranscriptionService.ChannelTranscript("", "en", 8, List.of()));
+
+        BizException e = assertThrows(BizException.class, () -> service.transcribe(source));
+
+        assertTrue(e.getMessage().contains("双声道"));
+        assertFalse(Files.exists(left), "失败路径也必须清理左声道分轨文件");
+        assertFalse(Files.exists(right), "失败路径也必须清理右声道分轨文件");
     }
 }
