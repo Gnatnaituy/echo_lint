@@ -8,6 +8,13 @@ import com.echolint.service.ProviderRegistry;
 import com.echolint.service.ProviderRegistry.ResolvedProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -18,26 +25,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
-import java.math.BigDecimal;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * 兼容 /embeddings 协议的 embedding 客户端（Batch 6）。
  *
- * <p>复用 {@code ai_providers} 中的供应商配置（base-url + AES-GCM 密钥 + 输入单价），
- * 只额外指定 embedding 模型/路径/维度；因此密钥轮换、供应商停用与现有 AI 治理一致。</p>
+ * <p>复用 {@code ai_providers} 中的供应商配置（base-url + AES-GCM 密钥 + 输入单价）， 只额外指定 embedding
+ * 模型/路径/维度；因此密钥轮换、供应商停用与现有 AI 治理一致。
  *
- * <p>行为约定：</p>
+ * <p>行为约定：
+ *
  * <ul>
- *   <li>429/5xx 重试 2 次（300ms、900ms 退避），其余错误立即失败；</li>
+ *   <li>429/5xx 重试 2 次（300ms、900ms 退避），其余错误立即失败；
  *   <li>调用前过每日 token 配额；每次调用写入 ai_invocations（stage=EMBED_INDEX/EMBED_QUERY），
- *       请求/响应只存摘要，不存整段文本与全部向量，避免留痕表膨胀；</li>
- *   <li>返回向量维度必须等于配置维度，否则视为配置/模型不匹配。</li>
+ *       请求/响应只存摘要，不存整段文本与全部向量，避免留痕表膨胀；
+ *   <li>返回向量维度必须等于配置维度，否则视为配置/模型不匹配。
  * </ul>
  */
 @Slf4j
@@ -57,24 +57,35 @@ public class RagEmbeddingClient {
     private final AiQuotaService quotaService;
 
     /** embedding 配置信息（系统设置页只读展示） */
-    public record EmbeddingInfo(String providerId, String providerLabel, String model, String path,
-                                int dimensions, long timeoutSeconds, boolean apiKeyConfigured) {
-    }
+    public record EmbeddingInfo(
+            String providerId,
+            String providerLabel,
+            String model,
+            String path,
+            int dimensions,
+            long timeoutSeconds,
+            boolean apiKeyConfigured) {}
 
     /** 连通性测试结果 */
-    public record TestResult(boolean ok, String providerId, String providerLabel, String model,
-                             int dimensions, long latencyMs, String message) {
-    }
+    public record TestResult(
+            boolean ok,
+            String providerId,
+            String providerLabel,
+            String model,
+            int dimensions,
+            long latencyMs,
+            String message) {}
 
     /** 一次 embedding 批次的返回 */
-    public record EmbeddingBatch(List<float[]> vectors, int dimensions, AiUsage usage, long latencyMs) {
-    }
+    public record EmbeddingBatch(
+            List<float[]> vectors, int dimensions, AiUsage usage, long latencyMs) {}
 
     /** 是否具备调用条件（供应商存在、启用、密钥已配置）；不发起网络请求 */
     public boolean available() {
         try {
             ResolvedProvider provider = requireProvider();
-            return provider.enabled() && provider.apiKeyConfigured()
+            return provider.enabled()
+                    && provider.apiKeyConfigured()
                     && !provider.baseUrl().isBlank();
         } catch (RuntimeException e) {
             return false;
@@ -85,8 +96,12 @@ public class RagEmbeddingClient {
     public EmbeddingInfo info() {
         ResolvedProvider provider = resolveProviderOrNull();
         return new EmbeddingInfo(
-                provider == null ? properties.effectiveEmbeddingProviderId() : provider.providerKey(),
-                provider == null ? properties.effectiveEmbeddingProviderId() : provider.displayLabel(),
+                provider == null
+                        ? properties.effectiveEmbeddingProviderId()
+                        : provider.providerKey(),
+                provider == null
+                        ? properties.effectiveEmbeddingProviderId()
+                        : provider.displayLabel(),
                 properties.effectiveEmbeddingModel(),
                 properties.effectiveEmbeddingPath(),
                 properties.effectiveDimensions(),
@@ -98,7 +113,7 @@ public class RagEmbeddingClient {
      * 批量向量化；返回顺序与入参一致。
      *
      * @param recordingId 关联录音（查询向量化时有值，索引时为空）
-     * @param stage       EMBED_INDEX / EMBED_QUERY
+     * @param stage EMBED_INDEX / EMBED_QUERY
      */
     public List<float[]> embed(List<String> texts, Long recordingId, String stage) {
         List<String> inputs = normalizeInputs(texts);
@@ -113,8 +128,11 @@ public class RagEmbeddingClient {
 
     /** 单条查询向量化（复筛检索用） */
     public float[] embedQuery(String text, Long recordingId) {
-        List<float[]> vectors = embed(List.of(text == null ? "" : text), recordingId,
-                AiInvocationService.STAGE_EMBED_QUERY);
+        List<float[]> vectors =
+                embed(
+                        List.of(text == null ? "" : text),
+                        recordingId,
+                        AiInvocationService.STAGE_EMBED_QUERY);
         return vectors.isEmpty() ? new float[properties.effectiveDimensions()] : vectors.get(0);
     }
 
@@ -125,22 +143,65 @@ public class RagEmbeddingClient {
         try {
             provider = requireProvider();
         } catch (RuntimeException e) {
-            return new TestResult(false, properties.effectiveEmbeddingProviderId(),
-                    properties.effectiveEmbeddingProviderId(), properties.effectiveEmbeddingModel(),
-                    properties.effectiveDimensions(), 0, e.getMessage());
+            return new TestResult(
+                    false,
+                    properties.effectiveEmbeddingProviderId(),
+                    properties.effectiveEmbeddingProviderId(),
+                    properties.effectiveEmbeddingModel(),
+                    properties.effectiveDimensions(),
+                    0,
+                    e.getMessage());
         }
+        String testInput = "EchoLint RAG embedding connectivity test";
+        String requestJson = summaryRequest(provider, List.of(testInput));
         try {
-            EmbeddingBatch batch = callWithRetry(provider, List.of("EchoLint RAG embedding connectivity test"));
-            return new TestResult(true, provider.providerKey(), provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(), batch.dimensions(),
-                    System.currentTimeMillis() - start,
-                    "embedding 调用成功，维度 " + batch.dimensions() + "，输入 tokens "
+            EmbeddingBatch batch = callWithRetry(provider, List.of(testInput));
+            long latency = System.currentTimeMillis() - start;
+            // P2-10：连通性测试同样写 ai_invocations（stage=TEST），成本看板与审计可见
+            invocations.recordEmbeddingSuccess(
+                    null,
+                    AiInvocationService.STAGE_TEST,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    endpoint(provider),
+                    requestJson,
+                    summaryResponse(batch),
+                    latency,
+                    batch.usage());
+            return new TestResult(
+                    true,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    batch.dimensions(),
+                    latency,
+                    "embedding 调用成功，维度 "
+                            + batch.dimensions()
+                            + "，输入 tokens "
                             + (batch.usage() == null || batch.usage().inputTokens() == null
-                            ? "未知" : batch.usage().inputTokens()));
+                                    ? "未知"
+                                    : batch.usage().inputTokens()));
         } catch (RuntimeException e) {
-            return new TestResult(false, provider.providerKey(), provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(), properties.effectiveDimensions(),
-                    System.currentTimeMillis() - start, e.getMessage());
+            long latency = System.currentTimeMillis() - start;
+            invocations.recordEmbeddingFailure(
+                    null,
+                    AiInvocationService.STAGE_TEST,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    endpoint(provider),
+                    requestJson,
+                    truncate(e.getMessage(), 500),
+                    latency);
+            return new TestResult(
+                    false,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    properties.effectiveDimensions(),
+                    latency,
+                    e.getMessage());
         }
     }
 
@@ -168,20 +229,34 @@ public class RagEmbeddingClient {
         long start = System.currentTimeMillis();
         try {
             EmbeddingBatch batch = callWithRetry(provider, texts);
-            invocations.recordEmbeddingSuccess(recordingId, stage, provider.providerKey(),
-                    provider.displayLabel(), properties.effectiveEmbeddingModel(), endpoint,
-                    requestJson, summaryResponse(batch), System.currentTimeMillis() - start,
+            invocations.recordEmbeddingSuccess(
+                    recordingId,
+                    stage,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    endpoint,
+                    requestJson,
+                    summaryResponse(batch),
+                    System.currentTimeMillis() - start,
                     batch.usage());
             return batch.vectors();
         } catch (RuntimeException e) {
-            invocations.recordEmbeddingFailure(recordingId, stage, provider.providerKey(),
-                    provider.displayLabel(), properties.effectiveEmbeddingModel(), endpoint,
-                    requestJson, truncate(e.getMessage(), 500), System.currentTimeMillis() - start);
+            invocations.recordEmbeddingFailure(
+                    recordingId,
+                    stage,
+                    provider.providerKey(),
+                    provider.displayLabel(),
+                    properties.effectiveEmbeddingModel(),
+                    endpoint,
+                    requestJson,
+                    truncate(e.getMessage(), 500),
+                    System.currentTimeMillis() - start);
             if (e instanceof RagEmbeddingException) {
                 throw e;
             }
-            throw new RagEmbeddingException("embedding 调用失败 [" + provider.displayLabel() + "]："
-                    + e.getMessage(), e);
+            throw new RagEmbeddingException(
+                    "embedding 调用失败 [" + provider.displayLabel() + "]：" + e.getMessage(), e);
         }
     }
 
@@ -196,8 +271,12 @@ public class RagEmbeddingClient {
                     throw e;
                 }
                 long delay = attempt == 0 ? FIRST_RETRY_DELAY_MS : SECOND_RETRY_DELAY_MS;
-                log.warn("embedding 调用返回 HTTP {}，{}ms 后重试（{}/{}）",
-                        e.status(), delay, attempt + 1, MAX_RETRIES);
+                log.warn(
+                        "embedding 调用返回 HTTP {}，{}ms 后重试（{}/{}）",
+                        e.status(),
+                        delay,
+                        attempt + 1,
+                        MAX_RETRIES);
                 sleep(delay);
             }
         }
@@ -220,18 +299,33 @@ public class RagEmbeddingClient {
         long start = System.currentTimeMillis();
         JsonNode response;
         try {
-            response = buildClient(provider).post()
-                    .uri(properties.effectiveEmbeddingPath())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(bodyJson)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, cr -> cr.bodyToMono(String.class)
-                            .defaultIfEmpty("")
-                            .map(errorBody -> new RagHttpException(cr.statusCode().value(),
-                                    "HTTP " + cr.statusCode().value() + ": "
-                                            + truncate(errorBody, 300))))
-                    .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(properties.effectiveEmbeddingTimeoutSeconds()));
+            response =
+                    buildClient(provider)
+                            .post()
+                            .uri(properties.effectiveEmbeddingPath())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .bodyValue(bodyJson)
+                            .retrieve()
+                            .onStatus(
+                                    HttpStatusCode::isError,
+                                    cr ->
+                                            cr.bodyToMono(String.class)
+                                                    .defaultIfEmpty("")
+                                                    .map(
+                                                            errorBody ->
+                                                                    new RagHttpException(
+                                                                            cr.statusCode().value(),
+                                                                            "HTTP "
+                                                                                    + cr.statusCode()
+                                                                                            .value()
+                                                                                    + ": "
+                                                                                    + truncate(
+                                                                                            errorBody,
+                                                                                            300))))
+                            .bodyToMono(JsonNode.class)
+                            .block(
+                                    Duration.ofSeconds(
+                                            properties.effectiveEmbeddingTimeoutSeconds()));
         } catch (RagHttpException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -243,7 +337,8 @@ public class RagEmbeddingClient {
         return parseResponse(response, System.currentTimeMillis() - start, provider);
     }
 
-    private EmbeddingBatch parseResponse(JsonNode response, long latencyMs, ResolvedProvider provider) {
+    private EmbeddingBatch parseResponse(
+            JsonNode response, long latencyMs, ResolvedProvider provider) {
         JsonNode data = response.get("data");
         if (data == null || !data.isArray() || data.isEmpty()) {
             throw new RagEmbeddingException("embedding 响应缺少 data 数组");
@@ -256,31 +351,49 @@ public class RagEmbeddingClient {
                 throw new RagEmbeddingException("embedding 响应缺少向量");
             }
             if (embedding.size() != dimensions) {
-                throw new RagEmbeddingException("embedding 维度不匹配：配置 " + dimensions
-                        + "，实际 " + embedding.size() + "（请检查 app.rag.embedding.dimensions 与模型）");
+                throw new RagEmbeddingException(
+                        "embedding 维度不匹配：配置 "
+                                + dimensions
+                                + "，实际 "
+                                + embedding.size()
+                                + "（请检查 app.rag.embedding.dimensions 与模型）");
             }
             float[] values = new float[embedding.size()];
             for (int i = 0; i < embedding.size(); i++) {
                 values[i] = (float) embedding.get(i).asDouble();
             }
-            int index = item.hasNonNull("index") ? item.get("index").asInt(indexed.size()) : indexed.size();
+            int index =
+                    item.hasNonNull("index")
+                            ? item.get("index").asInt(indexed.size())
+                            : indexed.size();
             indexed.add(new IndexedVector(index, values));
         }
         indexed.sort(Comparator.comparingInt(IndexedVector::index));
         List<float[]> vectors = indexed.stream().map(IndexedVector::vector).toList();
         AiUsage raw = AiUsage.extract(response);
-        AiUsage usage = new AiUsage(raw.inputTokens(), 0,
-                AiUsage.costMicros(raw.inputTokens(), 0, provider.inputPricePer1k(), BigDecimal.ZERO));
+        // P2-10：embedding 独立单价优先（同一供应商 chat/embedding 价格不同），未配置则回退供应商输入单价
+        java.math.BigDecimal embeddingPrice =
+                properties.getEmbedding().getInputPricePer1k() != null
+                        ? properties.getEmbedding().getInputPricePer1k()
+                        : provider.inputPricePer1k();
+        AiUsage usage =
+                new AiUsage(
+                        raw.inputTokens(),
+                        0,
+                        AiUsage.costMicros(raw.inputTokens(), 0, embeddingPrice, BigDecimal.ZERO));
         return new EmbeddingBatch(vectors, dimensions, usage, latencyMs);
     }
 
     private WebClient buildClient(ResolvedProvider provider) {
-        HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(properties.effectiveEmbeddingTimeoutSeconds()));
-        WebClient.Builder builder = WebClient.builder()
-                .baseUrl(trimTrailingSlash(provider.baseUrl()))
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        HttpClient httpClient =
+                HttpClient.create()
+                        .responseTimeout(
+                                Duration.ofSeconds(properties.effectiveEmbeddingTimeoutSeconds()));
+        WebClient.Builder builder =
+                WebClient.builder()
+                        .baseUrl(trimTrailingSlash(provider.baseUrl()))
+                        .clientConnector(new ReactorClientHttpConnector(httpClient))
+                        .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
         if (provider.apiKeyConfigured()) {
             builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + provider.apiKey());
         }
@@ -290,17 +403,22 @@ public class RagEmbeddingClient {
     private ResolvedProvider requireProvider() {
         ResolvedProvider provider = resolveProviderOrNull();
         if (provider == null) {
-            throw new RagEmbeddingException("未找到 embedding 供应商："
-                    + properties.effectiveEmbeddingProviderId()
-                    + "（请在 application.yml 的 app.rag.embedding.provider-id 配置，"
-                    + "并确认该供应商已在「AI 供应商」中存在）");
+            throw new RagEmbeddingException(
+                    "未找到 embedding 供应商："
+                            + properties.effectiveEmbeddingProviderId()
+                            + "（请在 application.yml 的 app.rag.embedding.provider-id 配置，"
+                            + "并确认该供应商已在「AI 供应商」中存在）");
         }
         if (!provider.enabled()) {
             throw new RagEmbeddingException("embedding 供应商已停用：" + provider.displayLabel());
         }
         if (!provider.apiKeyConfigured()) {
-            throw new RagEmbeddingException("embedding 供应商未配置 API Key：" + provider.displayLabel()
-                    + "（" + provider.apiKeyHint() + "）");
+            throw new RagEmbeddingException(
+                    "embedding 供应商未配置 API Key："
+                            + provider.displayLabel()
+                            + "（"
+                            + provider.apiKeyHint()
+                            + "）");
         }
         if (provider.baseUrl() == null || provider.baseUrl().isBlank()) {
             throw new RagEmbeddingException("embedding 供应商缺少 base-url：" + provider.displayLabel());
@@ -376,8 +494,7 @@ public class RagEmbeddingClient {
         }
     }
 
-    private record IndexedVector(int index, float[] vector) {
-    }
+    private record IndexedVector(int index, float[] vector) {}
 
     /** 可重试的 HTTP 错误（429/5xx） */
     private static final class RagHttpException extends RagEmbeddingException {

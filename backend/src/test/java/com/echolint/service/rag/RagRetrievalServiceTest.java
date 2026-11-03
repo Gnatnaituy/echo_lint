@@ -1,32 +1,34 @@
 package com.echolint.service.rag;
 
-import com.echolint.config.RagProperties;
-import com.echolint.domain.CorpusLabel;
-import com.echolint.entity.CorpusEntry;
-import com.echolint.exception.BizException;
-import com.echolint.repository.CorpusEntryRepository;
-import com.echolint.service.AiScreenResult.CorpusExample;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.data.domain.Pageable;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-/**
- * 检索服务：开关/空输入/降级、语料 few-shot 回退与检索预览失败语义。
- */
+import com.echolint.config.RagProperties;
+import com.echolint.domain.CorpusLabel;
+import com.echolint.entity.CorpusEntry;
+import com.echolint.exception.BizException;
+import com.echolint.repository.CorpusEntryRepository;
+import com.echolint.service.AiScreenResult.CorpusExample;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+
+/** 检索服务：开关/空输入/降级、语料 few-shot 回退与检索预览失败语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RagRetrievalServiceTest {
@@ -35,6 +37,7 @@ class RagRetrievalServiceTest {
     @Mock private RagEmbeddingClient embeddingClient;
     @Mock private RagSettingsService settings;
     @Mock private CorpusEntryRepository corpusEntries;
+    @Mock private PlatformTransactionManager transactionManager;
 
     private RagProperties properties;
     private RagRetrievalService service;
@@ -43,9 +46,16 @@ class RagRetrievalServiceTest {
     void setUp() {
         properties = new RagProperties();
         when(settings.isEnabled()).thenReturn(true);
-        when(settings.current()).thenReturn(
-                new RagSettingsService.Snapshot(true, 4, 0.25, 2400, 5, "settings"));
-        service = new RagRetrievalService(jdbcTemplate, embeddingClient, settings, properties, corpusEntries);
+        when(settings.current())
+                .thenReturn(new RagSettingsService.Snapshot(true, 4, 0.25, 2400, 5, "settings"));
+        service =
+                new RagRetrievalService(
+                        jdbcTemplate,
+                        embeddingClient,
+                        settings,
+                        properties,
+                        corpusEntries,
+                        transactionManager);
     }
 
     @Test
@@ -122,7 +132,8 @@ class RagRetrievalServiceTest {
 
         List<CorpusExample> examples = service.corpusExamples("待审", 2);
 
-        assertEquals(RagRetrievalService.CORPUS_EXAMPLE_CHARS, examples.get(0).transcript().length());
+        assertEquals(
+                RagRetrievalService.CORPUS_EXAMPLE_CHARS, examples.get(0).transcript().length());
     }
 
     @Test
@@ -143,6 +154,34 @@ class RagRetrievalServiceTest {
 
         BizException error = assertThrows(BizException.class, () -> service.search("query", 4));
         assertTrue(error.getMessage().contains("检索失败"));
+    }
+
+    @Test
+    void knowledgeQuerySetsEfSearchBeforeQueryInsideTransaction() {
+        when(embeddingClient.embedQuery(anyString(), any())).thenReturn(new float[] {0.1f, 0.2f});
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(jdbcTemplate.query(
+                        anyString(),
+                        ArgumentMatchers.<RowMapper<RagReference>>any(),
+                        any(),
+                        any(),
+                        any()))
+                .thenReturn(List.of());
+
+        List<RagReference> result = service.search("query", 20);
+
+        assertTrue(result.isEmpty());
+        // SET LOCAL 必须与查询在同一事务内先执行；默认 ef_search(40) 不小于内部 limit(20)
+        InOrder inOrder = inOrder(jdbcTemplate);
+        inOrder.verify(jdbcTemplate).execute("SET LOCAL hnsw.ef_search = 40");
+        inOrder.verify(jdbcTemplate)
+                .query(
+                        anyString(),
+                        ArgumentMatchers.<RowMapper<RagReference>>any(),
+                        any(),
+                        any(),
+                        any());
+        verify(transactionManager).commit(any());
     }
 
     private static CorpusEntry corpus(long id, CorpusLabel label, String transcript) {

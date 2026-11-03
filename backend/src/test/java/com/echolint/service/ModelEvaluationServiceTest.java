@@ -1,5 +1,12 @@
 package com.echolint.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.echolint.config.ScreenModelProperties;
 import com.echolint.domain.CorpusLabel;
 import com.echolint.entity.CorpusEntry;
@@ -8,6 +15,10 @@ import com.echolint.repository.CorpusEntryRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,33 +28,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * 模型评测（Batch 3b-2）：混淆矩阵与 accuracy/precision/recall、均衡抽样与回填、
- * 失败样本不参与分母、样本数封顶、配额超限中止、空语料/未知供应商报错。
- */
+/** 模型评测（Batch 3b-2）：混淆矩阵与 accuracy/precision/recall、均衡抽样与回填、 失败样本不参与分母、样本数封顶、配额超限中止、空语料/未知供应商报错。 */
 @ExtendWith(MockitoExtension.class)
 class ModelEvaluationServiceTest {
 
-    @Mock
-    private CorpusEntryRepository corpusRepository;
-    @Mock
-    private ScreenModelService screenModelService;
-    @Mock
-    private AiModelCaller modelCaller;
-    @Mock
-    private AiQuotaService quotaService;
+    @Mock private CorpusEntryRepository corpusRepository;
+    @Mock private ScreenModelService screenModelService;
+    @Mock private AiModelCaller modelCaller;
+    @Mock private AiQuotaService quotaService;
+    @Mock private AiInvocationService invocations;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ModelEvaluationService service;
@@ -52,15 +45,33 @@ class ModelEvaluationServiceTest {
     void setUp() {
         ScreenModelProperties properties = new ScreenModelProperties();
         ScreeningPromptSupport promptSupport = new ScreeningPromptSupport(properties, objectMapper);
-        service = new ModelEvaluationService(corpusRepository, screenModelService, promptSupport,
-                modelCaller, quotaService);
+        service =
+                new ModelEvaluationService(
+                        corpusRepository,
+                        screenModelService,
+                        promptSupport,
+                        modelCaller,
+                        quotaService,
+                        invocations,
+                        properties);
         lenient().when(screenModelService.resolveModel("stub", "stub-model")).thenReturn(model());
     }
 
     private ScreenModelService.ActiveModel model() {
         return new ScreenModelService.ActiveModel(
-                "stub", "Stub", "https://stub.example.com", "stub-model", "/v1/chat/completions",
-                true, true, null, Map.of(), 30, null, BigDecimal.ZERO, BigDecimal.ZERO);
+                "stub",
+                "Stub",
+                "https://stub.example.com",
+                "stub-model",
+                "/v1/chat/completions",
+                true,
+                true,
+                null,
+                Map.of(),
+                30,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO);
     }
 
     private CorpusEntry corpus(long id, CorpusLabel label, String transcript) {
@@ -80,9 +91,15 @@ class ModelEvaluationServiceTest {
 
     private JsonNode reply(boolean violation) {
         ObjectNode root = objectMapper.createObjectNode();
-        root.putArray("choices").addObject().putObject("message").put("content",
-                "{\"violation\":" + violation + ",\"violation_type\":\"INSULT\","
-                        + "\"reason\":\"stub reason\",\"confidence\":0.9,\"target_sentence\":\"\"}");
+        root.putArray("choices")
+                .addObject()
+                .putObject("message")
+                .put(
+                        "content",
+                        "{\"violation\":"
+                                + violation
+                                + ",\"violation_type\":\"INSULT\",\"reason\":\"stub"
+                                + " reason\",\"confidence\":0.9,\"target_sentence\":\"\"}");
         root.putObject("usage").put("prompt_tokens", 10).put("completion_tokens", 5);
         return root;
     }
@@ -90,15 +107,19 @@ class ModelEvaluationServiceTest {
     @Test
     void computesConfusionMatrixAndMetrics() {
         stubSamples(
-                List.of(corpus(1L, CorpusLabel.VIOLATION, "v1 bad words"),
+                List.of(
+                        corpus(1L, CorpusLabel.VIOLATION, "v1 bad words"),
                         corpus(2L, CorpusLabel.VIOLATION, "v2 bad words")),
-                List.of(corpus(3L, CorpusLabel.COMPLIANT, "c1 nice words"),
+                List.of(
+                        corpus(3L, CorpusLabel.COMPLIANT, "c1 nice words"),
                         corpus(4L, CorpusLabel.COMPLIANT, "c2 nice words")));
         // v1 判违规(TP)、v2 判合规(FN)、c1 判违规(FP)、c2 判合规(TN)
-        when(modelCaller.call(any(), anyString(), anyString(), anyLong())).thenAnswer(inv -> {
-            String request = inv.getArgument(1);
-            return reply(request.contains("v1 bad") || request.contains("c1 nice"));
-        });
+        when(modelCaller.call(any(), anyString(), anyString(), anyLong()))
+                .thenAnswer(
+                        inv -> {
+                            String request = inv.getArgument(1);
+                            return reply(request.contains("v1 bad") || request.contains("c1 nice"));
+                        });
 
         ModelEvaluationService.EvaluationResult result = service.evaluate("stub", "stub-model", 4);
 
@@ -116,34 +137,52 @@ class ModelEvaluationServiceTest {
         assertEquals("stub", result.providerId());
         assertEquals("stub-model", result.model());
         assertEquals(2, result.byLabel().size());
-        ModelEvaluationService.LabelStat violations = result.byLabel().stream()
-                .filter(l -> "VIOLATION".equals(l.label())).findFirst().orElseThrow();
+        ModelEvaluationService.LabelStat violations =
+                result.byLabel().stream()
+                        .filter(l -> "VIOLATION".equals(l.label()))
+                        .findFirst()
+                        .orElseThrow();
         assertEquals(2, violations.total());
         assertEquals(1, violations.correct());
-        ModelEvaluationService.LabelStat compliant = result.byLabel().stream()
-                .filter(l -> "COMPLIANT".equals(l.label())).findFirst().orElseThrow();
+        ModelEvaluationService.LabelStat compliant =
+                result.byLabel().stream()
+                        .filter(l -> "COMPLIANT".equals(l.label()))
+                        .findFirst()
+                        .orElseThrow();
         assertEquals(2, compliant.total());
         assertEquals(1, compliant.correct());
         assertEquals(4, result.results().size());
-        assertTrue(result.results().stream().anyMatch(r -> r.expected().equals("VIOLATION")
-                && r.predicted().equals("VIOLATION") && r.error() == null));
+        assertTrue(
+                result.results().stream()
+                        .anyMatch(
+                                r ->
+                                        r.expected().equals("VIOLATION")
+                                                && r.predicted().equals("VIOLATION")
+                                                && r.error() == null));
 
         verify(quotaService, times(4)).checkBeforeCall(any());
-        verify(modelCaller, times(4)).call(any(), anyString(), anyString(),
-                eq(ModelEvaluationService.CALL_TIMEOUT_SECONDS));
+        verify(modelCaller, times(4))
+                .call(
+                        any(),
+                        anyString(),
+                        anyString(),
+                        eq(ModelEvaluationService.CALL_TIMEOUT_SECONDS));
     }
 
     @Test
     void failedSamplesAreExcludedFromMetricDenominators() {
-        stubSamples(List.of(corpus(1L, CorpusLabel.VIOLATION, "boom sample")),
+        stubSamples(
+                List.of(corpus(1L, CorpusLabel.VIOLATION, "boom sample")),
                 List.of(corpus(2L, CorpusLabel.COMPLIANT, "fine sample")));
-        when(modelCaller.call(any(), anyString(), anyString(), anyLong())).thenAnswer(inv -> {
-            String request = inv.getArgument(1);
-            if (request.contains("boom sample")) {
-                throw new BizException("HTTP 500: model down");
-            }
-            return reply(false);
-        });
+        when(modelCaller.call(any(), anyString(), anyString(), anyLong()))
+                .thenAnswer(
+                        inv -> {
+                            String request = inv.getArgument(1);
+                            if (request.contains("boom sample")) {
+                                throw new BizException("HTTP 500: model down");
+                            }
+                            return reply(false);
+                        });
 
         ModelEvaluationService.EvaluationResult result = service.evaluate("stub", "stub-model", 2);
 
@@ -154,8 +193,8 @@ class ModelEvaluationServiceTest {
         assertEquals(1.0, result.accuracy(), 1e-9);
         assertEquals(0.0, result.precision(), 1e-9, "tp+fp=0 时 precision 记 0");
         assertEquals(0.0, result.recall(), 1e-9, "tp+fn=0 时 recall 记 0");
-        ModelEvaluationService.CaseResult failed = result.results().stream()
-                .filter(r -> r.error() != null).findFirst().orElseThrow();
+        ModelEvaluationService.CaseResult failed =
+                result.results().stream().filter(r -> r.error() != null).findFirst().orElseThrow();
         assertEquals(1L, failed.corpusId());
         assertNull(failed.predicted());
         assertTrue(failed.error().contains("HTTP 500"));
@@ -173,24 +212,28 @@ class ModelEvaluationServiceTest {
         when(modelCaller.call(any(), anyString(), anyString(), anyLong()))
                 .thenAnswer(inv -> reply(false));
 
-        ModelEvaluationService.EvaluationResult result = service.evaluate("stub", "stub-model", 100);
+        ModelEvaluationService.EvaluationResult result =
+                service.evaluate("stub", "stub-model", 100);
 
         assertEquals(ModelEvaluationService.MAX_SAMPLE_SIZE, result.total(), "样本数超过上限时按 20 处理");
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(corpusRepository, atLeastOnce())
                 .findByLabelOrderByIdDesc(any(), pageableCaptor.capture());
-        assertEquals(ModelEvaluationService.MAX_SAMPLE_SIZE, pageableCaptor.getValue().getPageSize());
+        assertEquals(
+                ModelEvaluationService.MAX_SAMPLE_SIZE, pageableCaptor.getValue().getPageSize());
     }
 
     @Test
     void quotaExceededAbortsEvaluationWithoutCallingModel() {
-        stubSamples(List.of(corpus(1L, CorpusLabel.VIOLATION, "v")),
+        stubSamples(
+                List.of(corpus(1L, CorpusLabel.VIOLATION, "v")),
                 List.of(corpus(2L, CorpusLabel.COMPLIANT, "c")));
         doThrow(new BizException("AI 每日 token 配额已用尽", HttpStatus.TOO_MANY_REQUESTS))
-                .when(quotaService).checkBeforeCall(any());
+                .when(quotaService)
+                .checkBeforeCall(any());
 
-        BizException error = assertThrows(BizException.class,
-                () -> service.evaluate("stub", "stub-model", 2));
+        BizException error =
+                assertThrows(BizException.class, () -> service.evaluate("stub", "stub-model", 2));
 
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatus());
         verify(modelCaller, never()).call(any(), anyString(), anyString(), anyLong());
@@ -200,8 +243,8 @@ class ModelEvaluationServiceTest {
     void emptyCorpusIsRejected() {
         stubSamples(List.of(), List.of());
 
-        BizException error = assertThrows(BizException.class,
-                () -> service.evaluate("stub", "stub-model", 5));
+        BizException error =
+                assertThrows(BizException.class, () -> service.evaluate("stub", "stub-model", 5));
 
         assertTrue(error.getMessage().contains("语料库"), error.getMessage());
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
@@ -213,8 +256,8 @@ class ModelEvaluationServiceTest {
         when(screenModelService.resolveModel("ghost", null))
                 .thenThrow(new BizException("未知的模型供应商: ghost"));
 
-        BizException error = assertThrows(BizException.class,
-                () -> service.evaluate("ghost", null, 5));
+        BizException error =
+                assertThrows(BizException.class, () -> service.evaluate("ghost", null, 5));
 
         assertTrue(error.getMessage().contains("未知的模型供应商"));
         verify(corpusRepository, never()).findByLabelOrderByIdDesc(any(), any());
@@ -222,16 +265,18 @@ class ModelEvaluationServiceTest {
 
     @Test
     void nonPositiveSampleSizeIsRejected() {
-        BizException error = assertThrows(BizException.class,
-                () -> service.evaluate("stub", "stub-model", 0));
+        BizException error =
+                assertThrows(BizException.class, () -> service.evaluate("stub", "stub-model", 0));
 
         assertTrue(error.getMessage().contains("样本数"));
     }
 
     @Test
     void balancedSamplingBackfillsWhenOneLabelIsScarce() {
-        stubSamples(List.of(corpus(1L, CorpusLabel.VIOLATION, "only violation")),
-                List.of(corpus(2L, CorpusLabel.COMPLIANT, "c1"),
+        stubSamples(
+                List.of(corpus(1L, CorpusLabel.VIOLATION, "only violation")),
+                List.of(
+                        corpus(2L, CorpusLabel.COMPLIANT, "c1"),
                         corpus(3L, CorpusLabel.COMPLIANT, "c2"),
                         corpus(4L, CorpusLabel.COMPLIANT, "c3")));
         when(modelCaller.call(any(), anyString(), anyString(), anyLong()))
@@ -240,10 +285,20 @@ class ModelEvaluationServiceTest {
         ModelEvaluationService.EvaluationResult result = service.evaluate("stub", "stub-model", 4);
 
         assertEquals(4, result.total(), "一类样本不足时用另一类补齐");
-        assertEquals(1, result.byLabel().stream()
-                .filter(l -> "VIOLATION".equals(l.label())).findFirst().orElseThrow().total());
-        assertEquals(3, result.byLabel().stream()
-                .filter(l -> "COMPLIANT".equals(l.label())).findFirst().orElseThrow().total());
+        assertEquals(
+                1,
+                result.byLabel().stream()
+                        .filter(l -> "VIOLATION".equals(l.label()))
+                        .findFirst()
+                        .orElseThrow()
+                        .total());
+        assertEquals(
+                3,
+                result.byLabel().stream()
+                        .filter(l -> "COMPLIANT".equals(l.label()))
+                        .findFirst()
+                        .orElseThrow()
+                        .total());
     }
 
     @Test
