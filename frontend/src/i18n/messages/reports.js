@@ -120,7 +120,8 @@ export default {
     'reports.colCount': 'Count',
     'reports.colShareOfConfirmed': 'Share of confirmed violations',
     'reports.noViolationData': 'No violation type data',
-    'reports.noViolationHint': 'Once manual review confirms violations, they are summarized here by type',
+    'reports.noViolationHint':
+      'Once manual review confirms violations, they are summarized here by type',
 
     'reports.last7Days': 'Last 7 days',
     'reports.last30Days': 'Last 30 days',

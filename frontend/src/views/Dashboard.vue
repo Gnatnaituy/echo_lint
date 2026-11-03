@@ -1,5 +1,14 @@
 <template>
   <div class="page stack">
+    <!-- 加载失败：KPI 会残留上次数据 / 占位符，必须明确提示并可重试（否则与「无数据」不可区分） -->
+    <div v-if="error" class="error-banner" role="alert">
+      <el-icon><WarningFilled /></el-icon>
+      <span>{{ error }}</span>
+      <el-button link type="primary" size="small" :loading="loading" @click="load">
+        {{ t('common.retry') }}
+      </el-button>
+    </div>
+
     <!-- KPI -->
     <div class="kpi-grid">
       <StatCard
@@ -69,7 +78,9 @@
       <section class="panel">
         <div class="panel-head">
           <div class="section-title">{{ t('dashboard.distribution.title') }}</div>
-          <span class="tiny dim">{{ t('dashboard.distribution.total', { count: overview?.totalUploads ?? 0 }) }}</span>
+          <span class="tiny dim">{{
+            t('dashboard.distribution.total', { count: overview?.totalUploads ?? 0 })
+          }}</span>
         </div>
         <div class="panel-body dist">
           <div v-for="row in distribution" :key="row.key" class="dist-row">
@@ -78,7 +89,9 @@
                 <span class="dot" :style="{ background: row.color }"></span>
                 {{ row.label }}
               </span>
-              <span class="dist-value num">{{ row.value }}<span class="dist-pct">{{ row.pct }}%</span></span>
+              <span class="dist-value num"
+                >{{ row.value }}<span class="dist-pct">{{ row.pct }}%</span></span
+              >
             </div>
             <div class="dist-track">
               <div class="dist-fill" :style="{ width: row.pct + '%', background: row.color }"></div>
@@ -94,10 +107,15 @@
         <div class="panel-head">
           <div class="section-title">{{ t('dashboard.recent.title') }}</div>
           <el-button link type="primary" size="small" @click="router.push('/recordings')">
-            {{ t('dashboard.recent.viewAll') }}<el-icon class="el-icon--right"><ArrowRight /></el-icon>
+            {{ t('dashboard.recent.viewAll')
+            }}<el-icon class="el-icon--right"><ArrowRight /></el-icon>
           </el-button>
         </div>
-        <el-table :data="recent" size="small" @row-click="(row) => router.push(`/recordings?id=${row.id}`)">
+        <el-table
+          :data="recent"
+          size="small"
+          @row-click="(row) => router.push(`/recordings?id=${row.id}`)"
+        >
           <el-table-column :label="t('dashboard.recent.file')" min-width="200">
             <template #default="{ row }">
               <div class="cell-file">
@@ -140,11 +158,20 @@
             <router-link class="kb-item" to="/dictionary">
               <div class="kb-label">{{ t('dashboard.knowledge.dictionaryTotal') }}</div>
               <div class="kb-value num">{{ overview?.dictionary?.total ?? '-' }}</div>
-              <div class="kb-sub">{{ t('dashboard.knowledge.dictionaryEnabled', { count: overview?.dictionary?.enabled ?? '-' }) }}</div>
+              <div class="kb-sub">
+                {{
+                  t('dashboard.knowledge.dictionaryEnabled', {
+                    count: overview?.dictionary?.enabled ?? '-'
+                  })
+                }}
+              </div>
             </router-link>
             <router-link class="kb-item" to="/dictionary?source=MINED&enabled=false">
               <div class="kb-label">{{ t('dashboard.knowledge.minedPending') }}</div>
-              <div class="kb-value num" :class="{ alert: (overview?.dictionary?.minedPending ?? 0) > 0 }">
+              <div
+                class="kb-value num"
+                :class="{ alert: (overview?.dictionary?.minedPending ?? 0) > 0 }"
+              >
                 {{ overview?.dictionary?.minedPending ?? 0 }}
               </div>
               <div class="kb-sub">{{ t('dashboard.knowledge.minedSub') }}</div>
@@ -176,17 +203,23 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { WarningFilled } from '@element-plus/icons-vue'
 import api from '../api'
 import StatCard from '../components/StatCard.vue'
 import StatusTag from '../components/StatusTag.vue'
 import TrendChart from '../components/TrendChart.vue'
 import { formatDuration, formatTime, PROCESSING_STATUSES, STATUS_META } from '../constants'
 import { useI18n } from '../i18n'
+import overviewState from '../state/overview'
+import { ArrowRight, Microphone, Refresh } from '../components/icons.js'
 
 const { t } = useI18n()
 const router = useRouter()
-const overview = ref(null)
+/** 概览走全局单例（与 App 轮询 / 语料库 / 敏感词库共享请求与短缓存） */
+const overview = computed(() => overviewState.data)
 const recent = ref([])
+const loading = ref(false)
+const error = ref('')
 
 const count = (status) => overview.value?.statusCounts?.[status] ?? 0
 
@@ -197,9 +230,24 @@ const processingCount = computed(() =>
 const distribution = computed(() => {
   const total = Math.max(1, overview.value?.totalUploads ?? 0)
   const rows = [
-    { key: 'processing', label: t('dashboard.distribution.processing'), value: processingCount.value, color: '#3b6ef6' },
-    { key: 'NEEDS_REVIEW', label: STATUS_META.NEEDS_REVIEW.label, value: count('NEEDS_REVIEW'), color: '#f59e0b' },
-    { key: 'COMPLIANT', label: STATUS_META.COMPLIANT.label, value: count('COMPLIANT'), color: '#16a34a' },
+    {
+      key: 'processing',
+      label: t('dashboard.distribution.processing'),
+      value: processingCount.value,
+      color: '#3b6ef6'
+    },
+    {
+      key: 'NEEDS_REVIEW',
+      label: STATUS_META.NEEDS_REVIEW.label,
+      value: count('NEEDS_REVIEW'),
+      color: '#f59e0b'
+    },
+    {
+      key: 'COMPLIANT',
+      label: STATUS_META.COMPLIANT.label,
+      value: count('COMPLIANT'),
+      color: '#16a34a'
+    },
     {
       key: 'VIOLATION_CONFIRMED',
       label: STATUS_META.VIOLATION_CONFIRMED.label,
@@ -217,13 +265,28 @@ const distribution = computed(() => {
   return rows.map((r) => ({ ...r, pct: Math.round((r.value / total) * 100) }))
 })
 
+/** 加载失败文案：403 / 404 给可读降级，其余沿用请求层 message */
+function loadErrorMessage(reason) {
+  const status = reason?.status
+  if (status === 403) return t('dashboard.error.forbidden')
+  if (status === 404) return t('dashboard.error.notFound')
+  return reason?.message || t('dashboard.error.loadFailed')
+}
+
 async function load() {
+  loading.value = true
+  error.value = ''
   try {
-    const [ov, list] = await Promise.all([api.overview(), api.listRecordings({ page: 0, size: 7 })])
-    overview.value = ov
+    // 概览与最近录音互不依赖：任一失败都提示，但成功的那份继续展示
+    const [, list] = await Promise.all([
+      overviewState.load(),
+      api.listRecordings({ page: 0, size: 7 })
+    ])
     recent.value = list.content || []
-  } catch {
-    // 后端未就绪时保持空态
+  } catch (reason) {
+    error.value = loadErrorMessage(reason)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -231,6 +294,19 @@ onMounted(load)
 </script>
 
 <style scoped>
+/* 加载失败横幅：与知识库 / 审计等页面保持同一视觉语言 */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  border: 1px solid #f7c9c9;
+  color: #b3261e;
+  font-size: 12.5px;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

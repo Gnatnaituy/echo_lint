@@ -159,7 +159,8 @@ export default {
     'screen.updatedAt': '更新于 {time}',
     'screen.empty': '暂无数据',
     'screen.countUnit': '条',
-    'screen.rateNote': '人工确认违规 / 录音总量',
+    'screen.rateNote': '近 30 天人工确认 {confirmed} / 同窗口录音 {total}',
+    'screen.rateNoteEmpty': '近 30 天同窗口口径：人工确认违规 / 同窗口录音',
     'screen.live': '实时',
     'screen.attention': '需关注',
 
@@ -310,7 +311,8 @@ export default {
     'login.usernamePlaceholder': 'Enter username',
     'login.passwordPlaceholder': 'Enter password',
     'login.submit': 'Sign in',
-    'login.foot': 'Session is maintained by an HttpOnly cookie; no password or token is stored in the browser',
+    'login.foot':
+      'Session is maintained by an HttpOnly cookie; no password or token is stored in the browser',
     'login.copyright': 'EchoLint · Audio Compliance Audit',
     'login.welcome': 'Welcome back, {name}',
     'login.error': 'Sign-in failed. Please check your username and password',
@@ -332,7 +334,9 @@ export default {
     'screen.updatedAt': 'Updated at {time}',
     'screen.empty': 'No data yet',
     'screen.countUnit': 'records',
-    'screen.rateNote': 'Confirmed violations / total recordings',
+    'screen.rateNote': 'Confirmed {confirmed} of {total} recordings in the last 30 days',
+    'screen.rateNoteEmpty':
+      'Last-30-day window: confirmed violations / recordings in the same window',
     'screen.live': 'Live',
     'screen.attention': 'Needs attention',
 

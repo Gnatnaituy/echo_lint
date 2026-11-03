@@ -6,9 +6,15 @@
 
     <template v-else>
       <div class="summary">
-        <span class="chip">{{ countLabel('components.transcript.sentenceCount', view.sentences.length) }}</span>
-        <span v-if="view.totalHits" class="chip danger">{{ countLabel('components.transcript.hitCount', view.totalHits) }}</span>
-        <span v-if="view.markedCount" class="chip warn">{{ countLabel('components.transcript.markedCount', view.markedCount) }}</span>
+        <span class="chip">{{
+          countLabel('components.transcript.sentenceCount', view.sentences.length)
+        }}</span>
+        <span v-if="view.totalHits" class="chip danger">{{
+          countLabel('components.transcript.hitCount', view.totalHits)
+        }}</span>
+        <span v-if="view.markedCount" class="chip warn">{{
+          countLabel('components.transcript.markedCount', view.markedCount)
+        }}</span>
         <span v-if="!view.timed" class="chip info">{{ t('components.transcript.untimed') }}</span>
         <span class="spacer"></span>
         <span v-if="view.timed" class="tiny dim">
@@ -20,13 +26,17 @@
       <div v-if="layout === 'dialogue' && view.dialogue" class="channel-legend">
         <div class="legend-side left">
           <span class="ch-badge">L</span>
-          <span class="ch-name">{{ view.speakers.left || t('components.transcript.channelLeft') }}</span>
+          <span class="ch-name">{{
+            view.speakers.left || t('components.transcript.channelLeft')
+          }}</span>
           <span class="ch-hint">{{ t('components.transcript.channelLeft') }}</span>
         </div>
         <div class="legend-line"></div>
         <div class="legend-side right">
           <span class="ch-badge">R</span>
-          <span class="ch-name">{{ view.speakers.right || t('components.transcript.channelRight') }}</span>
+          <span class="ch-name">{{
+            view.speakers.right || t('components.transcript.channelRight')
+          }}</span>
           <span class="ch-hint">{{ t('components.transcript.channelRight') }}</span>
         </div>
       </div>
@@ -57,18 +67,27 @@
           <div class="bubble">
             <div v-if="layout === 'dialogue' && s.side" class="bubble-head">
               <span class="ch-badge sm">{{ s.channel }}</span>
-              <span class="speaker">{{ s.speaker || (s.side === 'left' ? t('components.transcript.channelLeft') : t('components.transcript.channelRight')) }}</span>
+              <span class="speaker">{{
+                s.speaker ||
+                (s.side === 'left'
+                  ? t('components.transcript.channelLeft')
+                  : t('components.transcript.channelRight'))
+              }}</span>
             </div>
 
             <div class="bubble-main">
               <button
                 class="time"
                 :disabled="s.start == null"
-                :title="s.start == null ? t('components.transcript.untimedTitle') : t('components.transcript.seekTo', { time: formatClock(s.start) })"
+                :title="
+                  s.start == null
+                    ? t('components.transcript.untimedTitle')
+                    : t('components.transcript.seekTo', { time: formatClock(s.start) })
+                "
                 @click.stop="onSeek(s)"
               >
                 <el-icon class="time-icon" :size="12">
-                  <component :is="s.index === activeIndex ? 'VideoPause' : 'VideoPlay'" />
+                  <component :is="s.index === activeIndex ? VideoPause : VideoPlay" />
                 </el-icon>
                 <span class="mono">{{ s.start != null ? formatClock(s.start) : '--:--' }}</span>
               </button>
@@ -81,8 +100,12 @@
                   </template>
                 </p>
                 <div v-if="s.hasMarks" class="marks">
-                  <span v-for="w in s.hitWords" :key="w" class="chip danger">{{ t('components.transcript.hitChip', { word: w }) }}</span>
-                  <span v-if="s.isTarget" class="chip warn">{{ t('components.transcript.targetChip') }}</span>
+                  <span v-for="w in s.hitWords" :key="w" class="chip danger">{{
+                    t('components.transcript.hitChip', { word: w })
+                  }}</span>
+                  <span v-if="s.isTarget" class="chip warn">{{
+                    t('components.transcript.targetChip')
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -97,6 +120,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { buildSentenceView, findActiveIndex, formatClock } from '../utils/segments'
+import { Mouse, VideoPause, VideoPlay } from './icons.js'
 
 const { t } = useI18n()
 
@@ -291,7 +315,10 @@ watch(activeIndex, async (idx) => {
   border-radius: 12px;
   background: #fff;
   padding: 8px 12px 9px;
-  transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  transition:
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
 }
 .seg-list.dialogue .seg.side-left .bubble {
   background: linear-gradient(180deg, #f6f9ff, #fff);

@@ -18,8 +18,7 @@ export default {
     'knowledge.query': '查询',
     'knowledge.intro.usage':
       '知识库用于沉淀话术规范、违规示例与处罚标准，供人工复核与 AI 复筛参考；',
-    'knowledge.intro.import':
-      '支持导入 PDF / Word / TXT / Markdown 文档并自动解析建立索引；',
+    'knowledge.intro.import': '支持导入 PDF / Word / TXT / Markdown 文档并自动解析建立索引；',
     'knowledge.intro.permission': '所有登录用户可查看，管理员 / 复核员可维护。',
 
     // 列表
@@ -39,6 +38,7 @@ export default {
     'knowledge.emptyReadonlyHint': '暂无知识库内容',
 
     // 详情抽屉
+    'knowledge.detailTitle': '知识库条目详情',
     'knowledge.disabledState': '已停用',
     'knowledge.metaCreated': '创建：{value}',
     'knowledge.metaUpdated': '更新：{value}',
@@ -60,8 +60,7 @@ export default {
     'knowledge.categoryEditPlaceholder': '选择或输入分类',
     'knowledge.violationTypePlaceholder': '可选，关联敏感词违规类型',
     'knowledge.tagsPlaceholder': '输入标签后回车添加',
-    'knowledge.contentPlaceholder':
-      '支持 Markdown / 纯文本，可记录话术正反例、判定标准与处置建议',
+    'knowledge.contentPlaceholder': '支持 Markdown / 纯文本，可记录话术正反例、判定标准与处置建议',
     'knowledge.enabledHint': '停用后仍保留在列表中，供管理员后续维护',
     'knowledge.saveEdit': '保存修改',
     'knowledge.createSubmit': '创建条目',
@@ -145,8 +144,7 @@ export default {
     'knowledge.untitledEntry': 'Untitled entry',
     'knowledge.indexFailedHint': 'Indexing failed. Click "Rebuild index" to retry',
     'knowledge.reindex': 'Rebuild index',
-    'knowledge.confirmDelete':
-      'Deletion cannot be undone. Delete this knowledge entry?',
+    'knowledge.confirmDelete': 'Deletion cannot be undone. Delete this knowledge entry?',
     'knowledge.listSeparator': ', ',
     'knowledge.emptyFilteredTitle': 'No matching entries',
     'knowledge.emptyFilteredHint': 'Try clearing the keyword, category or status filters',
@@ -156,6 +154,7 @@ export default {
     'knowledge.emptyReadonlyHint': 'No knowledge base content yet',
 
     // Detail drawer
+    'knowledge.detailTitle': 'Knowledge Entry Details',
     'knowledge.disabledState': 'Disabled',
     'knowledge.metaCreated': 'Created: {value}',
     'knowledge.metaUpdated': 'Updated: {value}',
@@ -229,8 +228,7 @@ export default {
     'knowledge.deleted': 'Deleted "{title}"',
     'knowledge.reindexQueued': 'Rebuild requested for "{title}"; processing in the background',
     'knowledge.uploadUnsupported': 'Only PDF / DOCX / TXT / MD documents are supported',
-    'knowledge.uploadTooLarge':
-      'The document exceeds 20 MB. Compress or split it before importing',
+    'knowledge.uploadTooLarge': 'The document exceeds 20 MB. Compress or split it before importing',
     'knowledge.uploadSingleFile':
       'Only one document can be imported at a time. Remove the selected file first',
     'knowledge.uploadNoFile': 'Please select a document to import',

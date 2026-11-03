@@ -25,11 +25,36 @@ import { t } from '../i18n/index.js'
  * READY 为成功（ok），FAILED 为危险（danger），处理中为警告（warn）。
  */
 export const INDEX_STATUS_META = {
-  PENDING: { get label() { return t('meta.indexStatus.PENDING') }, type: 'warn' },
-  PARSING: { get label() { return t('meta.indexStatus.PARSING') }, type: 'warn' },
-  INDEXING: { get label() { return t('meta.indexStatus.INDEXING') }, type: 'warn' },
-  READY: { get label() { return t('meta.indexStatus.READY') }, type: 'ok' },
-  FAILED: { get label() { return t('meta.indexStatus.FAILED') }, type: 'danger' }
+  PENDING: {
+    get label() {
+      return t('meta.indexStatus.PENDING')
+    },
+    type: 'warn'
+  },
+  PARSING: {
+    get label() {
+      return t('meta.indexStatus.PARSING')
+    },
+    type: 'warn'
+  },
+  INDEXING: {
+    get label() {
+      return t('meta.indexStatus.INDEXING')
+    },
+    type: 'warn'
+  },
+  READY: {
+    get label() {
+      return t('meta.indexStatus.READY')
+    },
+    type: 'ok'
+  },
+  FAILED: {
+    get label() {
+      return t('meta.indexStatus.FAILED')
+    },
+    type: 'danger'
+  }
 }
 
 /** 仍在处理中的索引状态：列表据此自动轮询刷新 */
@@ -163,9 +188,7 @@ function normalizeCase(raw) {
   return {
     id: toNumber(pick(data, ['id', 'caseId', 'case_id', 'corpusId'])),
     label: toText(pick(data, ['label', 'expected', 'truth'])),
-    baselinePrediction: toText(
-      pick(data, ['baselinePrediction', 'baselineLabel', 'baseline'])
-    ),
+    baselinePrediction: toText(pick(data, ['baselinePrediction', 'baselineLabel', 'baseline'])),
     ragPrediction: toText(pick(data, ['ragPrediction', 'ragLabel', 'rag'])),
     baselineConfidence: toNumber(pick(data, ['baselineConfidence', 'baselineScore'])),
     ragConfidence: toNumber(pick(data, ['ragConfidence', 'ragScore'])),

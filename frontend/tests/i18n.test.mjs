@@ -109,7 +109,7 @@ test('词典值非空；英文词典不残留中文（语言名除外）', () =>
   }
 })
 
-test('源码中静态 t(\'key\') 引用的 key 都存在于词典', async () => {
+test("源码中静态 t('key') 引用的 key 都存在于词典", async () => {
   const { readdirSync, readFileSync, statSync } = await import('node:fs')
   const { join, resolve } = await import('node:path')
   const { fileURLToPath } = await import('node:url')

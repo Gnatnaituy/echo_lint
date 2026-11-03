@@ -19,16 +19,20 @@
             class="search"
             @clear="page = 1"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <el-button
             :icon="Refresh"
             circle
-            @click="load"
             :aria-label="t('common.refresh')"
             :title="t('common.refresh')"
+            @click="load"
           />
-          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('users.create') }}</el-button>
+          <el-button type="primary" :icon="Plus" @click="openCreate">{{
+            t('users.create')
+          }}</el-button>
         </div>
       </div>
       <div class="hint tiny dim">
@@ -42,7 +46,9 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load">{{ t('common.retry') }}</el-button>
+        <el-button link type="primary" size="small" @click="load">{{
+          t('common.retry')
+        }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="pagedRows" :row-class-name="rowClass">
@@ -103,7 +109,8 @@
                 link
                 type="success"
                 @click="enable(row)"
-              >{{ t('users.enable') }}</el-button>
+                >{{ t('users.enable') }}</el-button
+              >
               <span v-else class="tiny dim">{{ t('users.self') }}</span>
             </div>
           </template>
@@ -140,7 +147,13 @@
       append-to-body
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="86px" @submit.prevent="submit">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="86px"
+        @submit.prevent="submit"
+      >
         <el-form-item :label="t('users.username')" prop="username">
           <el-input
             v-if="!editing"
@@ -215,6 +228,7 @@ import api from '../api'
 import auth from '../auth'
 import { formatTimeShort, ROLE_META, ROLE_OPTIONS, roleLabel } from '../constants'
 import { useI18n } from '../i18n'
+import { User, WarningFilled } from '../components/icons.js'
 
 const { t, tn } = useI18n()
 
@@ -232,8 +246,12 @@ const filteredRows = computed(() => {
   if (!kw) return rows.value
   return rows.value.filter(
     (r) =>
-      String(r.username || '').toLowerCase().includes(kw) ||
-      String(r.displayName || '').toLowerCase().includes(kw)
+      String(r.username || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(r.displayName || '')
+        .toLowerCase()
+        .includes(kw)
   )
 })
 const pagedRows = computed(() => {
@@ -249,7 +267,9 @@ watch(filteredRows, () => {
 })
 
 function initial(row) {
-  return String(row?.displayName || row?.username || '?').slice(0, 1).toUpperCase()
+  return String(row?.displayName || row?.username || '?')
+    .slice(0, 1)
+    .toUpperCase()
 }
 function isSelf(row) {
   return !!row?.username && row.username === auth.username

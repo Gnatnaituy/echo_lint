@@ -25,8 +25,7 @@ export default {
     'settings.active.title': '当前 AI 复筛模型',
     'settings.active.subtitle': '作用于语义复筛与敏感词挖掘',
     'settings.active.keyConfigured': 'API Key 已配置，可正常调用',
-    'settings.active.keyMissing':
-      'API Key 未配置：DFA 命中的录音会降级转人工复检，不会漏审',
+    'settings.active.keyMissing': 'API Key 未配置：DFA 命中的录音会降级转人工复检，不会漏审',
     'settings.active.testConnection': '测试连通性',
     'settings.active.switched': '已切换到 {provider} · {model}',
 
@@ -78,7 +77,8 @@ export default {
     'settings.provider.empty': '暂无供应商',
     'settings.provider.emptyHint':
       '内置供应商会在后端首次启动时自动落库；也可点击右上角「新增供应商」接入自定义网关',
-    'settings.provider.hintA': '内置供应商可编辑接入信息、价格与密钥，但不可删除；自定义供应商可增删。',
+    'settings.provider.hintA':
+      '内置供应商可编辑接入信息、价格与密钥，但不可删除；自定义供应商可增删。',
     'settings.provider.hintB': '停用或删除不会影响历史录音结论与已产生的调用留痕。',
     'settings.provider.loadFailed': '供应商列表加载失败，请稍后重试',
     'settings.provider.testFailed': '测试请求失败，请检查网关与后端日志',
@@ -150,8 +150,7 @@ export default {
     'settings.eval.modelPlaceholder': '留空使用供应商默认模型',
     'settings.eval.sampleSize': '样本数',
     'settings.eval.run': '运行评测',
-    'settings.eval.providerUnavailable':
-      '供应商列表不可用：请前往上方「AI 供应商」检查配置',
+    'settings.eval.providerUnavailable': '供应商列表不可用：请前往上方「AI 供应商」检查配置',
     'settings.eval.running': '正在逐条调用模型评测（1~20 条，可能需要数十秒）…',
     'settings.eval.incomplete': '评测未完成',
     'settings.eval.evaluatedRatio': '已评测 / 总数',
@@ -175,8 +174,7 @@ export default {
     'settings.eval.reason': '理由',
     'settings.eval.resultsEmpty': '暂无逐条结果',
     'settings.eval.resultsEmptyHint': '后端返回 results 后展示期望 / 预测 / 置信度 / 理由',
-    'settings.eval.empty':
-      '还没有评测结果：选择供应商（可选模型）与样本数后点击「运行评测」。',
+    'settings.eval.empty': '还没有评测结果：选择供应商（可选模型）与样本数后点击「运行评测」。',
     'settings.eval.emptyHint': '评测会从语料库均衡抽取已标注样本，单次最多 20 条。',
     'settings.eval.hintA':
       'A/B 分流与评测接口均为 ADMIN 权限；评测调用真实模型并计入 AI 用量与配额，',
@@ -231,8 +229,7 @@ export default {
     'settings.rag.reindexAll': '全量重建',
     'settings.rag.reindexNote': '后台异步执行，可稍后「刷新」查看进度',
     'settings.rag.evalTitle': 'RAG 效果评测',
-    'settings.rag.evalNote':
-      '同一批语料对比「基线（无检索）」与「RAG（带检索）」的复筛指标',
+    'settings.rag.evalNote': '同一批语料对比「基线（无检索）」与「RAG（带检索）」的复筛指标',
     'settings.rag.evalSampleSize': '样本数（5~20）',
     'settings.rag.evalRun': '评测 RAG 效果',
     'settings.rag.evalCostHint': '评测调用真实模型，会计入 AI 用量与配额',
@@ -308,8 +305,7 @@ export default {
     'settings.notify.testFail': '测试通知发送失败',
     'settings.notify.testSuccessMsg': 'Webhook 已接收测试事件',
     'settings.notify.testFailMsg': '请检查 Webhook 地址、签名密钥与网络连通性',
-    'settings.notify.hintA':
-      '抽样比例、Webhook 地址 / 密钥 / 超时、积压阈值均由后端环境变量配置',
+    'settings.notify.hintA': '抽样比例、Webhook 地址 / 密钥 / 超时、积压阈值均由后端环境变量配置',
     'settings.notify.hintB': '（APP_SAMPLE_DFA_MISS_RATE、APP_NOTIFY_*），修改后需重启后端。',
     'settings.notify.hintC': '通知只发送到后端配置的地址，前端不接触 URL 与签名密钥。',
     'settings.notify.sampleRateNote': 'DFA 无命中的录音按该比例进入 AI 语义复筛 / 人工复检',
@@ -494,7 +490,8 @@ export default {
     'settings.eval.run': 'Run evaluation',
     'settings.eval.providerUnavailable':
       'Provider list unavailable: check the configuration under AI Providers above',
-    'settings.eval.running': 'Evaluating samples one by one (1-20 items, may take tens of seconds)…',
+    'settings.eval.running':
+      'Evaluating samples one by one (1-20 items, may take tens of seconds)…',
     'settings.eval.incomplete': 'Evaluation incomplete',
     'settings.eval.evaluatedRatio': 'Evaluated / total',
     'settings.eval.correctFailed': 'Correct {correct} · Failed {failed}',
@@ -664,8 +661,7 @@ export default {
     'settings.notify.backlogNote':
       'Alerts daily when pending reviews exceed the threshold (Asia/Shanghai)',
     'settings.notify.events': 'Notification events',
-    'settings.notify.eventsEmpty':
-      'The API returned no event list (the backend may be outdated)',
+    'settings.notify.eventsEmpty': 'The API returned no event list (the backend may be outdated)',
     'settings.notify.sendTest': 'Send test webhook',
     'settings.notify.testOk': 'Test notification sent',
     'settings.notify.testFail': 'Test notification failed',
@@ -691,13 +687,15 @@ export default {
     'settings.notify.unknownNote':
       'The API returned no notification status; the backend may be outdated',
     'settings.notify.backlogValue': 'Records: {count}',
-    'settings.notify.hintDisabled': 'Notifications are off: enable APP_NOTIFY_ENABLED on the backend',
+    'settings.notify.hintDisabled':
+      'Notifications are off: enable APP_NOTIFY_ENABLED on the backend',
     'settings.notify.hintUrlMissing':
       'No webhook URL: configure APP_NOTIFY_WEBHOOK_URL on the backend',
     'settings.notify.hintTest':
       'Send a NOTIFY_TEST event to verify connectivity and signing; the result is written to the audit log',
     'settings.notify.loadFailed': 'Failed to load notification settings. Please try again later',
-    'settings.notify.testFailedMsg': 'Test notification failed. Check the webhook configuration and network',
+    'settings.notify.testFailedMsg':
+      'Test notification failed. Check the webhook configuration and network',
 
     // Admin API errors
     'settings.error.forbidden': 'Your account cannot perform this action (ADMIN required)',

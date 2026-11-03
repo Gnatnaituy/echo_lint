@@ -64,7 +64,11 @@ test('复核进度：默认单人复核，双人复核按已提交人数展示',
 })
 
 test('复核终态：仅最终结论允许 ADMIN 重开', () => {
-  assert.deepEqual(FINAL_REVIEW_STATUSES.sort(), ['COMPLIANT', 'FALSE_POSITIVE', 'VIOLATION_CONFIRMED'])
+  assert.deepEqual(FINAL_REVIEW_STATUSES.sort(), [
+    'COMPLIANT',
+    'FALSE_POSITIVE',
+    'VIOLATION_CONFIRMED'
+  ])
   assert.equal(isFinalReviewStatus('COMPLIANT'), true)
   assert.equal(isFinalReviewStatus('VIOLATION_CONFIRMED'), true)
   assert.equal(isFinalReviewStatus('FALSE_POSITIVE'), true)

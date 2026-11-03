@@ -36,7 +36,10 @@ test('创建队列：名称 / 大小 / 初始 pending / uid 唯一', () => {
 
 test('不可变更新单项：只改目标项', () => {
   const queue = createUploadQueue(files)
-  const next = updateQueueItem(queue, queue[1].uid, { progress: 42, status: UPLOAD_STATUS.UPLOADING })
+  const next = updateQueueItem(queue, queue[1].uid, {
+    progress: 42,
+    status: UPLOAD_STATUS.UPLOADING
+  })
   assert.equal(next[1].progress, 42)
   assert.equal(next[1].status, UPLOAD_STATUS.UPLOADING)
   assert.equal(next[0].status, UPLOAD_STATUS.PENDING)
@@ -95,7 +98,10 @@ test('整体进度：按文件大小加权，大小为 0 时退化为平均值',
   assert.equal(overallProgress(queue), 63)
   assert.equal(overallProgress([]), 0)
 
-  let zeroSize = createUploadQueue([{ name: 'x', size: 0 }, { name: 'y', size: 0 }])
+  let zeroSize = createUploadQueue([
+    { name: 'x', size: 0 },
+    { name: 'y', size: 0 }
+  ])
   zeroSize = updateQueueItem(zeroSize, zeroSize[0].uid, { progress: 100 })
   zeroSize = updateQueueItem(zeroSize, zeroSize[1].uid, { progress: 40 })
   assert.equal(overallProgress(zeroSize), 70)

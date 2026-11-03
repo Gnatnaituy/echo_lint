@@ -28,7 +28,9 @@
             @keyup.enter="applyFilters"
             @clear="applyFilters"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <SegmentedControl
             v-model="indexStatusFilter"
@@ -223,14 +225,14 @@
           <div class="empty-block">
             <el-icon :size="34" class="empty-icon"><Tickets /></el-icon>
             <div class="empty-title">
-              {{ hasFilters
-                ? t('knowledgeIndex.emptyFilteredTitle')
-                : t('knowledgeIndex.emptyTitle') }}
+              {{
+                hasFilters ? t('knowledgeIndex.emptyFilteredTitle') : t('knowledgeIndex.emptyTitle')
+              }}
             </div>
             <div class="tiny dim">
-              {{ hasFilters
-                ? t('knowledgeIndex.emptyFilteredHint')
-                : t('knowledgeIndex.emptyHint') }}
+              {{
+                hasFilters ? t('knowledgeIndex.emptyFilteredHint') : t('knowledgeIndex.emptyHint')
+              }}
             </div>
           </div>
         </template>
@@ -273,7 +275,9 @@
                 {{ chunksDisplayTitle }}
               </div>
               <div class="chunk-chips">
-                <span class="chip" :class="chunksStatusMeta.type">{{ chunksStatusMeta.label }}</span>
+                <span class="chip" :class="chunksStatusMeta.type">{{
+                  chunksStatusMeta.label
+                }}</span>
                 <span class="chip info">
                   {{ t('knowledgeIndex.chunks.totalChunks', { count: chunks.total }) }}
                 </span>
@@ -290,7 +294,9 @@
             </div>
             <div class="index-item">
               <span class="tiny dim">{{ t('knowledgeIndex.chunks.embedding') }}</span>
-              <span class="mono ellipsis" :title="chunksEmbeddingText">{{ chunksEmbeddingText }}</span>
+              <span class="mono ellipsis" :title="chunksEmbeddingText">{{
+                chunksEmbeddingText
+              }}</span>
             </div>
             <div class="index-item">
               <span class="tiny dim">{{ t('knowledge.indexedAt') }}</span>
@@ -306,7 +312,9 @@
           <el-table :data="chunks.items" class="chunk-table">
             <el-table-column type="expand" width="38">
               <template #default="{ row }">
-                <pre class="chunk-content">{{ row.content || t('knowledgeIndex.chunks.emptyContent') }}</pre>
+                <pre class="chunk-content">{{
+                  row.content || t('knowledgeIndex.chunks.emptyContent')
+                }}</pre>
               </template>
             </el-table-column>
             <el-table-column :label="'#'" width="60" align="center">
@@ -316,7 +324,9 @@
             </el-table-column>
             <el-table-column :label="t('knowledgeIndex.chunks.column.content')" min-width="210">
               <template #default="{ row }">
-                <div class="chunk-snippet">{{ row.content || t('knowledgeIndex.chunks.emptyContent') }}</div>
+                <div class="chunk-snippet">
+                  {{ row.content || t('knowledgeIndex.chunks.emptyContent') }}
+                </div>
               </template>
             </el-table-column>
             <el-table-column :label="t('knowledgeIndex.chunks.column.contentHash')" width="132">
@@ -383,6 +393,8 @@ import { knowledgeCategoryMessageKey } from '../utils/knowledge'
 import { embeddingLabel, normalizeKnowledgeChunks, shortHash } from '../utils/knowledgeIndex'
 import { INDEX_STATUS_META, indexStatusMeta, isIndexInProgress } from '../utils/rag'
 import { useI18n } from '../i18n'
+import { nowText as formatNowText } from '../utils/dateRange'
+import { Document, Tickets, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -503,12 +515,6 @@ function indexErrorMessage(err, fallback = t('knowledgeIndex.loadFailed')) {
   return err?.message || fallback
 }
 
-function nowText() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
 function currentParams() {
   return {
     keyword: keyword.value.trim() || undefined,
@@ -548,7 +554,7 @@ async function load(options = {}) {
     total.value = data.total
     error.value = ''
     backgroundError.value = ''
-    lastLoadedAt.value = nowText()
+    lastLoadedAt.value = formatNowText()
     if (!data.items.length && page.value > 0 && data.total > 0) {
       page.value = Math.max(0, Math.ceil(data.total / pageSize) - 1)
       clampPage = true
@@ -628,9 +634,7 @@ async function reindexRow(row) {
   reindexingId.value = row.id
   try {
     await api.reindexKnowledge(row.id)
-    ElMessage.success(
-      t('knowledgeIndex.reindexQueued', { title: row.title || row.id })
-    )
+    ElMessage.success(t('knowledgeIndex.reindexQueued', { title: row.title || row.id }))
     // 后台已排队：静默刷新列表与汇总，等待索引状态推进
     await Promise.all([load({ background: true }), loadSummary()])
   } catch {
@@ -658,8 +662,7 @@ const chunksDisplayTitle = computed(
 )
 const chunksStatusMeta = computed(() => indexStatusMeta(chunks.value.indexStatus))
 const chunksEmbeddingText = computed(
-  () =>
-    embeddingLabel(chunks.value.embeddingModel, chunks.value.embeddingDimensions) || '—'
+  () => embeddingLabel(chunks.value.embeddingModel, chunks.value.embeddingDimensions) || '—'
 )
 
 function rowEmbeddingText(row) {

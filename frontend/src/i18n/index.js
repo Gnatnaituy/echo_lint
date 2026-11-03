@@ -36,7 +36,9 @@ export function detectInitialLocale() {
     if (
       typeof window !== 'undefined' &&
       typeof navigator !== 'undefined' &&
-      String(navigator.language || '').toLowerCase().startsWith('en')
+      String(navigator.language || '')
+        .toLowerCase()
+        .startsWith('en')
     ) {
       return 'en'
     }

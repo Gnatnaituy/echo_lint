@@ -31,7 +31,11 @@
         >
           <el-icon class="nav-icon" :size="16"><component :is="item.icon" /></el-icon>
           <span v-show="showLabels" class="nav-label">{{ t(item.labelKey) }}</span>
-          <span v-if="item.badge && badgeCount > 0" class="nav-badge" :class="{ dotOnly: !showLabels }">
+          <span
+            v-if="item.badge && badgeCount > 0"
+            class="nav-badge"
+            :class="{ dotOnly: !showLabels }"
+          >
             {{ badgeCount > 99 ? '99+' : badgeCount }}
           </span>
         </router-link>
@@ -48,7 +52,7 @@
           :title="t('a11y.toggleSidebar')"
           @click="$emit('toggle')"
         >
-          <el-icon :size="15"><component :is="collapsed ? 'Expand' : 'Fold'" /></el-icon>
+          <el-icon :size="15"><component :is="collapsed ? Expand : Fold" /></el-icon>
         </button>
       </el-tooltip>
     </div>
@@ -59,6 +63,26 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import auth from '../auth'
+import {
+  ChatDotRound,
+  Collection,
+  DataAnalysis,
+  DocumentChecked,
+  Expand,
+  Files,
+  Fold,
+  Headset,
+  Key,
+  List,
+  Monitor,
+  Money,
+  Notebook,
+  Odometer,
+  Operation,
+  Reading,
+  Setting,
+  User
+} from './icons.js'
 import { useI18n } from '../i18n'
 
 const props = defineProps({
@@ -78,34 +102,34 @@ const showLabels = computed(() => (props.overlay ? props.open : !props.collapsed
 
 // 系统设置 / 知识库 / 数据大屏对所有角色可见；成本看板 / 任务队列 / API 密钥 / 用户管理 / 操作审计仅 ADMIN
 const groups = computed(() => {
-  const systemItems = [{ path: '/settings', labelKey: 'nav.settings', icon: 'Setting' }]
+  const systemItems = [{ path: '/settings', labelKey: 'nav.settings', icon: Setting }]
   if (auth.hasRole('ADMIN')) {
     systemItems.push(
-      { path: '/costs', labelKey: 'nav.costs', icon: 'Money' },
-      { path: '/tasks', labelKey: 'nav.tasks', icon: 'Operation' },
-      { path: '/ai-chat', labelKey: 'nav.aiChat', icon: 'ChatDotRound' },
-      { path: '/api-keys', labelKey: 'nav.apiKeys', icon: 'Key' },
-      { path: '/users', labelKey: 'nav.users', icon: 'User' },
-      { path: '/audit', labelKey: 'nav.audit', icon: 'List' }
+      { path: '/costs', labelKey: 'nav.costs', icon: Money },
+      { path: '/tasks', labelKey: 'nav.tasks', icon: Operation },
+      { path: '/ai-chat', labelKey: 'nav.aiChat', icon: ChatDotRound },
+      { path: '/api-keys', labelKey: 'nav.apiKeys', icon: Key },
+      { path: '/users', labelKey: 'nav.users', icon: User },
+      { path: '/audit', labelKey: 'nav.audit', icon: List }
     )
   }
   return [
     {
       titleKey: 'nav.group.auditOps',
       items: [
-        { path: '/', labelKey: 'nav.dashboard', icon: 'Odometer' },
-        { path: '/recordings', labelKey: 'nav.recordings', icon: 'Files' },
-        { path: '/reports', labelKey: 'nav.reports', icon: 'DataAnalysis' },
-        { path: '/review', labelKey: 'nav.review', icon: 'DocumentChecked', badge: true },
-        { path: '/screen', labelKey: 'nav.screen', icon: 'Monitor' }
+        { path: '/', labelKey: 'nav.dashboard', icon: Odometer },
+        { path: '/recordings', labelKey: 'nav.recordings', icon: Files },
+        { path: '/reports', labelKey: 'nav.reports', icon: DataAnalysis },
+        { path: '/review', labelKey: 'nav.review', icon: DocumentChecked, badge: true },
+        { path: '/screen', labelKey: 'nav.screen', icon: Monitor }
       ]
     },
     {
       titleKey: 'nav.group.knowledge',
       items: [
-        { path: '/dictionary', labelKey: 'nav.dictionary', icon: 'Collection' },
-        { path: '/corpus', labelKey: 'nav.corpus', icon: 'Notebook' },
-        { path: '/knowledge', labelKey: 'nav.knowledge', icon: 'Reading' }
+        { path: '/dictionary', labelKey: 'nav.dictionary', icon: Collection },
+        { path: '/corpus', labelKey: 'nav.corpus', icon: Notebook },
+        { path: '/knowledge', labelKey: 'nav.knowledge', icon: Reading }
       ]
     },
     { titleKey: 'nav.group.system', items: systemItems }
@@ -148,7 +172,9 @@ const badgeCount = computed(() => props.badgeCount)
   transform: translateX(-100%);
   visibility: hidden;
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.22s;
 }
 .sidebar.overlay.open {
   transform: translateX(0);
@@ -181,7 +207,7 @@ const badgeCount = computed(() => props.badgeCount)
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 255, 0.72));
 }
 .brand::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 14px;
   right: 14px;
@@ -199,7 +225,9 @@ const badgeCount = computed(() => props.badgeCount)
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 6px 14px rgba(59, 110, 246, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 6px 14px rgba(59, 110, 246, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .brand-text {
   min-width: 0;
@@ -254,7 +282,7 @@ const badgeCount = computed(() => props.badgeCount)
   white-space: nowrap;
 }
 .nav-group::after {
-  content: "";
+  content: '';
   flex: 1;
   height: 1px;
   background: linear-gradient(90deg, #e2e9f4, rgba(226, 233, 244, 0));
@@ -272,7 +300,10 @@ const badgeCount = computed(() => props.badgeCount)
   color: #4a5872;
   font-size: 13.5px;
   font-weight: 500;
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
     box-shadow 0.16s ease;
   white-space: nowrap;
 }
@@ -294,13 +325,15 @@ const badgeCount = computed(() => props.badgeCount)
   border-color: #d8e4ff;
   color: var(--brand-700);
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(59, 110, 246, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 2px 6px rgba(59, 110, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nav-item.active .nav-icon {
   color: var(--brand-600);
 }
 .nav-item.active::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 50%;
@@ -356,7 +389,10 @@ const badgeCount = computed(() => props.badgeCount)
   display: grid;
   place-items: center;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 .collapse-btn:hover {
   background: var(--brand-50);

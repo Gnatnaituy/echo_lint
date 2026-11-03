@@ -32,5 +32,5 @@ export function nextFocusIndex(current, length, step = 1) {
   const total = Number(length)
   if (!Number.isFinite(total) || total <= 0) return -1
   const index = Number.isFinite(Number(current)) ? Math.trunc(Number(current)) : 0
-  return ((index + step) % total + total) % total
+  return (((index + step) % total) + total) % total
 }

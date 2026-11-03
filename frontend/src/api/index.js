@@ -1,40 +1,38 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { t } from '../i18n/index.js'
-import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download'
-import {
-  normalizeNotificationSettings,
-  normalizeNotificationTest
-} from '../utils/notifications'
-import {
-  normalizeProviderTest,
-  normalizeProviders
-} from '../utils/providers'
-import { normalizeAiUsage } from '../utils/aiUsage'
+import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download.js'
+import { normalizeNotificationSettings, normalizeNotificationTest } from '../utils/notifications.js'
+import { normalizeProviderTest, normalizeProviders } from '../utils/providers.js'
+import { normalizeAiUsage } from '../utils/aiUsage.js'
 import {
   normalizeAiInvocationDetail,
   normalizeAiInvocationFacets,
   normalizeAiInvocationPage
-} from '../utils/aiChat'
-import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks'
-import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation'
-import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys'
-import { normalizeKnowledgeEntry, normalizeKnowledgePage } from '../utils/knowledge'
-import { normalizeKnowledgeChunks } from '../utils/knowledgeIndex'
+} from '../utils/aiChat.js'
+import { normalizeRetryResult, normalizeTaskPage } from '../utils/tasks.js'
+import { normalizeEvaluation, normalizeScreenModel } from '../utils/evaluation.js'
+import { normalizeApiKey, normalizeApiKeyList } from '../utils/apiKeys.js'
+import { normalizeKnowledgeEntry, normalizeKnowledgePage } from '../utils/knowledge.js'
+import { normalizeKnowledgeChunks } from '../utils/knowledgeIndex.js'
 import {
   normalizeKnowledgeSearch,
   normalizeRagEvaluation,
   normalizeRagSettings,
   normalizeRagTest,
   normalizeReindexResult
-} from '../utils/rag'
+} from '../utils/rag.js'
 
+// 相对导入显式带 .js：Vite 可省略扩展名，但 node:test 直接 import 本模块时 Node ESM 要求完整路径
 const http = axios.create({
   baseURL: '/api',
   timeout: 120000,
   // 会话认证：JSESSIONID 为 HttpOnly Cookie，由浏览器自动携带（前端不存 token）
   withCredentials: true
 })
+
+// 导出 axios 实例：单测可用自定义 adapter 注入响应，零依赖验证拦截器接线（P3-6）
+export { http }
 
 /** 统一兜底错误文案：跟随当前语言 */
 function genericError() {
@@ -52,9 +50,10 @@ function payloadMessage(data) {
  * 统一错误文案。
  * 下载接口（responseType:'blob'）失败时错误体会被包成 Blob，必须异步读取才能拿到 message，
  * 否则会退化成「[object Blob]」或丢失后端提示。
+ * 导出供单测直接验证 blob 错误体解析（P3-6）。
  */
-async function pickMessage(error) {
-  const data = error.response?.data
+export async function pickMessage(error) {
+  const data = error?.response?.data
   if (typeof Blob !== 'undefined' && data instanceof Blob) {
     try {
       const text = (await data.text()).trim()
@@ -75,20 +74,45 @@ async function pickMessage(error) {
 }
 
 /**
- * 401 统一处理：清理本地登录态并跳转登录页（携带原始地址，登录后回跳）。
- * 动态引入 router / auth，避免 api ←→ router/auth 的循环依赖。
+ * 全局错误提示：无 DOM 环境（node:test / SSR）下静默跳过，避免提示层把请求流程打断。
+ * 浏览器里等价于 ElMessage.error。
  */
-async function handleUnauthorized(error) {
-  const [{ default: auth }, { default: router }] = await Promise.all([
-    import('../auth'),
-    import('../router')
-  ])
+function notifyError(message) {
+  if (!message || typeof document === 'undefined') return
+  try {
+    ElMessage.error(message)
+  } catch {
+    // 提示层异常不应影响错误向上抛出
+  }
+}
+
+/**
+ * 401 处理依赖：默认动态加载 auth / router（避免 api ←→ router/auth 的循环依赖）。
+ * 单测可替换 `load`（如注入内存版 auth/router），生产行为不变。
+ */
+export const unauthorizedDeps = {
+  async load() {
+    const [{ default: auth }, { default: router }] = await Promise.all([
+      import('../auth'),
+      import('../router')
+    ])
+    return { auth, router }
+  }
+}
+
+/**
+ * 401 统一处理：清理本地登录态并跳转登录页（携带原始地址，登录后回跳）。
+ * @param {object} error axios 错误
+ * @param {{load: () => Promise<{auth: object, router: object}>}} [deps] 依赖注入（单测用）
+ */
+export async function handleUnauthorized(error, deps = unauthorizedDeps) {
+  const { auth, router } = await deps.load()
   auth.clear()
-  const current = router.currentRoute.value
+  const current = router.currentRoute?.value || {}
   if (current.path !== '/login') {
     const full = current.fullPath || ''
     const redirect = full && full !== '/' && !full.startsWith('/login') ? full : undefined
-    router.push({ path: '/login', query: redirect ? { redirect } : {} })
+    await router.push({ path: '/login', query: redirect ? { redirect } : {} })
   }
   return Promise.reject(new Error(await pickMessage(error)))
 }
@@ -111,14 +135,14 @@ http.interceptors.response.use(
     }
 
     if (status === 403) {
-      if (!silent) ElMessage.error(t('api.forbidden'))
+      if (!silent) notifyError(t('api.forbidden'))
       const denied = new Error(t('api.forbidden'))
       denied.status = 403
       return Promise.reject(denied)
     }
 
     const msg = await pickMessage(error)
-    if (!silent) ElMessage.error(msg)
+    if (!silent) notifyError(msg)
     const failure = new Error(msg)
     if (status) failure.status = status
     return Promise.reject(failure)
@@ -151,16 +175,28 @@ function param(value) {
 }
 
 /**
- * 下载 CSV：后端成功返回文件流，失败返回 JSON 错误体。
- * 返回 { blob, filename }，由调用方通过 saveBlob 触发浏览器保存（便于页面提示）。
+ * 下载文件（CSV / JSON 等）统一入口（审计 P2-22）：后端成功返回文件流，失败可能返回
+ * JSON 错误体（含 200 + JSON 的错误响应），不能把错误体当文件保存。
+ *
+ * 负责：
+ * - 读取 `Content-Disposition` 的 filename（RFC 5987 中文名兼容）
+ * - 识别 JSON 错误 Blob 并抛出可读 message（经 notifyError 统一提示）
+ * - 返回 { blob, filename }，由调用方 saveBlob 触发浏览器保存（便于按钮 loading / 成功提示）
+ *
+ * @param {string} url 接口路径
+ * @param {{params?: object, fallbackName?: string, jsonAsData?: boolean}} [options]
+ *        jsonAsData=true 表示该接口成功响应本身即 JSON（如语料导出），合法 JSON 数组不视为错误体
  */
-async function requestCsv(url, params, fallbackName) {
+export async function requestBlob(
+  url,
+  { params, fallbackName = 'download.csv', jsonAsData = false } = {}
+) {
   const resp = await http.get(url, { params, responseType: 'blob', rawResponse: true })
   const blob = resp.data
-  const message = await blobErrorMessage(blob)
+  const message = await blobErrorMessage(blob, { jsonAsData })
   if (message) {
-    // 200 + JSON 错误体：不能当 CSV 保存，提示后抛出
-    ElMessage.error(message)
+    // 200 + JSON 错误体：不能当文件保存，提示后抛出
+    notifyError(message)
     throw new Error(message)
   }
   const disposition = resp.headers?.['content-disposition'] || resp.headers?.['Content-Disposition']
@@ -210,17 +246,7 @@ export const api = {
    * GET /api/ai-invocations?stage=&providerId=&model=&success=&recordingId=&from=&to=&page=&size=
    * -> 归一化 {items,total,page,size,totalPages}；列表不含完整提示词。
    */
-  listAiInvocations({
-    page,
-    size,
-    stage,
-    providerId,
-    model,
-    success,
-    recordingId,
-    from,
-    to
-  } = {}) {
+  listAiInvocations({ page, size, stage, providerId, model, success, recordingId, from, to } = {}) {
     return http
       .get('/ai-invocations', {
         params: {
@@ -257,9 +283,11 @@ export const api = {
    * @param {File} file 音频文件
    * @param {{agentName?:string, teamName?:string, callTime?:string, direction?:string, businessLine?:string}} metadata
    *        callTime 为 ISO-8601（如 2026-10-20T09:30:00），空值不发送
-   * @param {{onUploadProgress?:Function}} [options] 批量上传时用于逐文件进度回调
+   * @param {{onUploadProgress?:Function, silent?:boolean}} [options]
+   *        批量上传时逐文件进度回调；silent=true 时由调用方行内展示错误（批量失败汇总一条提示），
+   *        不弹全局错误（审计 P2-33）。旧调用 `upload(file, metadata, {onUploadProgress})` 行为不变。
    */
-  upload(file, metadata = {}, { onUploadProgress } = {}) {
+  upload(file, metadata = {}, { onUploadProgress, silent } = {}) {
     const fd = new FormData()
     fd.append('file', file)
     appendOptional(fd, 'agentName', metadata.agentName)
@@ -267,13 +295,25 @@ export const api = {
     appendOptional(fd, 'callTime', toIsoLocal(metadata.callTime))
     appendOptional(fd, 'direction', metadata.direction)
     appendOptional(fd, 'businessLine', metadata.businessLine)
-    return http.post(
-      '/recordings/upload',
-      fd,
-      typeof onUploadProgress === 'function' ? { onUploadProgress } : undefined
-    )
+    const config = {}
+    if (typeof onUploadProgress === 'function') config.onUploadProgress = onUploadProgress
+    if (silent === true) config.silent = true
+    return http.post('/recordings/upload', fd, Object.keys(config).length ? config : undefined)
   },
-  listRecordings({ statuses, keyword, assignedTo, unassigned, priority, agentName, teamName, direction, from, to, page, size } = {}) {
+  listRecordings({
+    statuses,
+    keyword,
+    assignedTo,
+    unassigned,
+    priority,
+    agentName,
+    teamName,
+    direction,
+    from,
+    to,
+    page,
+    size
+  } = {}) {
     // 列表项透传后端 Summary 字段（含 sampled：DFA 未命中抽样标记），前端不做裁剪
     return http.get('/recordings', {
       params: {
@@ -380,7 +420,9 @@ export const api = {
   },
   /** 导出词库 CSV（ADMIN）；返回 { blob, filename } */
   exportDictionaryCsv() {
-    return requestCsv('/dictionary/export', undefined, `dictionary-${dateStamp()}.csv`)
+    return requestBlob('/dictionary/export', {
+      fallbackName: `dictionary-${dateStamp()}.csv`
+    })
   },
   /** 导入词库 CSV（ADMIN）→ { created, skipped, invalid } */
   importDictionary(file) {
@@ -403,8 +445,12 @@ export const api = {
   deleteCorpus(id) {
     return http.delete(`/corpus/${id}`)
   },
+  /** 导出语料 JSON（登录即可）；返回 { blob, filename }，由调用方 saveBlob（P2-22 统一 blob 工具） */
   exportCorpus() {
-    return http.get('/corpus/export', { responseType: 'blob' })
+    return requestBlob('/corpus/export', {
+      fallbackName: `corpus-${dateStamp()}.json`,
+      jsonAsData: true
+    })
   },
 
   // 统计
@@ -431,13 +477,22 @@ export const api = {
 
   // 报表导出（登录即可）：返回 { blob, filename }，由调用方 saveBlob
   exportRecordingsCsv(params = {}) {
-    return requestCsv('/reports/recordings.csv', csvParams(params), `recordings-${dateStamp()}.csv`)
+    return requestBlob('/reports/recordings.csv', {
+      params: csvParams(params),
+      fallbackName: `recordings-${dateStamp()}.csv`
+    })
   },
   exportViolationsCsv(params = {}) {
-    return requestCsv('/reports/violations.csv', csvParams(params), `violations-${dateStamp()}.csv`)
+    return requestBlob('/reports/violations.csv', {
+      params: csvParams(params),
+      fallbackName: `violations-${dateStamp()}.csv`
+    })
   },
   exportReviewsCsv(params = {}) {
-    return requestCsv('/reports/reviews.csv', csvParams(params), `reviews-${dateStamp()}.csv`)
+    return requestBlob('/reports/reviews.csv', {
+      params: csvParams(params),
+      fallbackName: `reviews-${dateStamp()}.csv`
+    })
   },
 
   // 系统设置：AI 复筛模型（语义复筛 + 敏感词挖掘）
@@ -466,9 +521,7 @@ export const api = {
   // 系统设置：RAG 检索增强（ADMIN）；读 / 测试 / 评测 silent，由设置页卡片展示 403/404 降级
   /** GET /api/settings/rag -> 归一化 {enabled, source, embedding, retrieval, index} */
   getRagSettings() {
-    return http
-      .get('/settings/rag', { silent: true })
-      .then((data) => normalizeRagSettings(data))
+    return http.get('/settings/rag', { silent: true }).then((data) => normalizeRagSettings(data))
   },
   /** PUT /api/settings/rag {enabled, topK, minScore, maxContextChars, corpusExamples} -> 同 GET */
   updateRagSettings(payload) {

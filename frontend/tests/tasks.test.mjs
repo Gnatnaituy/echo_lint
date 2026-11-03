@@ -90,7 +90,10 @@ test('任务：null / 非对象 / 缺字段安全兜底（状态记为 UNKNOWN�
 
 test('任务分页：Spring Page 形状（content/totalElements/number/size/totalPages）', () => {
   const page = normalizeTaskPage({
-    content: [{ id: 1, recordingId: 11, status: 'PENDING' }, { id: 2, recordingId: 12, status: 'FAILED' }],
+    content: [
+      { id: 1, recordingId: 11, status: 'PENDING' },
+      { id: 2, recordingId: 12, status: 'FAILED' }
+    ],
     totalElements: 12,
     totalPages: 2,
     number: 1,
@@ -106,11 +109,7 @@ test('任务分页：Spring Page 形状（content/totalElements/number/size/tota
 
 test('任务分页：裸数组 / items / tasks / data 包装与空响应', () => {
   assert.equal(normalizeTaskPage([{ id: 1 }, { id: 2 }]).total, 2)
-  for (const wrapper of [
-    { items: [{ id: 1 }] },
-    { tasks: [{ id: 1 }] },
-    { data: [{ id: 1 }] }
-  ]) {
+  for (const wrapper of [{ items: [{ id: 1 }] }, { tasks: [{ id: 1 }] }, { data: [{ id: 1 }] }]) {
     const page = normalizeTaskPage(wrapper)
     assert.equal(page.items.length, 1)
     assert.equal(page.total, 1)

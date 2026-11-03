@@ -5,39 +5,125 @@
 import { t, tn } from './i18n/index.js'
 
 export const STATUS_META = {
-  PENDING: { get label() { return t('meta.status.PENDING') }, type: 'info' },
-  TRANSCRIBING: { get label() { return t('meta.status.TRANSCRIBING') }, type: 'warning' },
-  DFA_CHECKING: { get label() { return t('meta.status.DFA_CHECKING') }, type: 'warning' },
-  AI_CHECKING: { get label() { return t('meta.status.AI_CHECKING') }, type: 'warning' },
-  NEEDS_REVIEW: { get label() { return t('meta.status.NEEDS_REVIEW') }, type: 'danger' },
-  COMPLIANT: { get label() { return t('meta.status.COMPLIANT') }, type: 'success' },
-  VIOLATION_CONFIRMED: { get label() { return t('meta.status.VIOLATION_CONFIRMED') }, type: 'danger' },
-  FALSE_POSITIVE: { get label() { return t('meta.status.FALSE_POSITIVE') }, type: 'info' },
-  FAILED: { get label() { return t('meta.status.FAILED') }, type: 'danger' }
+  PENDING: {
+    get label() {
+      return t('meta.status.PENDING')
+    },
+    type: 'info'
+  },
+  TRANSCRIBING: {
+    get label() {
+      return t('meta.status.TRANSCRIBING')
+    },
+    type: 'warning'
+  },
+  DFA_CHECKING: {
+    get label() {
+      return t('meta.status.DFA_CHECKING')
+    },
+    type: 'warning'
+  },
+  AI_CHECKING: {
+    get label() {
+      return t('meta.status.AI_CHECKING')
+    },
+    type: 'warning'
+  },
+  NEEDS_REVIEW: {
+    get label() {
+      return t('meta.status.NEEDS_REVIEW')
+    },
+    type: 'danger'
+  },
+  COMPLIANT: {
+    get label() {
+      return t('meta.status.COMPLIANT')
+    },
+    type: 'success'
+  },
+  VIOLATION_CONFIRMED: {
+    get label() {
+      return t('meta.status.VIOLATION_CONFIRMED')
+    },
+    type: 'danger'
+  },
+  FALSE_POSITIVE: {
+    get label() {
+      return t('meta.status.FALSE_POSITIVE')
+    },
+    type: 'info'
+  },
+  FAILED: {
+    get label() {
+      return t('meta.status.FAILED')
+    },
+    type: 'danger'
+  }
 }
 
 export const PROCESSING_STATUSES = ['PENDING', 'TRANSCRIBING', 'DFA_CHECKING', 'AI_CHECKING']
 
 export const VIOLATION_TYPES = {
-  get INSULT() { return t('meta.violation.INSULT') },
-  get DISCRIMINATION() { return t('meta.violation.DISCRIMINATION') },
-  get THREAT() { return t('meta.violation.THREAT') },
-  get HARASSMENT() { return t('meta.violation.HARASSMENT') },
-  get SEXUAL() { return t('meta.violation.SEXUAL') },
-  get FRAUD() { return t('meta.violation.FRAUD') },
-  get PRIVACY() { return t('meta.violation.PRIVACY') },
-  get OTHER() { return t('meta.violation.OTHER') }
+  get INSULT() {
+    return t('meta.violation.INSULT')
+  },
+  get DISCRIMINATION() {
+    return t('meta.violation.DISCRIMINATION')
+  },
+  get THREAT() {
+    return t('meta.violation.THREAT')
+  },
+  get HARASSMENT() {
+    return t('meta.violation.HARASSMENT')
+  },
+  get SEXUAL() {
+    return t('meta.violation.SEXUAL')
+  },
+  get FRAUD() {
+    return t('meta.violation.FRAUD')
+  },
+  get PRIVACY() {
+    return t('meta.violation.PRIVACY')
+  },
+  get OTHER() {
+    return t('meta.violation.OTHER')
+  }
 }
 
 export const SEVERITY_META = {
-  HIGH: { get label() { return t('meta.severity.HIGH') }, type: 'danger' },
-  MEDIUM: { get label() { return t('meta.severity.MEDIUM') }, type: 'warning' },
-  LOW: { get label() { return t('meta.severity.LOW') }, type: 'info' }
+  HIGH: {
+    get label() {
+      return t('meta.severity.HIGH')
+    },
+    type: 'danger'
+  },
+  MEDIUM: {
+    get label() {
+      return t('meta.severity.MEDIUM')
+    },
+    type: 'warning'
+  },
+  LOW: {
+    get label() {
+      return t('meta.severity.LOW')
+    },
+    type: 'info'
+  }
 }
 
 export const SOURCE_META = {
-  MANUAL: { get label() { return t('meta.source.MANUAL') }, type: 'primary' },
-  MINED: { get label() { return t('meta.source.MINED') }, type: 'warning' }
+  MANUAL: {
+    get label() {
+      return t('meta.source.MANUAL')
+    },
+    type: 'primary'
+  },
+  MINED: {
+    get label() {
+      return t('meta.source.MINED')
+    },
+    type: 'warning'
+  }
 }
 
 /* ==========================================================================
@@ -46,9 +132,24 @@ export const SOURCE_META = {
 
 /** 通话方向：后端枚举 INBOUND/OUTBOUND/UNKNOWN（历史数据缺省 UNKNOWN） */
 export const DIRECTION_META = {
-  INBOUND: { get label() { return t('meta.direction.INBOUND') }, type: 'brand' },
-  OUTBOUND: { get label() { return t('meta.direction.OUTBOUND') }, type: 'warn' },
-  UNKNOWN: { get label() { return t('meta.direction.UNKNOWN') }, type: 'info' }
+  INBOUND: {
+    get label() {
+      return t('meta.direction.INBOUND')
+    },
+    type: 'brand'
+  },
+  OUTBOUND: {
+    get label() {
+      return t('meta.direction.OUTBOUND')
+    },
+    type: 'warn'
+  },
+  UNKNOWN: {
+    get label() {
+      return t('meta.direction.UNKNOWN')
+    },
+    type: 'info'
+  }
 }
 
 /** 下拉选项：label 为 getter（跟随语言），value 保持后端枚举值 */
@@ -80,26 +181,46 @@ export function directionLabel(direction) {
 /** 角色元数据：前端只用于展示与隐藏入口，权限由后端独立校验 */
 export const ROLE_META = {
   ADMIN: {
-    get label() { return t('meta.role.ADMIN') },
-    get short() { return t('meta.roleShort.ADMIN') },
+    get label() {
+      return t('meta.role.ADMIN')
+    },
+    get short() {
+      return t('meta.roleShort.ADMIN')
+    },
     type: 'danger',
-    get description() { return t('meta.roleDescription.ADMIN') }
+    get description() {
+      return t('meta.roleDescription.ADMIN')
+    }
   },
   REVIEWER: {
-    get label() { return t('meta.role.REVIEWER') },
-    get short() { return t('meta.roleShort.REVIEWER') },
+    get label() {
+      return t('meta.role.REVIEWER')
+    },
+    get short() {
+      return t('meta.roleShort.REVIEWER')
+    },
     type: 'warning',
-    get description() { return t('meta.roleDescription.REVIEWER') }
+    get description() {
+      return t('meta.roleDescription.REVIEWER')
+    }
   },
   VIEWER: {
-    get label() { return t('meta.role.VIEWER') },
-    get short() { return t('meta.roleShort.VIEWER') },
+    get label() {
+      return t('meta.role.VIEWER')
+    },
+    get short() {
+      return t('meta.roleShort.VIEWER')
+    },
     type: 'info',
-    get description() { return t('meta.roleDescription.VIEWER') }
+    get description() {
+      return t('meta.roleDescription.VIEWER')
+    }
   }
 }
 
-export const ROLE_OPTIONS = Object.keys(ROLE_META).map((value) => option(value, `meta.role.${value}`))
+export const ROLE_OPTIONS = Object.keys(ROLE_META).map((value) =>
+  option(value, `meta.role.${value}`)
+)
 
 export function roleLabel(role) {
   return ROLE_META[role]?.label || (role ? String(role) : '—')
@@ -107,9 +228,27 @@ export function roleLabel(role) {
 
 /** 复核优先级：后端默认 NORMAL，未知值按 NORMAL 处理 */
 export const PRIORITY_META = {
-  HIGH: { get label() { return t('meta.priority.HIGH') }, type: 'danger', order: 0 },
-  NORMAL: { get label() { return t('meta.priority.NORMAL') }, type: 'primary', order: 1 },
-  LOW: { get label() { return t('meta.priority.LOW') }, type: 'info', order: 2 }
+  HIGH: {
+    get label() {
+      return t('meta.priority.HIGH')
+    },
+    type: 'danger',
+    order: 0
+  },
+  NORMAL: {
+    get label() {
+      return t('meta.priority.NORMAL')
+    },
+    type: 'primary',
+    order: 1
+  },
+  LOW: {
+    get label() {
+      return t('meta.priority.LOW')
+    },
+    type: 'info',
+    order: 2
+  }
 }
 
 export const PRIORITY_OPTIONS = Object.keys(PRIORITY_META)
@@ -142,11 +281,36 @@ export function isSampled(record) {
 
 /** 任务状态：PENDING 排队待执行（含退避等待）/ RUNNING 执行中 / SUCCEEDED 成功 / FAILED 失败等待下次重试 / DEAD 达到最大次数（死信，仅手动重试） */
 export const TASK_STATUS_META = {
-  PENDING: { get label() { return t('meta.taskStatus.PENDING') }, type: 'info' },
-  RUNNING: { get label() { return t('meta.taskStatus.RUNNING') }, type: 'warn' },
-  SUCCEEDED: { get label() { return t('meta.taskStatus.SUCCEEDED') }, type: 'ok' },
-  FAILED: { get label() { return t('meta.taskStatus.FAILED') }, type: 'warn' },
-  DEAD: { get label() { return t('meta.taskStatus.DEAD') }, type: 'danger' }
+  PENDING: {
+    get label() {
+      return t('meta.taskStatus.PENDING')
+    },
+    type: 'info'
+  },
+  RUNNING: {
+    get label() {
+      return t('meta.taskStatus.RUNNING')
+    },
+    type: 'warn'
+  },
+  SUCCEEDED: {
+    get label() {
+      return t('meta.taskStatus.SUCCEEDED')
+    },
+    type: 'ok'
+  },
+  FAILED: {
+    get label() {
+      return t('meta.taskStatus.FAILED')
+    },
+    type: 'warn'
+  },
+  DEAD: {
+    get label() {
+      return t('meta.taskStatus.DEAD')
+    },
+    type: 'danger'
+  }
 }
 
 export const TASK_STATUS_OPTIONS = Object.keys(TASK_STATUS_META).map((value) =>
@@ -180,45 +344,240 @@ export function reviewProgress(record) {
 
 /** 操作审计动作标签 */
 export const AUDIT_ACTION_META = {
-  LOGIN: { get label() { return t('meta.auditAction.LOGIN') }, type: 'primary' },
-  LOGOUT: { get label() { return t('meta.auditAction.LOGOUT') }, type: 'info' },
-  USER_CREATE: { get label() { return t('meta.auditAction.USER_CREATE') }, type: 'success' },
-  USER_UPDATE: { get label() { return t('meta.auditAction.USER_UPDATE') }, type: 'warning' },
-  USER_DISABLE: { get label() { return t('meta.auditAction.USER_DISABLE') }, type: 'danger' },
-  RECORDING_UPLOAD: { get label() { return t('meta.auditAction.RECORDING_UPLOAD') }, type: 'primary' },
-  RECORDING_DELETE: { get label() { return t('meta.auditAction.RECORDING_DELETE') }, type: 'danger' },
-  RECORDING_RETRY: { get label() { return t('meta.auditAction.RECORDING_RETRY') }, type: 'warning' },
-  TASK_RETRY: { get label() { return t('meta.auditAction.TASK_RETRY') }, type: 'warning' },
-  RECORDING_CLAIM: { get label() { return t('meta.auditAction.RECORDING_CLAIM') }, type: 'primary' },
-  RECORDING_ASSIGN: { get label() { return t('meta.auditAction.RECORDING_ASSIGN') }, type: 'primary' },
-  REVIEW_SUBMIT: { get label() { return t('meta.auditAction.REVIEW_SUBMIT') }, type: 'success' },
-  REVIEW_REOPEN: { get label() { return t('meta.auditAction.REVIEW_REOPEN') }, type: 'warning' },
-  DICTIONARY_CREATE: { get label() { return t('meta.auditAction.DICTIONARY_CREATE') }, type: 'success' },
-  DICTIONARY_UPDATE: { get label() { return t('meta.auditAction.DICTIONARY_UPDATE') }, type: 'warning' },
-  DICTIONARY_DELETE: { get label() { return t('meta.auditAction.DICTIONARY_DELETE') }, type: 'danger' },
-  DICTIONARY_IMPORT: { get label() { return t('meta.auditAction.DICTIONARY_IMPORT') }, type: 'success' },
-  DICTIONARY_BULK_UPDATE: { get label() { return t('meta.auditAction.DICTIONARY_BULK_UPDATE') }, type: 'warning' },
-  CORPUS_CREATE: { get label() { return t('meta.auditAction.CORPUS_CREATE') }, type: 'success' },
-  CORPUS_DELETE: { get label() { return t('meta.auditAction.CORPUS_DELETE') }, type: 'danger' },
-  REPORT_EXPORT: { get label() { return t('meta.auditAction.REPORT_EXPORT') }, type: 'primary' },
-  SETTINGS_UPDATE: { get label() { return t('meta.auditAction.SETTINGS_UPDATE') }, type: 'warning' },
-  NOTIFY_TEST: { get label() { return t('meta.auditAction.NOTIFY_TEST') }, type: 'info' },
-  PROVIDER_CREATE: { get label() { return t('meta.auditAction.PROVIDER_CREATE') }, type: 'success' },
-  PROVIDER_UPDATE: { get label() { return t('meta.auditAction.PROVIDER_UPDATE') }, type: 'warning' },
-  PROVIDER_DELETE: { get label() { return t('meta.auditAction.PROVIDER_DELETE') }, type: 'danger' },
-  PROVIDER_TEST: { get label() { return t('meta.auditAction.PROVIDER_TEST') }, type: 'info' },
-  MODEL_EVALUATE: { get label() { return t('meta.auditAction.MODEL_EVALUATE') }, type: 'info' },
-  API_KEY_CREATE: { get label() { return t('meta.auditAction.API_KEY_CREATE') }, type: 'success' },
-  API_KEY_REVOKE: { get label() { return t('meta.auditAction.API_KEY_REVOKE') }, type: 'danger' },
-  OPEN_API_UPLOAD: { get label() { return t('meta.auditAction.OPEN_API_UPLOAD') }, type: 'primary' },
-  KNOWLEDGE_CREATE: { get label() { return t('meta.auditAction.KNOWLEDGE_CREATE') }, type: 'success' },
-  KNOWLEDGE_UPDATE: { get label() { return t('meta.auditAction.KNOWLEDGE_UPDATE') }, type: 'warning' },
-  KNOWLEDGE_DELETE: { get label() { return t('meta.auditAction.KNOWLEDGE_DELETE') }, type: 'danger' },
-  RAG_SETTINGS_UPDATE: { get label() { return t('meta.auditAction.RAG_SETTINGS_UPDATE') }, type: 'warning' },
-  RAG_REINDEX: { get label() { return t('meta.auditAction.RAG_REINDEX') }, type: 'info' },
-  RAG_EVALUATE: { get label() { return t('meta.auditAction.RAG_EVALUATE') }, type: 'info' },
-  RAG_DOCUMENT_IMPORT: { get label() { return t('meta.auditAction.RAG_DOCUMENT_IMPORT') }, type: 'success' },
-  PASSWORD_CHANGE: { get label() { return t('meta.auditAction.PASSWORD_CHANGE') }, type: 'warning' }
+  LOGIN: {
+    get label() {
+      return t('meta.auditAction.LOGIN')
+    },
+    type: 'primary'
+  },
+  LOGOUT: {
+    get label() {
+      return t('meta.auditAction.LOGOUT')
+    },
+    type: 'info'
+  },
+  USER_CREATE: {
+    get label() {
+      return t('meta.auditAction.USER_CREATE')
+    },
+    type: 'success'
+  },
+  USER_UPDATE: {
+    get label() {
+      return t('meta.auditAction.USER_UPDATE')
+    },
+    type: 'warning'
+  },
+  USER_DISABLE: {
+    get label() {
+      return t('meta.auditAction.USER_DISABLE')
+    },
+    type: 'danger'
+  },
+  RECORDING_UPLOAD: {
+    get label() {
+      return t('meta.auditAction.RECORDING_UPLOAD')
+    },
+    type: 'primary'
+  },
+  RECORDING_DELETE: {
+    get label() {
+      return t('meta.auditAction.RECORDING_DELETE')
+    },
+    type: 'danger'
+  },
+  RECORDING_RETRY: {
+    get label() {
+      return t('meta.auditAction.RECORDING_RETRY')
+    },
+    type: 'warning'
+  },
+  TASK_RETRY: {
+    get label() {
+      return t('meta.auditAction.TASK_RETRY')
+    },
+    type: 'warning'
+  },
+  RECORDING_CLAIM: {
+    get label() {
+      return t('meta.auditAction.RECORDING_CLAIM')
+    },
+    type: 'primary'
+  },
+  RECORDING_ASSIGN: {
+    get label() {
+      return t('meta.auditAction.RECORDING_ASSIGN')
+    },
+    type: 'primary'
+  },
+  REVIEW_SUBMIT: {
+    get label() {
+      return t('meta.auditAction.REVIEW_SUBMIT')
+    },
+    type: 'success'
+  },
+  REVIEW_REOPEN: {
+    get label() {
+      return t('meta.auditAction.REVIEW_REOPEN')
+    },
+    type: 'warning'
+  },
+  DICTIONARY_CREATE: {
+    get label() {
+      return t('meta.auditAction.DICTIONARY_CREATE')
+    },
+    type: 'success'
+  },
+  DICTIONARY_UPDATE: {
+    get label() {
+      return t('meta.auditAction.DICTIONARY_UPDATE')
+    },
+    type: 'warning'
+  },
+  DICTIONARY_DELETE: {
+    get label() {
+      return t('meta.auditAction.DICTIONARY_DELETE')
+    },
+    type: 'danger'
+  },
+  DICTIONARY_IMPORT: {
+    get label() {
+      return t('meta.auditAction.DICTIONARY_IMPORT')
+    },
+    type: 'success'
+  },
+  DICTIONARY_BULK_UPDATE: {
+    get label() {
+      return t('meta.auditAction.DICTIONARY_BULK_UPDATE')
+    },
+    type: 'warning'
+  },
+  CORPUS_CREATE: {
+    get label() {
+      return t('meta.auditAction.CORPUS_CREATE')
+    },
+    type: 'success'
+  },
+  CORPUS_DELETE: {
+    get label() {
+      return t('meta.auditAction.CORPUS_DELETE')
+    },
+    type: 'danger'
+  },
+  REPORT_EXPORT: {
+    get label() {
+      return t('meta.auditAction.REPORT_EXPORT')
+    },
+    type: 'primary'
+  },
+  SETTINGS_UPDATE: {
+    get label() {
+      return t('meta.auditAction.SETTINGS_UPDATE')
+    },
+    type: 'warning'
+  },
+  NOTIFY_TEST: {
+    get label() {
+      return t('meta.auditAction.NOTIFY_TEST')
+    },
+    type: 'info'
+  },
+  PROVIDER_CREATE: {
+    get label() {
+      return t('meta.auditAction.PROVIDER_CREATE')
+    },
+    type: 'success'
+  },
+  PROVIDER_UPDATE: {
+    get label() {
+      return t('meta.auditAction.PROVIDER_UPDATE')
+    },
+    type: 'warning'
+  },
+  PROVIDER_DELETE: {
+    get label() {
+      return t('meta.auditAction.PROVIDER_DELETE')
+    },
+    type: 'danger'
+  },
+  PROVIDER_TEST: {
+    get label() {
+      return t('meta.auditAction.PROVIDER_TEST')
+    },
+    type: 'info'
+  },
+  MODEL_EVALUATE: {
+    get label() {
+      return t('meta.auditAction.MODEL_EVALUATE')
+    },
+    type: 'info'
+  },
+  API_KEY_CREATE: {
+    get label() {
+      return t('meta.auditAction.API_KEY_CREATE')
+    },
+    type: 'success'
+  },
+  API_KEY_REVOKE: {
+    get label() {
+      return t('meta.auditAction.API_KEY_REVOKE')
+    },
+    type: 'danger'
+  },
+  OPEN_API_UPLOAD: {
+    get label() {
+      return t('meta.auditAction.OPEN_API_UPLOAD')
+    },
+    type: 'primary'
+  },
+  KNOWLEDGE_CREATE: {
+    get label() {
+      return t('meta.auditAction.KNOWLEDGE_CREATE')
+    },
+    type: 'success'
+  },
+  KNOWLEDGE_UPDATE: {
+    get label() {
+      return t('meta.auditAction.KNOWLEDGE_UPDATE')
+    },
+    type: 'warning'
+  },
+  KNOWLEDGE_DELETE: {
+    get label() {
+      return t('meta.auditAction.KNOWLEDGE_DELETE')
+    },
+    type: 'danger'
+  },
+  RAG_SETTINGS_UPDATE: {
+    get label() {
+      return t('meta.auditAction.RAG_SETTINGS_UPDATE')
+    },
+    type: 'warning'
+  },
+  RAG_REINDEX: {
+    get label() {
+      return t('meta.auditAction.RAG_REINDEX')
+    },
+    type: 'info'
+  },
+  RAG_EVALUATE: {
+    get label() {
+      return t('meta.auditAction.RAG_EVALUATE')
+    },
+    type: 'info'
+  },
+  RAG_DOCUMENT_IMPORT: {
+    get label() {
+      return t('meta.auditAction.RAG_DOCUMENT_IMPORT')
+    },
+    type: 'success'
+  },
+  PASSWORD_CHANGE: {
+    get label() {
+      return t('meta.auditAction.PASSWORD_CHANGE')
+    },
+    type: 'warning'
+  }
 }
 
 export const AUDIT_ACTION_OPTIONS = Object.keys(AUDIT_ACTION_META).map((value) =>
@@ -240,12 +599,29 @@ export function auditActionLabel(action) {
 /** 通知事件元数据：与后端 NotificationService 的事件名一一对应，未知事件回退原始 code */
 export const NOTIFY_EVENT_META = {
   REVIEW_CONFIRMED_VIOLATION: {
-    get label() { return t('meta.notifyEvent.REVIEW_CONFIRMED_VIOLATION') },
+    get label() {
+      return t('meta.notifyEvent.REVIEW_CONFIRMED_VIOLATION')
+    },
     type: 'danger'
   },
-  RECORDING_FAILED: { get label() { return t('meta.notifyEvent.RECORDING_FAILED') }, type: 'warn' },
-  REVIEW_BACKLOG: { get label() { return t('meta.notifyEvent.REVIEW_BACKLOG') }, type: 'warn' },
-  NOTIFY_TEST: { get label() { return t('meta.notifyEvent.NOTIFY_TEST') }, type: 'info' }
+  RECORDING_FAILED: {
+    get label() {
+      return t('meta.notifyEvent.RECORDING_FAILED')
+    },
+    type: 'warn'
+  },
+  REVIEW_BACKLOG: {
+    get label() {
+      return t('meta.notifyEvent.REVIEW_BACKLOG')
+    },
+    type: 'warn'
+  },
+  NOTIFY_TEST: {
+    get label() {
+      return t('meta.notifyEvent.NOTIFY_TEST')
+    },
+    type: 'info'
+  }
 }
 
 export function notifyEventMeta(event) {
@@ -264,13 +640,17 @@ export function formatSmartTime(ts, now = Date.now()) {
   const pad = (n) => String(n).padStart(2, '0')
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   const sameDay = (a, b) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   if (sameDay(d, nowDate)) return t('time.todayWithTime', { time: hm })
   const yesterday = new Date(nowDate)
   yesterday.setDate(yesterday.getDate() - 1)
   if (sameDay(d, yesterday)) return t('time.yesterdayWithTime', { time: hm })
   const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  return d.getFullYear() === nowDate.getFullYear() ? `${md} ${hm}` : `${d.getFullYear()}-${md} ${hm}`
+  return d.getFullYear() === nowDate.getFullYear()
+    ? `${md} ${hm}`
+    : `${d.getFullYear()}-${md} ${hm}`
 }
 
 /** 登录后跳转目标：仅允许站内绝对路径，避免开放重定向 */

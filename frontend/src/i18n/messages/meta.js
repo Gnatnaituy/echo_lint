@@ -204,7 +204,8 @@ export default {
     'meta.roleShort.REVIEWER': 'Review',
     'meta.roleShort.VIEWER': 'Read-only',
     'meta.roleDescription.ADMIN': 'User management, audit log, configuration and reviews',
-    'meta.roleDescription.REVIEWER': 'Upload recordings, claim recordings and submit review results',
+    'meta.roleDescription.REVIEWER':
+      'Upload recordings, claim recordings and submit review results',
     'meta.roleDescription.VIEWER': 'Read-only access, no write operations',
 
     // Review priority

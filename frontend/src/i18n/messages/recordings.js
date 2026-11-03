@@ -287,7 +287,8 @@ export default {
     'recordings.detail.noLogs': 'No processing logs yet',
     'recordings.detail.aiInvocations': 'AI invocation details',
     'recordings.detail.aiInvocationsHint.one': 'Full prompts and raw replies, {count} invocation',
-    'recordings.detail.aiInvocationsHint.other': 'Full prompts and raw replies, {count} invocations',
+    'recordings.detail.aiInvocationsHint.other':
+      'Full prompts and raw replies, {count} invocations',
     'recordings.detail.endpoint': 'Endpoint: ',
     'recordings.detail.requestChars': 'Request {count} chars',
     'recordings.detail.responseChars': 'Reply {count} chars',
@@ -355,8 +356,7 @@ export default {
       'Remaining files canceled (the current file will finish uploading)',
     'recordings.upload.noFilesSelected': 'Select audio files to upload',
     'recordings.upload.noUploadable': 'No uploadable files. Remove files over 25 MB and try again.',
-    'recordings.upload.batchDone':
-      'This batch is finished. Close the dialog or select new files.',
+    'recordings.upload.batchDone': 'This batch is finished. Close the dialog or select new files.',
     'recordings.upload.failed': 'Upload failed',
     'recordings.upload.tooLarge': 'Exceeds 25 MB (Whisper per-file limit)',
     'recordings.upload.unknownFile': 'Unknown file',
@@ -365,7 +365,8 @@ export default {
     'recordings.messages.deleted': 'Deleted',
     'recordings.messages.claimed': 'Claimed. You can process it on the Manual Review page.',
     'recordings.messages.reopened': 'Reopened as pending manual review',
-    'recordings.messages.noAudioSeek': 'This recording has no audio file; the sentence starts at {time}',
+    'recordings.messages.noAudioSeek':
+      'This recording has no audio file; the sentence starts at {time}',
     'recordings.reprocess.triggered': '{action} triggered. Running the pipeline again.',
     'recordings.reprocess.fallbackAction': 'Processing'
   }

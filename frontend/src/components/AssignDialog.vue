@@ -9,7 +9,9 @@
   >
     <div v-if="recording" class="assign-target">
       <el-icon :size="14"><Microphone /></el-icon>
-      <span class="ellipsis">{{ recording.fileName || t('components.assign.recordingFallback', { id: recording.id }) }}</span>
+      <span class="ellipsis">{{
+        recording.fileName || t('components.assign.recordingFallback', { id: recording.id })
+      }}</span>
       <span class="chip mono">#{{ recording.id }}</span>
     </div>
 
@@ -27,7 +29,12 @@
           <el-option
             v-for="u in reviewerOptions"
             :key="u.username"
-            :label="t('components.assign.optionLabel', { name: u.displayName || u.username, username: u.username })"
+            :label="
+              t('components.assign.optionLabel', {
+                name: u.displayName || u.username,
+                username: u.username
+              })
+            "
             :value="u.username"
           />
         </el-select>
@@ -41,7 +48,9 @@
 
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">{{ t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" :disabled="!username" @click="confirm">{{ t('components.assign.submit') }}</el-button>
+      <el-button type="primary" :loading="saving" :disabled="!username" @click="confirm">{{
+        t('components.assign.submit')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -51,6 +60,7 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 import { useI18n } from '../i18n'
+import { Microphone } from './icons.js'
 
 const { t } = useI18n()
 

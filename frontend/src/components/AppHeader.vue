@@ -27,7 +27,9 @@
         @click="$emit('refresh')"
       >
         <span class="dot" :style="{ background: healthy ? '#16a34a' : '#ef4444' }"></span>
-        <span class="ghost-text">{{ healthy ? t('header.serviceOk') : t('header.serviceBad') }}</span>
+        <span class="ghost-text">{{
+          healthy ? t('header.serviceOk') : t('header.serviceBad')
+        }}</span>
         <el-icon :size="12" class="ghost-refresh"><Refresh /></el-icon>
       </button>
 
@@ -74,7 +76,9 @@
           <el-dropdown-menu>
             <el-dropdown-item disabled>
               <div class="menu-user">
-                <div class="menu-name">{{ auth.displayName || auth.username || t('common.unknown') }}</div>
+                <div class="menu-name">
+                  {{ auth.displayName || auth.username || t('common.unknown') }}
+                </div>
                 <div class="menu-sub">{{ auth.username || '—' }} · {{ auth.roleLabel }}</div>
               </div>
             </el-dropdown-item>
@@ -92,7 +96,13 @@
     </div>
 
     <!-- 修改密码 -->
-    <el-dialog v-model="pwdVisible" :title="t('password.title')" width="430px" append-to-body @closed="resetPwd">
+    <el-dialog
+      v-model="pwdVisible"
+      :title="t('password.title')"
+      width="430px"
+      append-to-body
+      @closed="resetPwd"
+    >
       <el-form
         ref="pwdFormRef"
         :model="pwdForm"
@@ -130,7 +140,9 @@
       </el-form>
       <template #footer>
         <el-button @click="pwdVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">{{ t('common.save') }}</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">{{
+          t('common.save')
+        }}</el-button>
       </template>
     </el-dialog>
   </header>
@@ -143,6 +155,7 @@ import { ElMessage } from 'element-plus'
 import auth from '../auth'
 import api from '../api'
 import { useI18n } from '../i18n'
+import { ArrowDown, ArrowRight, Bell, Expand, Lock, Refresh, SwitchButton } from './icons.js'
 
 defineProps({
   title: { type: String, default: '' },
@@ -237,6 +250,10 @@ async function submitPassword() {
     })
     ElMessage.success(t('password.success'))
     pwdVisible.value = false
+    // 改密成功后服务端会让该用户所有会话失效（含当前会话）：主动清理本地登录态并回登录页，
+    // 避免用户停留在「看起来已登录」的界面，直到下一次操作才被 401 踢出。
+    auth.clear()
+    router.replace('/login')
   } catch {
     // 请求层已统一提示（原密码错误 / 403 等）
   } finally {

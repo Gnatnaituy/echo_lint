@@ -62,7 +62,8 @@ export default {
     'components.assign.hint':
       "Once assigned, the recording appears in the reviewer's review queue. Only administrators can assign.",
     'components.assign.submit': 'Assign',
-    'components.assign.usersLoadFailed': 'Failed to load users. Type a username to assign directly.',
+    'components.assign.usersLoadFailed':
+      'Failed to load users. Type a username to assign directly.',
     'components.assign.success': 'Assigned to {name}',
     'components.assign.optionLabel': '{name} ({username})',
 

@@ -13,7 +13,8 @@
             :loading="exporting === job.key"
             :disabled="!!exporting && exporting !== job.key"
             @click="exportCsv(job)"
-          >{{ job.label }}</el-button>
+            >{{ job.label }}</el-button
+          >
         </div>
       </div>
       <div class="panel-body">
@@ -60,7 +61,9 @@
           </div>
         </div>
         <div class="hint tiny">
-          {{ t('reports.hintPrefix') }}<span class="strong">{{ t('reports.hintDateRange') }}</span>{{ t('reports.hintMiddle') }}<span class="strong">{{ t('reports.hintCsvExport') }}</span>{{ t('reports.hintSuffix') }}
+          {{ t('reports.hintPrefix') }}<span class="strong">{{ t('reports.hintDateRange') }}</span
+          >{{ t('reports.hintMiddle') }}<span class="strong">{{ t('reports.hintCsvExport') }}</span
+          >{{ t('reports.hintSuffix') }}
         </div>
       </div>
     </section>
@@ -107,12 +110,16 @@
     <!-- 加载失败：允许原地重试，不打断导出 -->
     <section v-if="error" class="panel">
       <div class="error-block">
-        <div class="error-icon"><el-icon :size="17"><WarningFilled /></el-icon></div>
+        <div class="error-icon">
+          <el-icon :size="17"><WarningFilled /></el-icon>
+        </div>
         <div class="error-text">
           <div class="strong">{{ t('reports.statsLoadFailed') }}</div>
           <div class="tiny dim">{{ error }}</div>
         </div>
-        <el-button size="small" :icon="Refresh" @click="loadStats">{{ t('common.retry') }}</el-button>
+        <el-button size="small" :icon="Refresh" @click="loadStats">{{
+          t('common.retry')
+        }}</el-button>
       </div>
     </section>
 
@@ -144,7 +151,9 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><User /></el-icon>
-              <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noAgentData') }}</div>
+              <div class="empty-title">
+                {{ error ? t('reports.statsUnavailable') : t('reports.noAgentData') }}
+              </div>
               <div class="tiny dim">
                 {{ error ? t('reports.retryHint') : t('reports.noAgentHint') }}
               </div>
@@ -179,7 +188,9 @@
           <template #empty>
             <div class="empty-block">
               <el-icon :size="30" class="empty-icon"><OfficeBuilding /></el-icon>
-              <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noTeamData') }}</div>
+              <div class="empty-title">
+                {{ error ? t('reports.statsUnavailable') : t('reports.noTeamData') }}
+              </div>
               <div class="tiny dim">
                 {{ error ? t('reports.retryHint') : t('reports.noTeamHint') }}
               </div>
@@ -210,7 +221,10 @@
           <template #default="{ row }">
             <div class="bar-row">
               <div class="bar">
-                <div class="bar-fill danger" :style="{ width: barWidth(row.count, violationMax) }"></div>
+                <div
+                  class="bar-fill danger"
+                  :style="{ width: barWidth(row.count, violationMax) }"
+                ></div>
               </div>
               <span class="num tiny dim">{{ pct(row.count, confirmed) }}%</span>
             </div>
@@ -219,7 +233,9 @@
         <template #empty>
           <div class="empty-block">
             <el-icon :size="30" class="empty-icon"><WarningFilled /></el-icon>
-            <div class="empty-title">{{ error ? t('reports.statsUnavailable') : t('reports.noViolationData') }}</div>
+            <div class="empty-title">
+              {{ error ? t('reports.statsUnavailable') : t('reports.noViolationData') }}
+            </div>
             <div class="tiny dim">
               {{ error ? t('reports.retryHint') : t('reports.noViolationHint') }}
             </div>
@@ -239,7 +255,15 @@ import StatCard from '../components/StatCard.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { DIRECTION_OPTIONS, VIOLATION_TYPES } from '../constants'
 import { useI18n } from '../i18n'
+import {
+  dateShortcuts as buildDateShortcuts,
+  defaultRange,
+  rangeText as formatRangeText,
+  statsParams as toStatsParams,
+  toDateParam
+} from '../utils/dateRange'
 import { saveBlob } from '../utils/download'
+import { OfficeBuilding, User, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -256,34 +280,13 @@ const directionOptions = computed(() => [
   ...DIRECTION_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
 ])
 
-function defaultRange() {
-  const today = new Date()
-  const start = new Date()
-  start.setDate(today.getDate() - 29)
-  return [toDateParam(start), toDateParam(today)]
-}
-
-/** 日期参数统一 yyyy-MM-dd（快捷选项可能给 Date） */
-function toDateParam(value) {
-  if (!value) return ''
-  const d = value instanceof Date ? value : new Date(String(value).replace(/\//g, '-'))
-  if (Number.isNaN(d.getTime())) return typeof value === 'string' ? value : ''
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function dayOffset(days) {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-const dateShortcuts = computed(() => [
-  { text: t('reports.last7Days'), value: () => [dayOffset(-6), dayOffset(0)] },
-  { text: t('reports.last30Days'), value: () => [dayOffset(-29), dayOffset(0)] },
-  { text: t('reports.last90Days'), value: () => [dayOffset(-89), dayOffset(0)] }
-])
+const dateShortcuts = computed(() =>
+  buildDateShortcuts({
+    last7Days: t('reports.last7Days'),
+    last30Days: t('reports.last30Days'),
+    last90Days: t('reports.last90Days')
+  })
+)
 
 function resetFilters() {
   dateRange.value = defaultRange()
@@ -335,22 +338,17 @@ const violationRate = computed(() =>
   totalCount.value > 0 ? Math.round((confirmed.value / totalCount.value) * 1000) / 10 : 0
 )
 
-const rangeText = computed(() => {
-  const from = toDateParam(dateRange.value?.[0])
-  const to = toDateParam(dateRange.value?.[1])
-  if (!from && !to) return t('reports.allTime')
-  // 汇总卡副标题空间有限：同年份时省略年份，跨年时保留完整日期
-  if (from && to && from.slice(0, 4) === to.slice(0, 4)) {
-    return `${from.slice(5)} ~ ${to.slice(5)}`
-  }
-  return `${from || t('reports.rangeEarliest')} ~ ${to || t('reports.rangeUntilNow')}`
-})
+// 汇总卡副标题空间有限：同年份时省略年份，跨年时保留完整日期（compact）
+const rangeText = computed(() =>
+  formatRangeText(dateRange.value, {
+    allTime: t('reports.allTime'),
+    earliest: t('reports.rangeEarliest'),
+    untilNow: t('reports.rangeUntilNow'),
+    compact: true
+  })
+)
 
-const statsParams = computed(() => {
-  const from = toDateParam(dateRange.value?.[0])
-  const to = toDateParam(dateRange.value?.[1])
-  return { from: from || undefined, to: to || undefined }
-})
+const statsParams = computed(() => toStatsParams(dateRange.value))
 
 /** topAgents/topTeams：[{name,count}] */
 function normalizeTop(raw) {

@@ -70,7 +70,14 @@ test('通知设置：null / 非对象 / 缺字段全部安全兜底', () => {
 
 test('事件归一化：对象数组 / 去重 / 丢弃空值', () => {
   assert.deepEqual(
-    normalizeEvents([{ event: 'REVIEW_BACKLOG' }, { name: 'NOTIFY_TEST' }, { code: 'X' }, {}, null, '']),
+    normalizeEvents([
+      { event: 'REVIEW_BACKLOG' },
+      { name: 'NOTIFY_TEST' },
+      { code: 'X' },
+      {},
+      null,
+      ''
+    ]),
     ['REVIEW_BACKLOG', 'NOTIFY_TEST', 'X']
   )
   assert.deepEqual(normalizeEvents(undefined), [])

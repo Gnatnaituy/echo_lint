@@ -50,9 +50,7 @@ export function normalizeNotificationSettings(raw) {
     pick(sampling, ['dfaMissRate', 'samplingRate', 'dfaMissSampleRate', 'rate'])
   return {
     enabled: toBoolean(pick(data, ['enabled', 'webhookEnabled'])),
-    urlConfigured: toBoolean(
-      pick(data, ['urlConfigured', 'webhookUrlConfigured', 'urlSet'])
-    ),
+    urlConfigured: toBoolean(pick(data, ['urlConfigured', 'webhookUrlConfigured', 'urlSet'])),
     backlogThreshold: toNumber(
       pick(data, ['backlogThreshold', 'threshold', 'backlogThresholdCount'])
     ),

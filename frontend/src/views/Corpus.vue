@@ -34,7 +34,9 @@
     <!-- 闭环说明 -->
     <section class="panel loop">
       <div class="panel-body loop-body">
-        <div class="loop-icon"><el-icon :size="18"><Refresh /></el-icon></div>
+        <div class="loop-icon">
+          <el-icon :size="18"><Refresh /></el-icon>
+        </div>
         <div class="loop-text">
           <div class="loop-title">{{ t('corpus.loop.title') }}</div>
           <div class="loop-steps">
@@ -43,7 +45,9 @@
             <span class="step"><b>3</b> {{ t('corpus.loop.step3') }}</span>
           </div>
         </div>
-        <el-button :icon="Download" @click="doExport">{{ t('corpus.exportJson') }}</el-button>
+        <el-button :icon="Download" :loading="exporting" @click="doExport">{{
+          t('corpus.exportJson')
+        }}</el-button>
       </div>
     </section>
 
@@ -67,10 +71,20 @@
             @keyup.enter="reload"
             @clear="reload"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
-          <el-button :icon="Refresh" circle @click="reload" :aria-label="t('common.refresh')" :title="t('common.refresh')" />
-          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('corpus.create') }}</el-button>
+          <el-button
+            :icon="Refresh"
+            circle
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+            @click="reload"
+          />
+          <el-button type="primary" :icon="Plus" @click="openCreate">{{
+            t('corpus.create')
+          }}</el-button>
         </div>
       </div>
 
@@ -78,7 +92,11 @@
         <el-table-column :label="t('corpus.table.label')" width="88" align="center">
           <template #default="{ row }">
             <span class="chip" :class="row.label === 'VIOLATION' ? 'danger' : 'ok'">
-              {{ row.label === 'VIOLATION' ? t('meta.evaluationLabel.VIOLATION') : t('meta.evaluationLabel.COMPLIANT') }}
+              {{
+                row.label === 'VIOLATION'
+                  ? t('meta.evaluationLabel.VIOLATION')
+                  : t('meta.evaluationLabel.COMPLIANT')
+              }}
             </span>
           </template>
         </el-table-column>
@@ -99,11 +117,9 @@
         </el-table-column>
         <el-table-column v-if="!compactColumns" :label="t('corpus.table.reason')" min-width="180">
           <template #default="{ row }">
-            <span
-              :class="{ dim: !row.reason }"
-              class="reason-text"
-              :title="row.reason || ''"
-            >{{ row.reason || '—' }}</span>
+            <span :class="{ dim: !row.reason }" class="reason-text" :title="row.reason || ''">{{
+              row.reason || '—'
+            }}</span>
           </template>
         </el-table-column>
         <el-table-column :label="t('corpus.table.source')" width="132" align="center">
@@ -121,7 +137,11 @@
         <el-table-column :label="t('common.actions')" width="78" align="right" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-popconfirm v-if="canDelete" :title="t('corpus.confirmDelete')" @confirm="remove(row)">
+              <el-popconfirm
+                v-if="canDelete"
+                :title="t('corpus.confirmDelete')"
+                @confirm="remove(row)"
+              >
                 <template #reference>
                   <el-button size="small" link type="danger">{{ t('common.delete') }}</el-button>
                 </template>
@@ -144,7 +164,12 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
@@ -158,12 +183,16 @@
               class="seg-item"
               :class="{ on: form.label === 'VIOLATION' }"
               @click="form.label = 'VIOLATION'"
-            >{{ t('corpus.kpi.violation') }}</button>
+            >
+              {{ t('corpus.kpi.violation') }}
+            </button>
             <button
               class="seg-item"
               :class="{ on: form.label === 'COMPLIANT' }"
               @click="form.label = 'COMPLIANT'"
-            >{{ t('corpus.kpi.compliant') }}</button>
+            >
+              {{ t('corpus.kpi.compliant') }}
+            </button>
           </div>
         </el-form-item>
         <el-form-item v-if="form.label === 'VIOLATION'" :label="t('corpus.table.violationType')">
@@ -174,7 +203,9 @@
               class="type-chip"
               :class="{ on: form.violationType === code }"
               @click="form.violationType = code"
-            >{{ label }}</button>
+            >
+              {{ label }}
+            </button>
           </div>
         </el-form-item>
         <el-form-item :label="t('corpus.table.transcript')">
@@ -206,8 +237,10 @@ import auth from '../auth'
 import StatCard from '../components/StatCard.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { VIOLATION_TYPES, formatTimeShort } from '../constants'
+import { saveBlob } from '../utils/download'
 import { useElementWidth } from '../utils/elementWidth'
 import { useI18n } from '../i18n'
+import overviewState from '../state/overview'
 
 const { t } = useI18n()
 
@@ -226,7 +259,9 @@ const pageSize = 10
 const loading = ref(false)
 const labelFilter = ref('')
 const keyword = ref('')
-const overview = ref(null)
+const exporting = ref(false)
+/** 概览走全局单例（与 App 轮询 / 工作台 / 敏感词库共享请求与短缓存） */
+const overview = computed(() => overviewState.data)
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -251,11 +286,15 @@ const stats = computed(() => ({
   compliant: overview.value?.corpus?.compliant ?? 0
 }))
 
-async function loadOverview() {
+/**
+ * 概览统计：新增 / 删除语料后 force 刷新，保证 KPI 立即反映变化；
+ * 挂载时走短缓存，避免与 App 轮询重复请求。
+ */
+async function loadOverview({ force = false } = {}) {
   try {
-    overview.value = await api.overview()
+    await overviewState.load({ force })
   } catch {
-    // 忽略
+    // 概览失败不阻塞列表：KPI 保留上一次成功值
   }
 }
 
@@ -301,7 +340,7 @@ async function save() {
     ElMessage.success(t('corpus.messages.created'))
     dialogVisible.value = false
     reload()
-    loadOverview()
+    loadOverview({ force: true })
   } finally {
     saving.value = false
   }
@@ -311,20 +350,24 @@ async function remove(row) {
   await api.deleteCorpus(row.id)
   ElMessage.success(t('corpus.messages.deleted'))
   load()
-  loadOverview()
+  loadOverview({ force: true })
 }
 
+/**
+ * 导出语料 JSON：与词库 / 报表共用 requestBlob + saveBlob 工具
+ * （识别 Content-Disposition 文件名、200+JSON 错误体、延迟 revoke），按钮期间 loading 防双击。
+ */
 async function doExport() {
+  if (exporting.value) return
+  exporting.value = true
   try {
-    const blob = await api.exportCorpus()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `corpus_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    const { blob, filename } = await api.exportCorpus()
+    saveBlob(blob, filename)
+    ElMessage.success(t('corpus.messages.exported', { filename }))
   } catch {
-    ElMessage.error(t('corpus.messages.exportFailed'))
+    // 请求层 / 接口层已统一提示（含 200+JSON 错误体），保持按钮可重试
+  } finally {
+    exporting.value = false
   }
 }
 

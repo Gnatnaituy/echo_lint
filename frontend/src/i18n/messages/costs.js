@@ -56,7 +56,8 @@ export default {
   },
   en: {
     'costs.title': 'AI Usage & Cost',
-    'costs.subtitle': 'Based on AI invocation logs; costs are estimated from unit prices snapshotted at call time',
+    'costs.subtitle':
+      'Based on AI invocation logs; costs are estimated from unit prices snapshotted at call time',
     'costs.rangeSeparator': 'to',
     'costs.query': 'Search',
     'costs.hint':
@@ -101,7 +102,8 @@ export default {
     'costs.rangeEarliest': 'earliest',
     'costs.rangeUntilNow': 'now',
 
-    'costs.errorForbidden': 'You do not have permission to view the cost dashboard (ADMIN required)',
+    'costs.errorForbidden':
+      'You do not have permission to view the cost dashboard (ADMIN required)',
     'costs.errorEndpointMissing':
       'The backend does not provide the AI usage endpoint yet (HTTP 404). Please verify the backend version.',
     'costs.errorFallback': 'Failed to load statistics. Please try again later.'

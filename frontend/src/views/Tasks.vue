@@ -27,7 +27,9 @@
             @keyup.enter="applyFilters"
             @clear="applyFilters"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <el-button type="primary" :icon="Search" :loading="loading" @click="applyFilters">
             {{ t('tasks.search') }}
@@ -52,14 +54,18 @@
       <div v-if="error" class="error-banner">
         <el-icon><WarningFilled /></el-icon>
         <span>{{ error }}</span>
-        <el-button link type="primary" size="small" @click="load()">{{ t('common.retry') }}</el-button>
+        <el-button link type="primary" size="small" @click="load()">{{
+          t('common.retry')
+        }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="rows">
         <el-table-column :label="t('tasks.recording')" min-width="172">
           <template #default="{ row }">
             <div class="rec-cell">
-              <div class="file-icon"><el-icon><Microphone /></el-icon></div>
+              <div class="file-icon">
+                <el-icon><Microphone /></el-icon>
+              </div>
               <div class="rec-text">
                 <div class="strong ellipsis" :title="row.fileName">
                   {{
@@ -91,17 +97,17 @@
 
         <el-table-column :label="t('tasks.attempts')" width="94" align="center">
           <template #default="{ row }">
-            <span class="num" :class="{ 'attempt-hot': row.attempts > 0 }">{{ taskAttemptsText(row) }}</span>
+            <span class="num" :class="{ 'attempt-hot': row.attempts > 0 }">{{
+              taskAttemptsText(row)
+            }}</span>
           </template>
         </el-table-column>
 
         <el-table-column :label="t('tasks.nextAttempt')" width="176">
           <template #default="{ row }">
-            <span
-              v-if="row.nextAttemptAt"
-              class="num"
-              :title="formatRelative(row.nextAttemptAt)"
-            >{{ formatTime(row.nextAttemptAt) }}</span>
+            <span v-if="row.nextAttemptAt" class="num" :title="formatRelative(row.nextAttemptAt)">{{
+              formatTime(row.nextAttemptAt)
+            }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
@@ -130,7 +136,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column v-if="hasRetryable" :label="t('common.actions')" width="96" align="right" fixed="right">
+        <el-table-column
+          v-if="hasRetryable"
+          :label="t('common.actions')"
+          width="96"
+          align="right"
+          fixed="right"
+        >
           <template #default="{ row }">
             <el-popconfirm
               v-if="isTaskRetryable(row.status) && row.id != null"
@@ -167,7 +179,12 @@
           :total="total"
           :page-size="pageSize"
           :current-page="page + 1"
-          @current-change="(p) => { page = p - 1; load() }"
+          @current-change="
+            (p) => {
+              page = p - 1
+              load()
+            }
+          "
         />
       </div>
     </section>
@@ -188,7 +205,9 @@ import {
   TASK_STATUS_OPTIONS
 } from '../constants'
 import { useI18n } from '../i18n'
+import { nowText as formatNowText } from '../utils/dateRange'
 import { taskAttemptsText } from '../utils/tasks'
+import { Microphone, Operation, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -213,9 +232,7 @@ const statusOptions = computed(() => [
   ...TASK_STATUS_OPTIONS
 ])
 
-const hasFilters = computed(
-  () => !!(statusFilter.value || recordingIdFilter.value.trim())
-)
+const hasFilters = computed(() => !!(statusFilter.value || recordingIdFilter.value.trim()))
 
 /** 当前页有可重试任务时才渲染操作列（成功任务全为「—」，白占一列还把更新时间挤出可视区） */
 const hasRetryable = computed(() =>
@@ -228,12 +245,6 @@ function taskErrorMessage(err, fallback = t('tasks.loadFailed')) {
   if (status === 403) return t('tasks.forbidden')
   if (status === 404) return t('tasks.notAvailable')
   return err?.message || fallback
-}
-
-function nowText() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 function currentParams() {
@@ -272,7 +283,7 @@ async function load(options = {}) {
     total.value = data.total
     error.value = ''
     backgroundError.value = ''
-    lastLoadedAt.value = nowText()
+    lastLoadedAt.value = formatNowText()
   } catch (e) {
     if (background) {
       // 自动刷新失败：保留已加载数据，仅在头部提示，避免每 5 秒清空列表

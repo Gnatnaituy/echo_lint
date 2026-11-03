@@ -107,7 +107,8 @@ export default {
     'review.form.markNormal': '判定正常',
     'review.form.violationType': '违规类型',
     'review.form.commentPlaceholder': '复检说明（将作为语料库的标注理由，留空则沿用 AI 判定理由）',
-    'review.form.sameReviewerWarn': '你已提交过本轮复核，需由另一位复核人再次确认后才能落最终结论。',
+    'review.form.sameReviewerWarn':
+      '你已提交过本轮复核，需由另一位复核人再次确认后才能落最终结论。',
     'review.form.submitConfirmed': '确认违规并回馈语料库',
     'review.form.submitNormal': '判定正常并回馈语料库',
 
@@ -154,7 +155,8 @@ export default {
 
     // Review queue
     'review.queue.title': 'Review queue',
-    'review.queue.hint': 'Recordings enter the queue only when both screening passes flag a violation',
+    'review.queue.hint':
+      'Recordings enter the queue only when both screening passes flag a violation',
     'review.queue.searchPlaceholder': 'Filter by file / transcript',
     'review.queue.searchTitle': 'Press Enter to filter by file name or transcript text',
     'review.queue.emptyFilteredTitle': 'No matching recordings',
@@ -285,7 +287,8 @@ export default {
     'review.messages.noAudioSeek': 'This recording has no audio file; segment starts at {time}',
     'review.messages.claimed': 'Claimed; you can start reviewing',
     'review.messages.readOnlySubmit': 'Read-only accounts cannot submit review results',
-    'review.messages.sameReviewerSubmit': 'You already submitted this round; another reviewer must confirm',
+    'review.messages.sameReviewerSubmit':
+      'You already submitted this round; another reviewer must confirm',
     'review.messages.selectViolationType': 'Please select a violation type',
     'review.messages.submittedPending': 'Review submitted {progress}; awaiting another reviewer',
     'review.messages.confirmedSaved':

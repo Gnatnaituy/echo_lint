@@ -12,32 +12,55 @@ import {
   normalizeViolationDistribution
 } from '../src/utils/screen.js'
 
-test('大屏 KPI：总量 / 今日 / 待复检 / 违规率', () => {
+test('大屏 KPI：总量 / 今日 / 待复检 / 违规率（分子分母同窗口）', () => {
   const metrics = normalizeScreenMetrics(
     {
-      totalUploads: 1200,
+      totalUploads: 5000,
       todayUploads: 34,
-      statusCounts: { NEEDS_REVIEW: 12, COMPLIANT: 1188 }
+      statusCounts: { NEEDS_REVIEW: 12, COMPLIANT: 4988 }
     },
-    { byStatus: { VIOLATION_CONFIRMED: 60 } }
+    { total: 1200, byStatus: { VIOLATION_CONFIRMED: 60 } }
   )
-  assert.equal(metrics.total, 1200)
+  // KPI「录音总量」仍是 overview 全量口径
+  assert.equal(metrics.total, 5000)
   assert.equal(metrics.today, 34)
   assert.equal(metrics.needsReview, 12)
   assert.equal(metrics.confirmed, 60)
+  // 违规率分母必须是同窗口的 report.total（1200），不能被全量 5000 稀释
+  assert.equal(metrics.windowTotal, 1200)
   assert.equal(metrics.violationRate, 60 / 1200)
 })
 
-test('大屏 KPI：overview 缺失时回退 report.total，除零时违规率为 null', () => {
+test('大屏 KPI：违规率只认报表窗口分母；窗口/总量缺失时给 null 而不是错口径', () => {
+  // overview 缺失时 total 回退 report.total
   assert.equal(normalizeScreenMetrics(null, { total: 88 }).total, 88)
-  const zero = normalizeScreenMetrics({ totalUploads: 0 }, { byStatus: { VIOLATION_CONFIRMED: 0 } })
+  // 有 overview 全量、但没有窗口数据：分母不可得 -> null（不拿全量 3000 当分母）
+  const noWindow = normalizeScreenMetrics(
+    { totalUploads: 3000, statusCounts: {} },
+    { byStatus: { VIOLATION_CONFIRMED: 30 } }
+  )
+  assert.equal(noWindow.windowTotal, 0)
+  assert.equal(noWindow.violationRate, null)
+  // 窗口内 0 条：除零保护
+  const zero = normalizeScreenMetrics(
+    { totalUploads: 3000 },
+    { total: 0, byStatus: { VIOLATION_CONFIRMED: 0 } }
+  )
   assert.equal(zero.violationRate, null)
   // needsReview 回退 report.byStatus
   const fallback = normalizeScreenMetrics(null, { total: 10, byStatus: { NEEDS_REVIEW: 3 } })
   assert.equal(fallback.needsReview, 3)
+  assert.equal(fallback.violationRate, 0)
   // 脏数据安全兜底
   const dirty = normalizeScreenMetrics('oops', 'bad')
-  assert.deepEqual(dirty, { total: 0, today: 0, needsReview: 0, confirmed: 0, violationRate: null })
+  assert.deepEqual(dirty, {
+    total: 0,
+    today: 0,
+    needsReview: 0,
+    confirmed: 0,
+    windowTotal: 0,
+    violationRate: null
+  })
 })
 
 test('近 7 日趋势：字段别名 / 过滤空标签 / 非数组', () => {
@@ -66,20 +89,34 @@ test('违规类型分布：数组/对象 map、排序、占比、limit、全零�
       { type: 'OTHER', count: 0 }
     ]
   })
-  assert.deepEqual(rows.map((r) => r.key), ['THREAT', 'INSULT'])
+  assert.deepEqual(
+    rows.map((r) => r.key),
+    ['THREAT', 'INSULT']
+  )
   assert.equal(rows[0].count, 6)
   assert.equal(rows[0].percent, 0.75)
   assert.equal(rows[1].percent, 0.25)
   assert.equal(normalizeViolationDistribution({ byViolationType: [] }).length, 0)
 
   const limited = normalizeViolationDistribution(
-    { byViolationType: [{ label: 'A', count: 1 }, { label: 'B', count: 3 }] },
+    {
+      byViolationType: [
+        { label: 'A', count: 1 },
+        { label: 'B', count: 3 }
+      ]
+    },
     1
   )
-  assert.deepEqual(limited.map((r) => r.label), ['B'])
+  assert.deepEqual(
+    limited.map((r) => r.label),
+    ['B']
+  )
 
   const map = normalizeViolationDistribution({ violationTypes: { INSULT: 1, THREAT: 3 } })
-  assert.deepEqual(map.map((r) => r.key), ['THREAT', 'INSULT'])
+  assert.deepEqual(
+    map.map((r) => r.key),
+    ['THREAT', 'INSULT']
+  )
 })
 
 test('Top 坐席/团队：排序、limit、零值过滤、空值名兜底', () => {

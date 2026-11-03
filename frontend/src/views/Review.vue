@@ -27,7 +27,9 @@
               class="af-btn"
               :class="{ on: assignFilter === opt.key }"
               @click="setAssignFilter(opt.key)"
-            >{{ opt.label }}</button>
+            >
+              {{ opt.label }}
+            </button>
           </div>
         </div>
       </div>
@@ -52,7 +54,9 @@
             @keyup.enter="applyQueueFilters"
             @clear="applyQueueFilters"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
         </div>
         <div class="queue-list">
@@ -69,19 +73,29 @@
               <span class="queue-name ellipsis">{{ r.fileName }}</span>
               <span class="queue-meta">
                 <span class="dot" :style="{ background: priorityDot(r.priority) }"></span>
-                <span class="queue-type">{{ r.aiViolationTypeLabel || t('review.queue.uncategorized') }}</span>
+                <span class="queue-type">{{
+                  r.aiViolationTypeLabel || t('review.queue.uncategorized')
+                }}</span>
                 <span
                   v-if="isSampled(r)"
                   class="queue-sampled"
                   :title="t('review.queue.sampledTitle')"
-                >{{ t('review.badges.sampled') }}</span>
-                <span class="queue-prio" :class="priorityClass(r.priority)">{{ priorityMeta(r.priority).label }}</span>
+                  >{{ t('review.badges.sampled') }}</span
+                >
+                <span class="queue-prio" :class="priorityClass(r.priority)">{{
+                  priorityMeta(r.priority).label
+                }}</span>
                 <span
                   v-if="r.assignedTo"
                   class="queue-assignee"
                   :class="{ me: r.assignedTo === auth.username }"
-                >{{ r.assignedTo === auth.username ? t('review.queue.mine') : r.assignedTo }}</span>
-                <span v-else class="queue-assignee unassigned">{{ t('review.assign.unassigned') }}</span>
+                  >{{
+                    r.assignedTo === auth.username ? t('review.queue.mine') : r.assignedTo
+                  }}</span
+                >
+                <span v-else class="queue-assignee unassigned">{{
+                  t('review.assign.unassigned')
+                }}</span>
                 <span class="queue-time num">{{ formatRelative(r.uploadTime) }}</span>
               </span>
             </span>
@@ -90,17 +104,23 @@
           <div v-if="!pendingRows.length" class="empty-block">
             <el-icon :size="32" class="empty-icon"><CircleCheckFilled /></el-icon>
             <div class="empty-title">
-              {{ hasQueueFilter ? t('review.queue.emptyFilteredTitle') : t('review.queue.emptyTitle') }}
+              {{
+                hasQueueFilter ? t('review.queue.emptyFilteredTitle') : t('review.queue.emptyTitle')
+              }}
             </div>
             <div class="tiny dim">
-              {{ hasQueueFilter ? t('review.queue.emptyFilteredHint') : t('review.queue.emptyHint') }}
+              {{
+                hasQueueFilter ? t('review.queue.emptyFilteredHint') : t('review.queue.emptyHint')
+              }}
             </div>
           </div>
         </div>
 
         <!-- 队列分页：筛选与分页都由服务端完成，翻页结果与「共 N 条」一致 -->
         <div v-if="pendingTotal" class="queue-foot">
-          <span class="queue-total num">{{ t('review.queue.total', { total: pendingTotal }) }}</span>
+          <span class="queue-total num">{{
+            t('review.queue.total', { total: pendingTotal })
+          }}</span>
           <el-pagination
             size="small"
             layout="prev, pager, next"
@@ -115,7 +135,7 @@
       </aside>
 
       <!-- 工作区 -->
-      <section class="panel work" v-loading="detailLoading">
+      <section v-loading="detailLoading" class="panel work">
         <template v-if="current">
           <!-- 头部 -->
           <div class="work-head">
@@ -124,7 +144,9 @@
               <div class="work-chips">
                 <span class="chip mono">#{{ current.id }}</span>
                 <span class="chip">{{ formatDuration(current.durationSeconds) }}</span>
-                <span class="chip danger">{{ t('review.work.dfaHits', { count: current.hitCount }) }}</span>
+                <span class="chip danger">{{
+                  t('review.work.dfaHits', { count: current.hitCount })
+                }}</span>
                 <span v-if="aiResult?.violationTypeLabel" class="chip warn">
                   {{ t('review.work.aiType', { type: aiResult.violationTypeLabel }) }}
                 </span>
@@ -132,14 +154,17 @@
                   v-if="isSampled(current)"
                   class="chip warn"
                   :title="t('review.work.sampledTitle')"
-                >{{ t('review.badges.sampled') }}</span>
+                  >{{ t('review.badges.sampled') }}</span
+                >
                 <PriorityTag :priority="current.priority" />
                 <span class="chip" :class="{ brand: current.assignedTo === auth.username }">
-                  {{ current.assignedTo
-                    ? (current.assignedTo === auth.username
-                      ? t('review.assign.assignedToMe')
-                      : t('review.assign.assignedTo', { name: current.assignedTo }))
-                    : t('review.assign.unassigned') }}
+                  {{
+                    current.assignedTo
+                      ? current.assignedTo === auth.username
+                        ? t('review.assign.assignedToMe')
+                        : t('review.assign.assignedTo', { name: current.assignedTo })
+                      : t('review.assign.unassigned')
+                  }}
                 </span>
                 <span v-if="progress.required > 1" class="chip info">
                   {{ t('review.work.reviewProgress', { progress: progress.text }) }}
@@ -154,12 +179,14 @@
                 :icon="Flag"
                 :loading="claiming"
                 @click="claimCurrent"
-              >{{ t('review.actions.claim') }}</el-button>
+                >{{ t('review.actions.claim') }}</el-button
+              >
               <el-button v-if="canAssign" :icon="User" @click="assignVisible = true">
                 {{ t('review.actions.assign') }}
               </el-button>
               <el-button :icon="Right" @click="autoNext">
-                {{ t('review.actions.next') }}<template v-if="remaining > 0">{{
+                {{ t('review.actions.next')
+                }}<template v-if="remaining > 0">{{
                   t('review.actions.nextRemaining', { count: remaining })
                 }}</template>
               </el-button>
@@ -168,8 +195,15 @@
 
           <!-- 已出结论 -->
           <div v-if="alreadyReviewed" class="reviewed">
-            <el-icon :size="38" :class="current.reviewResult === 'CONFIRMED_VIOLATION' ? 'icon-bad' : 'icon-ok'">
-              <component :is="current.reviewResult === 'CONFIRMED_VIOLATION' ? 'WarningFilled' : 'CircleCheckFilled'" />
+            <el-icon
+              :size="38"
+              :class="current.reviewResult === 'CONFIRMED_VIOLATION' ? 'icon-bad' : 'icon-ok'"
+            >
+              <component
+                :is="
+                  current.reviewResult === 'CONFIRMED_VIOLATION' ? WarningFilled : CircleCheckFilled
+                "
+              />
             </el-icon>
             <div class="reviewed-title">
               {{
@@ -185,7 +219,9 @@
                   : t('review.reviewed.falsePositiveSub')
               }}
             </div>
-            <el-button type="primary" @click="autoNext">{{ t('review.actions.processNext') }}</el-button>
+            <el-button type="primary" @click="autoNext">{{
+              t('review.actions.processNext')
+            }}</el-button>
           </div>
 
           <!-- 已提交复核，等待下一位复核人（双人复核进度未满） -->
@@ -202,169 +238,22 @@
                 })
               }}
             </div>
-            <el-button type="primary" @click="autoNext">{{ t('review.actions.processNext') }}</el-button>
+            <el-button type="primary" @click="autoNext">{{
+              t('review.actions.processNext')
+            }}</el-button>
           </div>
 
           <template v-else>
-            <div class="player-row">
-              <AudioPlayer
-                v-if="current.filePath"
-                ref="playerRef"
-                :src="audioSrc"
-                :fallback-duration="current.durationSeconds || totalDuration"
-                @time-update="onTimeUpdate"
-              />
-              <div v-else class="no-audio tiny dim">{{ t('review.player.noAudio') }}</div>
-
-              <!-- 分声道试听：双轨录音可单独听坐席 / 客户 -->
-              <div v-if="channelFiles" class="channel-switch">
-                <button
-                  v-for="opt in channelOptions"
-                  :key="opt.key"
-                  class="ch-btn"
-                  :class="{ on: audioChannel === opt.key }"
-                  @click="switchChannel(opt.key)"
-                >
-                  <span v-if="opt.badge" class="ch-badge sm" :class="opt.key === 'R' ? 'r' : 'l'">{{ opt.badge }}</span>
-                  {{ opt.label }}
-                </button>
-              </div>
-            </div>
-
-            <div class="work-grid">
-              <!-- 左：转写（双栏对话 / 逐句 / 全文） -->
-              <div class="work-col">
-                <div class="block-head">
-                  <div class="seg-toggle">
-                    <button
-                      v-if="dialogueAvailable"
-                      class="seg-btn"
-                      :class="{ on: transcriptMode === 'dialogue' }"
-                      @click="transcriptMode = 'dialogue'"
-                    >
-                      <el-icon :size="12"><Connection /></el-icon>
-                      {{ t('review.transcript.dialogue') }}
-                    </button>
-                    <button
-                      class="seg-btn"
-                      :class="{ on: transcriptMode === 'segment' }"
-                      @click="transcriptMode = 'segment'"
-                    >
-                      <el-icon :size="12"><Tickets /></el-icon>
-                      {{ t('review.transcript.segment') }}
-                    </button>
-                    <button
-                      class="seg-btn"
-                      :class="{ on: transcriptMode === 'full' }"
-                      @click="transcriptMode = 'full'"
-                    >
-                      <el-icon :size="12"><Document /></el-icon>
-                      {{ t('review.transcript.full') }}
-                    </button>
-                  </div>
-                  <label v-if="transcriptMode !== 'full'" class="follow">
-                    <el-switch v-model="follow" size="small" />
-                    <span class="tiny dim">{{ t('review.transcript.follow') }}</span>
-                  </label>
-                </div>
-
-                <div class="transcript-scroll">
-                  <SegmentTranscript
-                    v-if="transcriptMode !== 'full'"
-                    :text="current.transcript || ''"
-                    :segments="segments"
-                    :hits="dfaHits"
-                    :target-sentence="aiResult?.targetSentence"
-                    :current-time="currentTime"
-                    :follow="follow"
-                    :layout="transcriptMode === 'dialogue' ? 'dialogue' : 'single'"
-                    @seek="seekTo"
-                  />
-                  <TranscriptViewer
-                    v-else
-                    :text="current.transcript || t('review.transcript.empty')"
-                    :hits="dfaHits"
-                    :target-sentence="aiResult?.targetSentence"
-                  />
-                </div>
-              </div>
-
-              <!-- 右：AI 判断 + 结论 -->
-              <div class="work-col side">
-                <div class="verdict" :class="aiResult?.violation ? 'bad' : 'ok'">
-                  <div class="verdict-head">
-                    <span class="verdict-badge">
-                      <el-icon :size="14">
-                        <component :is="aiResult?.violation ? 'WarningFilled' : 'CircleCheckFilled'" />
-                      </el-icon>
-                      {{
-                        t('review.ai.verdict', {
-                          result: aiResult?.violation
-                            ? t('review.ai.judgedViolation')
-                            : t('review.ai.judgedNormal')
-                        })
-                      }}
-                    </span>
-                    <span v-if="aiResult?.violationTypeLabel" class="chip warn">{{ aiResult.violationTypeLabel }}</span>
-                    <span class="conf">
-                      <span class="tiny dim">{{ t('review.ai.confidence') }}</span>
-                      <b class="num">{{ aiResult?.confidence != null ? Math.round(aiResult.confidence * 100) + '%' : '—' }}</b>
-                    </span>
-                  </div>
-                  <div class="conf-track">
-                    <div
-                      class="conf-fill"
-                      :class="aiResult?.violation ? 'bad' : 'ok'"
-                      :style="{ width: (aiResult?.confidence || 0) * 100 + '%' }"
-                    ></div>
-                  </div>
-                  <div class="verdict-reason">{{ aiResult?.reason || t('review.ai.noReason') }}</div>
-                  <div v-if="aiResult?.screenModel" class="verdict-model tiny">
-                    <span class="dim">{{ t('review.ai.model') }}</span>
-                    <span class="mono">
-                      {{ aiResult.screenProviderLabel || aiResult.screenProvider }} · {{ aiResult.screenModel }}
-                    </span>
-                    <span v-if="aiResult.degraded" class="chip warn">{{ t('review.ai.degraded') }}</span>
-                  </div>
-
-                  <!-- AI 调用留痕：点开看完整提示词与模型原始回复 -->
-                  <el-collapse v-if="aiInvocations.length" class="ai-collapse">
-                    <el-collapse-item :name="0">
-                      <template #title>
-                        <span class="ai-toggle tiny">
-                          {{ t('review.ai.invocations', { count: aiInvocations.length }) }}
-                        </span>
-                      </template>
-                      <div v-for="inv in aiInvocations" :key="inv.id" class="ai-inv">
-                        <div class="ai-inv-head tiny">
-                          <span class="chip" :class="inv.stage === 'MINING' ? 'info' : 'brand'">
-                            {{ inv.stage === 'MINING' ? t('meta.aiStage.MINING') : t('meta.aiStage.SCREEN') }}
-                          </span>
-                          <span class="mono">{{ inv.providerLabel }} · {{ inv.model }}</span>
-                          <span v-if="!inv.success" class="chip danger">{{ t('common.failed') }}</span>
-                          <span class="spacer"></span>
-                          <span class="num dim">{{ inv.latencyMs }}ms</span>
-                        </div>
-                        <div v-for="(m, i) in messagesOf(inv)" :key="i" class="ai-part">
-                          <div class="ai-part-head tiny">
-                            <span class="ai-role" :class="m.role">
-                              {{ m.role === 'system' ? t('meta.aiRole.SYSTEM') : t('meta.aiRole.USER') }}
-                            </span>
-                          </div>
-                          <pre class="ai-raw">{{ m.content }}</pre>
-                        </div>
-                        <div class="ai-part">
-                          <div class="ai-part-head tiny">
-                            <span class="ai-role reply">{{ t('meta.aiRole.ASSISTANT') }}</span>
-                          </div>
-                          <pre v-if="inv.responseJson" class="ai-raw reply">{{ prettyJson(inv.responseJson) }}</pre>
-                          <pre v-else class="ai-raw error">{{ inv.errorMessage || t('review.ai.noResponse') }}</pre>
-                        </div>
-                      </div>
-                    </el-collapse-item>
-                  </el-collapse>
-                </div>
-
+            <!-- 详情工作台（播放 / 声道 / 转写 / AI 结论 / AI 留痕）：与录音管理页共用组件 -->
+            <RecordingWorkspace
+              ref="workspaceRef"
+              split
+              :record="current"
+              :ai-invocations="aiInvocations"
+              :admin="isAdmin"
+              :labels="workspaceLabels"
+            >
+              <template #side>
                 <!-- 复核工作流：进度 / 权限提示 / 复核历史 -->
                 <div class="workflow">
                   <div class="block-head">
@@ -373,9 +262,9 @@
                       {{
                         progress.required > 1
                           ? t('review.progress.multi', {
-                            required: progress.required,
-                            count: progress.count
-                          })
+                              required: progress.required,
+                              count: progress.count
+                            })
                           : t('review.progress.single')
                       }}
                     </span>
@@ -412,7 +301,12 @@
                     type="info"
                     :closable="false"
                     show-icon
-                    :title="t('review.alerts.pendingNext', { count: progress.count, required: progress.required })"
+                    :title="
+                      t('review.alerts.pendingNext', {
+                        count: progress.count,
+                        required: progress.required
+                      })
+                    "
                     class="wf-alert"
                   />
 
@@ -425,7 +319,9 @@
                     }}</span>
                   </div>
                   <div v-if="reviewHistoryLoading" class="tiny dim">{{ t('common.loading') }}</div>
-                  <div v-else-if="!reviewHistory.length" class="tiny dim">{{ t('review.history.empty') }}</div>
+                  <div v-else-if="!reviewHistory.length" class="tiny dim">
+                    {{ t('review.history.empty') }}
+                  </div>
                   <el-timeline v-else class="review-timeline">
                     <el-timeline-item
                       v-for="(h, i) in reviewHistory"
@@ -436,10 +332,15 @@
                     >
                       <div class="rh-line">
                         <span class="strong">{{ h.reviewerUsername || '—' }}</span>
-                        <span class="chip" :class="h.result === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-                          {{ h.result === 'CONFIRMED_VIOLATION'
-                            ? t('review.result.confirmed')
-                            : t('review.result.normal') }}
+                        <span
+                          class="chip"
+                          :class="h.result === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
+                        >
+                          {{
+                            h.result === 'CONFIRMED_VIOLATION'
+                              ? t('review.result.confirmed')
+                              : t('review.result.normal')
+                          }}
                         </span>
                         <span v-if="h.violationType" class="chip warn">
                           {{ VIOLATION_TYPES[h.violationType] || h.violationType }}
@@ -462,7 +363,10 @@
                   <div class="verdict-choice">
                     <button
                       class="choice"
-                      :class="{ on: form.result === 'CONFIRMED_VIOLATION', bad: form.result === 'CONFIRMED_VIOLATION' }"
+                      :class="{
+                        on: form.result === 'CONFIRMED_VIOLATION',
+                        bad: form.result === 'CONFIRMED_VIOLATION'
+                      }"
                       @click="form.result = 'CONFIRMED_VIOLATION'"
                     >
                       <el-icon :size="15"><WarningFilled /></el-icon>
@@ -470,7 +374,10 @@
                     </button>
                     <button
                       class="choice"
-                      :class="{ on: form.result === 'FALSE_POSITIVE', ok: form.result === 'FALSE_POSITIVE' }"
+                      :class="{
+                        on: form.result === 'FALSE_POSITIVE',
+                        ok: form.result === 'FALSE_POSITIVE'
+                      }"
                       @click="form.result = 'FALSE_POSITIVE'"
                     >
                       <el-icon :size="15"><CircleCheckFilled /></el-icon>
@@ -511,7 +418,7 @@
                     type="primary"
                     class="submit"
                     :loading="submitting"
-                    :disabled="sameReviewerBlocked"
+                    :disabled="sameReviewerBlocked || submitting || detailLoading"
                     @click="submit"
                   >
                     {{
@@ -521,8 +428,8 @@
                     }}
                   </el-button>
                 </div>
-              </div>
-            </div>
+              </template>
+            </RecordingWorkspace>
           </template>
         </template>
 
@@ -536,11 +443,13 @@
 
     <!-- 已复检 -->
     <section v-show="tab === 'history'" class="panel">
-      <el-table :data="historyRows" v-loading="historyLoading" scrollbar-always-on>
+      <el-table v-loading="historyLoading" :data="historyRows" scrollbar-always-on>
         <el-table-column :label="t('review.table.recording')" min-width="240">
           <template #default="{ row }">
             <div class="file-cell">
-              <div class="file-icon"><el-icon><Microphone /></el-icon></div>
+              <div class="file-icon">
+                <el-icon><Microphone /></el-icon>
+              </div>
               <div class="min-w-0">
                 <div class="ellipsis strong">{{ row.fileName }}</div>
                 <div class="tiny dim mono">#{{ row.id }}</div>
@@ -550,16 +459,23 @@
         </el-table-column>
         <el-table-column :label="t('review.table.result')" width="118" align="center">
           <template #default="{ row }">
-            <span class="chip" :class="row.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-              {{ row.reviewResult === 'CONFIRMED_VIOLATION'
-                ? t('review.result.confirmed')
-                : t('review.result.falsePositive') }}
+            <span
+              class="chip"
+              :class="row.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
+            >
+              {{
+                row.reviewResult === 'CONFIRMED_VIOLATION'
+                  ? t('review.result.confirmed')
+                  : t('review.result.falsePositive')
+              }}
             </span>
           </template>
         </el-table-column>
         <el-table-column :label="t('common.type')" width="112" align="center">
           <template #default="{ row }">
-            <span v-if="row.violationTypeLabel" class="chip warn">{{ row.violationTypeLabel }}</span>
+            <span v-if="row.violationTypeLabel" class="chip warn">{{
+              row.violationTypeLabel
+            }}</span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
@@ -573,7 +489,12 @@
             <span :class="{ dim: !row.reviewComment }">{{ row.reviewComment || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reviewer" :label="t('review.table.reviewer')" width="100" align="center" />
+        <el-table-column
+          prop="reviewer"
+          :label="t('review.table.reviewer')"
+          width="100"
+          align="center"
+        />
         <el-table-column :label="t('review.table.reviewedAt')" width="160">
           <template #default="{ row }">
             <span class="num dim">{{ formatTime(row.reviewTime) }}</span>
@@ -599,35 +520,58 @@
           :total="historyTotal"
           :page-size="historyPageSize"
           :current-page="historyPage + 1"
-          @current-change="(p) => { historyPage = p - 1; loadHistory() }"
+          @current-change="
+            (p) => {
+              historyPage = p - 1
+              loadHistory()
+            }
+          "
         />
       </div>
     </section>
 
     <!-- 历史详情 -->
-    <el-drawer v-model="historyVisible" size="700px" :with-header="false" append-to-body>
+    <el-drawer
+      v-model="historyVisible"
+      :title="t('review.history.title')"
+      size="700px"
+      :with-header="false"
+      append-to-body
+    >
       <template v-if="historyDetail">
         <div class="work-head">
           <div class="min-w-0">
             <div class="work-name ellipsis">{{ historyDetail.fileName }}</div>
             <div class="work-chips">
-              <span class="chip" :class="historyDetail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'">
-                {{ historyDetail.reviewResult === 'CONFIRMED_VIOLATION'
-                  ? t('review.result.confirmed')
-                  : t('review.result.falsePositive') }}
+              <span
+                class="chip"
+                :class="historyDetail.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
+              >
+                {{
+                  historyDetail.reviewResult === 'CONFIRMED_VIOLATION'
+                    ? t('review.result.confirmed')
+                    : t('review.result.falsePositive')
+                }}
               </span>
-              <span v-if="historyDetail.violationTypeLabel" class="chip warn">{{ historyDetail.violationTypeLabel }}</span>
-              <span v-if="isSampled(historyDetail)" class="chip warn">{{ t('review.badges.sampled') }}</span>
-              <span class="chip">{{ historyDetail.reviewer || '—' }} · {{ formatTime(historyDetail.reviewTime) }}</span>
+              <span v-if="historyDetail.violationTypeLabel" class="chip warn">{{
+                historyDetail.violationTypeLabel
+              }}</span>
+              <span v-if="isSampled(historyDetail)" class="chip warn">{{
+                t('review.badges.sampled')
+              }}</span>
+              <span class="chip"
+                >{{ historyDetail.reviewer || '—' }} ·
+                {{ formatTime(historyDetail.reviewTime) }}</span
+              >
             </div>
           </div>
           <el-button
             :icon="Close"
             circle
             size="small"
-            @click="historyVisible = false"
             :aria-label="t('common.close')"
             :title="t('common.close')"
+            @click="historyVisible = false"
           />
         </div>
         <div v-if="historyDetail.reviewComment" class="comment-block">
@@ -647,17 +591,16 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../i18n'
+import { parseJson } from '../composables/useRecordingDetail'
 import { ElMessage } from 'element-plus'
 import { Search, Right, Close, Flag, User } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import AssignDialog from '../components/AssignDialog.vue'
-import AudioPlayer from '../components/AudioPlayer.vue'
+import RecordingWorkspace from '../components/RecordingWorkspace.vue'
 import PriorityTag from '../components/PriorityTag.vue'
 import TranscriptViewer from '../components/TranscriptViewer.vue'
-import SegmentTranscript from '../components/SegmentTranscript.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
-import { formatClock } from '../utils/segments'
 import {
   QUEUE_PAGE_SIZE,
   queueGlobalIndex,
@@ -675,12 +618,46 @@ import {
   PRIORITY_OPTIONS,
   reviewProgress,
   isSampled,
-  VIOLATION_TYPES,
-  PROCESSING_STATUSES
+  VIOLATION_TYPES
 } from '../constants'
+import {
+  CircleCheckFilled,
+  Clock,
+  DocumentChecked,
+  InfoFilled,
+  Microphone,
+  View,
+  WarningFilled
+} from '../components/icons.js'
 
 const route = useRoute()
 const { t, tn } = useI18n()
+
+/* 详情工作台文案：按 review.* 域名组装，传给共享的 RecordingWorkspace */
+const workspaceLabels = computed(() => ({
+  channelMix: t('review.channels.mix'),
+  channelLeft: t('review.channels.left'),
+  channelRight: t('review.channels.right'),
+  noAudio: t('review.player.noAudio'),
+  noAudioSeek: (clock) => t('review.messages.noAudioSeek', { time: clock }),
+  dialogue: t('review.transcript.dialogue'),
+  segment: t('review.transcript.segment'),
+  full: t('review.transcript.full'),
+  follow: t('review.transcript.follow'),
+  emptyTranscript: t('review.transcript.empty'),
+  verdictViolation: t('review.ai.verdict', { result: t('review.ai.judgedViolation') }),
+  verdictCompliant: t('review.ai.verdict', { result: t('review.ai.judgedNormal') }),
+  confidence: t('review.ai.confidence'),
+  modelLabel: t('review.ai.model'),
+  degraded: t('review.ai.degraded'),
+  reasonFallback: t('review.ai.noReason'),
+  tracesCount: (count) => t('review.ai.invocations', { count }),
+  stageLabel: (stage) => (stage === 'MINING' ? t('meta.aiStage.MINING') : t('meta.aiStage.SCREEN')),
+  noReply: t('review.ai.noResponse')
+}))
+
+/** 工作台暂停/跳转入口（抽屉关闭或页面卸载时确保停止试听） */
+const workspaceRef = ref(null)
 
 const tab = ref('pending')
 const pendingRows = ref([])
@@ -726,45 +703,10 @@ const historyLoading = ref(false)
 const historyVisible = ref(false)
 const historyDetail = ref(null)
 
-// 音画联动
-const playerRef = ref(null)
-const currentTime = ref(0)
-const follow = ref(true)
-const transcriptMode = ref('segment')
-/** mix | L | R：双轨录音可分声道试听 */
-const audioChannel = ref('mix')
-const modeInitialized = ref(false)
-
-const channelFiles = computed(() => parseJson(current.value?.channelFilesJson, null))
-const dialogueAvailable = computed(() => segments.value.some((s) => s?.channel))
-
-const channelOptions = computed(() => {
-  const files = channelFiles.value || {}
-  const leftName = segments.value.find((s) => s?.channel === 'L')?.speaker || t('review.channels.left')
-  const rightName = segments.value.find((s) => s?.channel === 'R')?.speaker || t('review.channels.right')
-  return [
-    { key: 'mix', label: t('review.channels.mix'), badge: '' },
-    { key: 'L', label: files.L ? leftName : t('review.channels.left'), badge: 'L' },
-    { key: 'R', label: files.R ? rightName : t('review.channels.right'), badge: 'R' }
-  ]
-})
-
-/** 播放源：默认混合声道，可切到单独声道 */
-const audioSrc = computed(() => {
-  const files = channelFiles.value
-  if (files && audioChannel.value !== 'mix' && files[audioChannel.value]) {
-    return `/uploads/${files[audioChannel.value]}`
-  }
-  return current.value?.filePath ? `/uploads/${current.value.filePath}` : ''
-})
-
-function switchChannel(key) {
-  if (audioChannel.value === key) return
-  audioChannel.value = key
-  currentTime.value = 0
-}
-
 /** 队列筛选是否生效：决定空态文案（没有匹配 vs 队列已清空） */
+const aiResult = computed(() => parseJson(current.value?.aiResultJson, null))
+const historyHits = computed(() => parseJson(historyDetail.value?.dfaHitsJson, []))
+
 const hasQueueFilter = computed(() =>
   queueHasFilter({
     keyword: queueKeyword.value,
@@ -824,55 +766,6 @@ function queueTooltip(r) {
   if (isSampled(r)) lines.push(t('review.queue.sampledTooltip'))
   if (r.transcriptSnippet) lines.push(r.transcriptSnippet)
   return lines.join('\n')
-}
-
-const dfaHits = computed(() => parseJson(current.value?.dfaHitsJson, []))
-const aiResult = computed(() => parseJson(current.value?.aiResultJson, null))
-
-/* ---------- AI 调用留痕 ---------- */
-function messagesOf(inv) {
-  try {
-    return JSON.parse(inv.requestJson || '{}').messages || []
-  } catch {
-    return []
-  }
-}
-function prettyJson(raw) {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  } catch {
-    return raw
-  }
-}
-const historyHits = computed(() => parseJson(historyDetail.value?.dfaHitsJson, []))
-const segments = computed(() => parseJson(current.value?.segmentsJson, []))
-/** 无 durationSeconds 时用最后一句的结束时间兜底 */
-const totalDuration = computed(() => {
-  const last = segments.value[segments.value.length - 1]
-  return last?.end ?? 0
-})
-
-function onTimeUpdate(time) {
-  currentTime.value = Number(time) || 0
-}
-
-/** 点击句子 → 跳转到对应音频时间点并播放 */
-function seekTo(time) {
-  if (time == null) return
-  currentTime.value = time
-  if (!current.value?.filePath) {
-    ElMessage.info(t('review.messages.noAudioSeek', { time: formatClock(time) }))
-    return
-  }
-  playerRef.value?.seekTo(time)
-}
-
-function parseJson(raw, fallback) {
-  try {
-    return JSON.parse(raw || 'null') ?? fallback
-  } catch {
-    return fallback
-  }
 }
 
 async function fetchPendingPage() {
@@ -972,36 +865,35 @@ async function loadReviews(id) {
   }
 }
 
+/**
+ * 详情请求序号：队列上快速连点（或 autoNext 连发）时只保留最后一次 select 的响应，
+ * 避免旧的详情 / AI 建议覆盖当前工作区（进而把结论提交到错误的录音）。
+ * 与 KnowledgeIndex.vue 的 chunksToken 同一「最新请求胜出」范式。
+ */
+let selectSeq = 0
+
 async function select(r) {
+  const seq = ++selectSeq
   current.value = r
   alreadyReviewed.value = false
   submittedPending.value = null
   reviewHistory.value = []
   form.value = { result: 'CONFIRMED_VIOLATION', violationType: 'INSULT', comment: '' }
-  // 切换录音时重置播放进度与视图模式
-  currentTime.value = 0
-  audioChannel.value = 'mix'
   aiInvocations.value = []
   detailLoading.value = true
   reviewHistoryLoading.value = true
   try {
     const [detail, invocations, reviews] = await Promise.all([
       api.recordingDetail(r.id),
-      api.recordingAiInvocations(r.id).catch(() => []),
+      // AI 留痕接口已收紧为 ADMIN：非管理员不发起请求（避免 403 噪音）
+      isAdmin.value ? api.recordingAiInvocations(r.id).catch(() => []) : Promise.resolve([]),
       api.recordingReviews(r.id).catch(() => [])
     ])
+    if (seq !== selectSeq) return
     current.value = detail
     aiInvocations.value = invocations || []
     reviewHistory.value = reviews || []
     alreadyReviewed.value = detail.status !== 'NEEDS_REVIEW'
-    // 首次遇到双轨录音默认用双栏对话；若当前模式不适用则回退逐句
-    if (dialogueAvailable.value && !modeInitialized.value) {
-      transcriptMode.value = 'dialogue'
-    }
-    if (transcriptMode.value === 'dialogue' && !dialogueAvailable.value) {
-      transcriptMode.value = 'segment'
-    }
-    modeInitialized.value = true
     // 默认选中 AI 建议的违规类型，减少复检操作成本
     const suggested = parseJson(detail.aiResultJson, null)?.violationType
     if (suggested && VIOLATION_TYPES[suggested]) {
@@ -1010,8 +902,10 @@ async function select(r) {
   } catch {
     // 详情加载失败时保留列表项，避免工作区空白
   } finally {
-    detailLoading.value = false
-    reviewHistoryLoading.value = false
+    if (seq === selectSeq) {
+      detailLoading.value = false
+      reviewHistoryLoading.value = false
+    }
   }
 }
 
@@ -1050,6 +944,8 @@ async function submit() {
     ElMessage.warning(t('review.messages.readOnlySubmit'))
     return
   }
+  // 详情尚在加载（或已提交中）：当前工作区还没有稳定的录音/表单，禁止提交
+  if (submitting.value || detailLoading.value) return
   if (sameReviewerBlocked.value) {
     ElMessage.warning(t('review.messages.sameReviewerSubmit'))
     return
@@ -1058,17 +954,32 @@ async function submit() {
     ElMessage.warning(t('review.messages.selectViolationType'))
     return
   }
+  const reviewId = current.value?.id
+  if (!reviewId) return
+  // 记录提交时的选择序号与表单结果：提交期间用户可能切换录音，回来后不能覆盖新选择
+  const submitSeq = selectSeq
+  const submittedResult = form.value.result
   submitting.value = true
   try {
-    const reviewId = current.value.id
     // 复核人由后端登录态决定，请求体不再携带 reviewer
     const saved = await api.review(reviewId, {
-      result: form.value.result,
+      result: submittedResult,
       violationType: form.value.violationType,
       comment: form.value.comment
     })
     // 以详情为准刷新状态与复核进度（提交接口可能只返回当前状态）
     const detail = await api.recordingDetail(reviewId).catch(() => null)
+    if (submitSeq !== selectSeq) {
+      // 提交期间用户已切换到其他录音：不回写 current / reviewHistory，只刷新队列与历史
+      ElMessage.success(
+        submittedResult === 'CONFIRMED_VIOLATION'
+          ? t('review.messages.confirmedSaved')
+          : t('review.messages.normalSaved')
+      )
+      await loadPending()
+      if (tab.value === 'history') loadHistory()
+      return
+    }
     const prevProgress = reviewProgress(current.value)
     const merged = {
       ...current.value,
@@ -1093,7 +1004,7 @@ async function submit() {
     } else {
       alreadyReviewed.value = true
       ElMessage.success(
-        form.value.result === 'CONFIRMED_VIOLATION'
+        submittedResult === 'CONFIRMED_VIOLATION'
           ? t('review.messages.confirmedSaved')
           : t('review.messages.normalSaved')
       )
@@ -1151,17 +1062,41 @@ function switchTab(name) {
   else loadPending()
 }
 
+/* 队列自动刷新：页面不可见 / 有请求在途 / 正在复核时跳过；只静默刷新列表，不打断当前工作区 */
 let timer = null
+
+async function refreshQueueSilently() {
+  if (document.hidden || pendingLoading.value || detailLoading.value || submitting.value) return
+  try {
+    const { rows, total } = await fetchPendingPage()
+    if (document.hidden || pendingLoading.value) return
+    pendingRows.value = rows
+    pendingTotal.value = total
+  } catch {
+    // 静默刷新失败保留旧队列，避免工作区被清空
+  }
+}
+
+function tick() {
+  if (document.hidden || tab.value !== 'pending') return
+  refreshQueueSilently()
+}
+
+function onVisibilityChange() {
+  if (!document.hidden && tab.value === 'pending') refreshQueueSilently()
+}
+
 onMounted(() => {
   loadPending().then(openFromRoute)
   loadHistory()
-  timer = setInterval(() => {
-    if (tab.value === 'pending' && pendingRows.value.some((r) => PROCESSING_STATUSES.includes(r.status))) {
-      loadPending()
-    }
-  }, 5000)
+  timer = setInterval(tick, 5000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  timer = null
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 
 watch(
   () => route.query.id,
@@ -1320,7 +1255,9 @@ watch(
   background: #fff;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 .queue-item:hover {
   background: var(--ink-50);
@@ -1367,7 +1304,7 @@ watch(
   color: var(--el-text-color-placeholder);
 }
 .queue-time::before {
-  content: "·";
+  content: '·';
   margin-right: 6px;
   color: var(--ink-300);
 }
@@ -1415,78 +1352,6 @@ watch(
     justify-content: flex-start;
   }
 }
-.player-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  row-gap: 8px;
-  flex-wrap: wrap;
-  margin: 16px 0 0;
-}
-.player-row .audio-player {
-  flex: 1 1 300px;
-  min-width: 0;
-}
-.no-audio {
-  flex: 1;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: var(--ink-50);
-}
-
-/* 分声道试听切换 */
-.channel-switch {
-  flex: none;
-  display: inline-flex;
-  background: var(--ink-100);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 3px;
-}
-.ch-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--el-text-color-regular);
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.ch-btn.on {
-  background: #fff;
-  color: var(--brand-600);
-  box-shadow: var(--sh-xs);
-}
-.ch-badge.sm {
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: #fff;
-}
-.ch-badge.sm.l {
-  background: var(--brand-500);
-}
-.ch-badge.sm.r {
-  background: #64748b;
-}
-
-/* 逐句 / 全文切换 */
 .block-head {
   display: flex;
   align-items: center;
@@ -1494,67 +1359,7 @@ watch(
   gap: 10px;
   margin-bottom: 11px;
 }
-.seg-toggle {
-  display: inline-flex;
-  background: var(--ink-100);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 3px;
-}
-.seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 11px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--el-text-color-regular);
-  font-size: 12.5px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.seg-btn.on {
-  background: #fff;
-  color: var(--brand-600);
-  box-shadow: var(--sh-xs);
-}
-.follow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.work-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
-  gap: 18px;
-  margin-top: 16px;
-}
 /* 详情列窄于 ~740px 时，逐句对照与 AI 结论改为上下排列，避免两栏都过窄 */
-@media (max-width: 1380px) {
-  .work-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.work-col {
-  min-width: 0;
-}
-.work-col.side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.transcript-scroll {
-  max-height: 470px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
 .block-title {
   font-size: 13px;
   font-weight: 600;
@@ -1566,150 +1371,8 @@ watch(
 }
 
 /* AI 判断 */
-.verdict {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 16px;
-}
-.verdict.bad {
-  background: linear-gradient(180deg, #fff6f6, #fffdfd);
-  border-color: #f7d0d0;
-}
-.verdict.ok {
-  background: linear-gradient(180deg, #f5fbf7, #fdfefd);
-  border-color: #cfe9d8;
-}
-.verdict-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.conf {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-left: auto;
-}
-.conf b {
-  font-size: 13px;
-  color: var(--ink-700);
-}
-.verdict-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.verdict.bad .verdict-badge {
-  color: #c92c2c;
-}
-.verdict.ok .verdict-badge {
-  color: #12823b;
-}
-.conf-track {
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.07);
-  margin: 12px 0 10px;
-  overflow: hidden;
-}
-.conf-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.5s ease;
-}
-.conf-fill.bad {
-  background: linear-gradient(90deg, #f87171, #ef4444);
-}
-.conf-fill.ok {
-  background: linear-gradient(90deg, #4ade80, #16a34a);
-}
-.verdict-reason {
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: var(--el-text-color-regular);
-}
-
 /* 判定模型标注 */
-.verdict-model {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin-top: 7px;
-  padding-top: 7px;
-  border-top: 1px dashed var(--border);
-}
-.verdict-model .mono {
-  color: var(--ink-600);
-}
-
 /* AI 调用留痕 */
-.ai-collapse {
-  margin-top: 10px;
-  border-top: 1px dashed var(--border);
-  border-bottom: none;
-}
-.ai-toggle {
-  color: var(--brand-600);
-  font-weight: 600;
-}
-.ai-inv + .ai-inv {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--border);
-}
-.ai-inv-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  row-gap: 4px;
-  flex-wrap: wrap;
-  color: var(--ink-600);
-}
-.ai-part {
-  margin-top: 10px;
-}
-.ai-part-head {
-  margin-bottom: 5px;
-}
-.ai-role {
-  font-weight: 600;
-  color: var(--ink-600);
-}
-.ai-role.system {
-  color: var(--brand-600);
-}
-.ai-role.reply {
-  color: var(--ok);
-}
-.ai-raw {
-  margin: 0;
-  padding: 9px 11px;
-  max-height: 240px;
-  overflow: auto;
-  background: var(--ink-50);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.65;
-  color: var(--ink-600);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.ai-raw.reply {
-  background: var(--ok-soft);
-  border-color: #cfe9d9;
-}
-.ai-raw.error {
-  background: var(--danger-soft);
-  border-color: #f3cccc;
-  color: #a32424;
-}
-
 /* 结论表单 */
 .form {
   margin-top: 0;

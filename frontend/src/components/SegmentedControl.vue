@@ -1,5 +1,10 @@
 <template>
-  <div class="seg" role="group" :aria-label="ariaLabel || undefined" :title="ariaLabel || undefined">
+  <div
+    class="seg"
+    role="group"
+    :aria-label="ariaLabel || undefined"
+    :title="ariaLabel || undefined"
+  >
     <button
       v-for="opt in options"
       :key="String(opt.value)"
@@ -14,7 +19,8 @@
         v-if="opt.count !== undefined && opt.count !== null"
         class="seg-count"
         :class="{ hot: opt.hot === true }"
-      >{{ opt.count }}</span>
+        >{{ opt.count }}</span
+      >
     </button>
   </div>
 </template>

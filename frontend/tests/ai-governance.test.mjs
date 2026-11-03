@@ -108,7 +108,10 @@ test('供应商列表：兼容裸数组 / content / items / providers / data 包
     assert.equal(list[0].key, 'a')
   }
   // 无 key / label 的脏数据被丢弃
-  assert.deepEqual(normalizeProviders([null, {}, { key: 'ok' }]).map((p) => p.key), ['ok'])
+  assert.deepEqual(
+    normalizeProviders([null, {}, { key: 'ok' }]).map((p) => p.key),
+    ['ok']
+  )
   assert.deepEqual(normalizeProviders('oops'), [])
 })
 
@@ -179,12 +182,33 @@ test('AI 用量：汇总 + 明细归一化、全零行过滤、按日升序 / �
       { date: '2026-10-03', requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }
     ],
     byProvider: [
-      { providerKey: 'deepseek', providerLabel: 'DeepSeek', requests: 1, inputTokens: 50, outputTokens: 10, costUsd: 0.0005 },
-      { key: 'openai', label: 'OpenAI', requests: 2, inputTokens: 200, outputTokens: 40, costUsd: 0.004 }
+      {
+        providerKey: 'deepseek',
+        providerLabel: 'DeepSeek',
+        requests: 1,
+        inputTokens: 50,
+        outputTokens: 10,
+        costUsd: 0.0005
+      },
+      {
+        key: 'openai',
+        label: 'OpenAI',
+        requests: 2,
+        inputTokens: 200,
+        outputTokens: 40,
+        costUsd: 0.004
+      }
     ],
     byModel: [
       { model: 'gpt-4o-mini', requests: 2, inputTokens: 200, outputTokens: 40, costUsd: 0.004 },
-      { modelName: 'deepseek-flash', providerLabel: 'DeepSeek', requests: 1, inputTokens: 50, outputTokens: 10, costUsd: 0.0005 }
+      {
+        modelName: 'deepseek-flash',
+        providerLabel: 'DeepSeek',
+        requests: 1,
+        inputTokens: 50,
+        outputTokens: 10,
+        costUsd: 0.0005
+      }
     ]
   })
   assert.equal(usage.requests, 12)
@@ -192,11 +216,23 @@ test('AI 用量：汇总 + 明细归一化、全零行过滤、按日升序 / �
   assert.equal(usage.outputTokens, 300)
   assert.equal(usage.costUsd, 0.0123)
   // 按日升序，全零行被过滤
-  assert.deepEqual(usage.byDay.map((r) => r.date), ['2026-10-01', '2026-10-02'])
+  assert.deepEqual(
+    usage.byDay.map((r) => r.date),
+    ['2026-10-01', '2026-10-02']
+  )
   // 按成本倒序
-  assert.deepEqual(usage.byProvider.map((r) => r.key), ['openai', 'deepseek'])
-  assert.deepEqual(usage.byProvider.map((r) => r.label), ['OpenAI', 'DeepSeek'])
-  assert.deepEqual(usage.byModel.map((r) => r.model), ['gpt-4o-mini', 'deepseek-flash'])
+  assert.deepEqual(
+    usage.byProvider.map((r) => r.key),
+    ['openai', 'deepseek']
+  )
+  assert.deepEqual(
+    usage.byProvider.map((r) => r.label),
+    ['OpenAI', 'DeepSeek']
+  )
+  assert.deepEqual(
+    usage.byModel.map((r) => r.model),
+    ['gpt-4o-mini', 'deepseek-flash']
+  )
   assert.equal(usage.byModel[1].providerLabel, 'DeepSeek')
 })
 
@@ -240,13 +276,20 @@ test('供应商审计动作：PROVIDER_* 都有中文文案并进入筛选选项
   assert.equal(auditActionLabel('PROVIDER_DELETE'), '删除 AI 供应商')
   assert.equal(auditActionLabel('PROVIDER_TEST'), '测试 AI 供应商')
   for (const action of ['PROVIDER_CREATE', 'PROVIDER_UPDATE', 'PROVIDER_DELETE', 'PROVIDER_TEST']) {
-    assert.ok(AUDIT_ACTION_OPTIONS.some((opt) => opt.value === action), action)
+    assert.ok(
+      AUDIT_ACTION_OPTIONS.some((opt) => opt.value === action),
+      action
+    )
   }
 })
 
 test('shape.toStringList：数组 / 逗号字符串 / 对象数组去重去空', () => {
   assert.deepEqual(toStringList(['a', ' b ', 'a', '']), ['a', 'b'])
   assert.deepEqual(toStringList('a,b, a ,'), ['a', 'b'])
-  assert.deepEqual(toStringList([{ value: 'v1' }, { label: 'v2' }, { model: 'v3' }, {}]), ['v1', 'v2', 'v3'])
+  assert.deepEqual(toStringList([{ value: 'v1' }, { label: 'v2' }, { model: 'v3' }, {}]), [
+    'v1',
+    'v2',
+    'v3'
+  ])
   assert.deepEqual(toStringList(null), [])
 })
