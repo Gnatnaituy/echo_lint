@@ -8,6 +8,9 @@ import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.service.AiScreenResult.CorpusExample;
 import com.echolint.service.rag.RagIndexService;
 import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -18,13 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-
-/**
- * 语料库服务：人工复检结论沉淀 + 复筛 few-shot 取材
- */
+/** 语料库服务：人工复检结论沉淀 + 复筛 few-shot 取材 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -33,16 +30,19 @@ public class CorpusService {
     private final CorpusEntryRepository repository;
     private final RagIndexService ragIndexService;
 
-    /**
-     * 复筛 few-shot：从已标注语料中取各 label 最新的若干条
-     */
+    /** 复筛 few-shot：从已标注语料中取各 label 最新的若干条 */
     public List<CorpusExample> getFewShotExamples(int count) {
         int perLabel = Math.max(1, count / 2);
         List<CorpusExample> out = new ArrayList<>();
         for (CorpusLabel label : List.of(CorpusLabel.VIOLATION, CorpusLabel.COMPLIANT)) {
-            List<CorpusEntry> entries = repository.findByLabelOrderByIdDesc(label, PageRequest.of(0, perLabel));
+            List<CorpusEntry> entries =
+                    repository.findByLabelOrderByIdDesc(label, PageRequest.of(0, perLabel));
             for (CorpusEntry e : entries) {
-                out.add(new CorpusExample(e.getLabel(), e.getViolationType(), truncate(e.getTranscript(), 400)));
+                out.add(
+                        new CorpusExample(
+                                e.getLabel(),
+                                e.getViolationType(),
+                                truncate(e.getTranscript(), 400)));
             }
         }
         return out;
@@ -51,9 +51,10 @@ public class CorpusService {
     /**
      * 人工复检结论回馈语料库。
      *
-     * <p>语料表 transcript 非空；历史/异常数据可能没有转写文本，此时跳过回馈而不是让复检事务失败。</p>
+     * <p>语料表 transcript 非空；历史/异常数据可能没有转写文本，此时跳过回馈而不是让复检事务失败。
      */
-    public CorpusEntry append(Recording recording, CorpusLabel label, String violationType, String reason) {
+    public CorpusEntry append(
+            Recording recording, CorpusLabel label, String violationType, String reason) {
         if (!StringUtils.hasText(recording.getTranscript())) {
             log.warn("录音 {} 没有转写文本，跳过语料回馈（label={}）", recording.getId(), label);
             return null;
@@ -69,7 +70,8 @@ public class CorpusService {
         return saved;
     }
 
-    public CorpusEntry appendManual(String transcript, CorpusLabel label, String violationType, String reason) {
+    public CorpusEntry appendManual(
+            String transcript, CorpusLabel label, String violationType, String reason) {
         CorpusEntry entry = new CorpusEntry();
         entry.setLabel(label);
         entry.setTranscript(transcript);
@@ -82,27 +84,39 @@ public class CorpusService {
     }
 
     public Page<CorpusEntry> query(CorpusLabel label, String keyword, Pageable pageable) {
-        Specification<CorpusEntry> spec = (root, q, cb) -> {
-            List<Predicate> ps = new ArrayList<>();
-            if (label != null) {
-                ps.add(cb.equal(root.get("label"), label));
-            }
-            if (StringUtils.hasText(keyword)) {
-                String kw = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
-                ps.add(cb.like(cb.lower(root.get("transcript")), kw));
-            }
-            return cb.and(ps.toArray(Predicate[]::new));
-        };
+        Specification<CorpusEntry> spec =
+                (root, q, cb) -> {
+                    List<Predicate> ps = new ArrayList<>();
+                    if (label != null) {
+                        ps.add(cb.equal(root.get("label"), label));
+                    }
+                    if (StringUtils.hasText(keyword)) {
+                        String kw = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
+                        ps.add(cb.like(cb.lower(root.get("transcript")), kw));
+                    }
+                    return cb.and(ps.toArray(Predicate[]::new));
+                };
         return repository.findAll(spec, pageable);
     }
 
-    public List<CorpusEntry> exportAll() {
-        return repository.findAll();
+    /**
+     * 全量导出（供管理端下载 JSON）：先 count 判断上限，超限直接 400 让调用方分批导出， 不静默截断（否则导出文件与库内数据不一致、且用户无感知）。
+     *
+     * @param maxRows 本次允许导出的最大行数（Controller 传 {@code CorpusController.CORPUS_EXPORT_MAX_ROWS}）
+     */
+    public List<CorpusEntry> exportAll(int maxRows) {
+        long total = repository.count();
+        if (total > maxRows) {
+            throw new BizException("语料超过导出上限 " + maxRows + " 条，请分批导出", HttpStatus.BAD_REQUEST);
+        }
+        return repository.findAll(PageRequest.of(0, maxRows)).getContent();
     }
 
     public void delete(Long id) {
-        CorpusEntry entry = repository.findById(id)
-                .orElseThrow(() -> new BizException("语料不存在", HttpStatus.NOT_FOUND));
+        CorpusEntry entry =
+                repository
+                        .findById(id)
+                        .orElseThrow(() -> new BizException("语料不存在", HttpStatus.NOT_FOUND));
         repository.delete(entry);
         log.info("语料已删除 id={}", id);
     }

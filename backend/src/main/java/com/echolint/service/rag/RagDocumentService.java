@@ -7,6 +7,14 @@ import com.echolint.repository.KnowledgeEntryRepository;
 import com.echolint.security.SecurityUtils;
 import com.echolint.service.rag.doc.DocumentTextExtractor;
 import com.echolint.service.rag.doc.DocumentTextExtractors;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -15,32 +23,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * 文档导入（RAG Phase D）：PDF / DOCX / TXT / MD 上传 → 抽取文本 → 写入知识库 → 异步向量化。
  *
- * <p>安全与可靠性约定：</p>
+ * <p>安全与可靠性约定：
+ *
  * <ul>
- *   <li>扩展名白名单 + 魔数校验 + 大小上限；文件名只用于展示，落盘名用内容 SHA-256；</li>
- *   <li>同一内容（SHA-256）重复导入返回 409，避免重复索引与重复计费；</li>
- *   <li>解析/索引异步执行，失败把条目标记 FAILED 并记录错误，不阻塞上传响应；</li>
- *   <li>抽取失败时正文为空，条目仍可删除/重试；文件保留在文档目录（不做自动清理）。</li>
+ *   <li>扩展名白名单 + 魔数校验 + 大小上限；文件名只用于展示，落盘名用内容 SHA-256；
+ *   <li>同一内容（SHA-256）重复导入返回 409，避免重复索引与重复计费；
+ *   <li>解析/索引异步执行，失败把条目标记 FAILED 并记录错误，不阻塞上传响应；
+ *   <li>抽取失败时正文为空，条目仍可删除/重试；文件保留在文档目录（不做自动清理）。
  * </ul>
  */
 @Slf4j
 @Service
 public class RagDocumentService {
 
-    /** 与 KnowledgeRequest.content 的长度上限保持一致 */
-    static final int MAX_CONTENT_CHARS = 100_000;
+    /** 与 KnowledgeRequest.content 的长度上限保持一致；抽取器内部也按此上限提前截断 */
+    static final int MAX_CONTENT_CHARS = DocumentTextExtractor.MAX_TEXT_CHARS;
+
+    /** 解析阶段硬上限（字节，P2-14）：20MB 的 DOCX/PDF 解压/展开后可达数百 MB， 即使配置允许更大上传，解析也只接受该上限内的文件（超出提示拆分导入）。 */
+    static final long MAX_PARSE_BYTES = 20L * 1024 * 1024;
 
     private final KnowledgeEntryRepository knowledgeEntries;
     private final DocumentTextExtractors extractors;
@@ -51,11 +54,12 @@ public class RagDocumentService {
     /** 防止同一条目并发解析（重复上传/重试） */
     private final Set<Long> parsing = ConcurrentHashMap.newKeySet();
 
-    public RagDocumentService(KnowledgeEntryRepository knowledgeEntries,
-                              DocumentTextExtractors extractors,
-                              RagIndexService indexService,
-                              RagProperties properties,
-                              @Qualifier("ragIndexExecutor") ThreadPoolTaskExecutor executor) {
+    public RagDocumentService(
+            KnowledgeEntryRepository knowledgeEntries,
+            DocumentTextExtractors extractors,
+            RagIndexService indexService,
+            RagProperties properties,
+            @Qualifier("ragIndexExecutor") ThreadPoolTaskExecutor executor) {
         this.knowledgeEntries = knowledgeEntries;
         this.extractors = extractors;
         this.indexService = indexService;
@@ -63,9 +67,7 @@ public class RagDocumentService {
         this.executor = executor;
     }
 
-    /**
-     * 导入一个文档：校验 → 落盘 → 建知识库条目（PENDING）→ 异步解析 + 索引。
-     */
+    /** 导入一个文档：校验 → 落盘 → 建知识库条目（PENDING）→ 异步解析 + 索引。 */
     public KnowledgeEntry importDocument(MultipartFile file, String title, String category) {
         if (file == null || file.isEmpty()) {
             throw new BizException("请选择要导入的文档", HttpStatus.BAD_REQUEST);
@@ -74,16 +76,29 @@ public class RagDocumentService {
         String extension = extensionOf(original);
         Set<String> allowed = properties.allowedDocumentExtensions();
         if (!allowed.contains(extension)) {
-            throw new BizException("不支持的文档类型: " + (extension.isEmpty() ? "未知" : extension)
-                    + "（支持 " + String.join(" / ", allowed) + "）", HttpStatus.BAD_REQUEST);
+            throw new BizException(
+                    "不支持的文档类型: "
+                            + (extension.isEmpty() ? "未知" : extension)
+                            + "（支持 "
+                            + String.join(" / ", allowed)
+                            + "）",
+                    HttpStatus.BAD_REQUEST);
         }
         long size = file.getSize();
         if (size <= 0) {
             throw new BizException("文档为空", HttpStatus.BAD_REQUEST);
         }
         if (size > properties.effectiveDocumentMaxBytes()) {
-            throw new BizException("文档超过大小上限（"
-                    + (properties.effectiveDocumentMaxBytes() / 1024 / 1024) + "MB）", HttpStatus.BAD_REQUEST);
+            throw new BizException(
+                    "文档超过大小上限（" + (properties.effectiveDocumentMaxBytes() / 1024 / 1024) + "MB）",
+                    HttpStatus.BAD_REQUEST);
+        }
+        // 解析内存保护（P2-14）：即使配置放宽了上传上限，解析阶段也限制在 20MB，
+        // 避免解压炸弹/超大 PDF 把整机堆内存打满（20MB DOCX 可展开到数百 MB）。
+        if (size > MAX_PARSE_BYTES) {
+            throw new BizException(
+                    "文档超过解析上限（" + (MAX_PARSE_BYTES / 1024 / 1024) + "MB），请拆分后导入",
+                    HttpStatus.BAD_REQUEST);
         }
         byte[] bytes;
         try {
@@ -95,14 +110,20 @@ public class RagDocumentService {
             throw new BizException("文档内容与扩展名不匹配（" + extension + "）", HttpStatus.BAD_REQUEST);
         }
         String sha = RagIndexService.sha256(bytes);
-        knowledgeEntries.findFirstBySourceSha256(sha).ifPresent(existing -> {
-            throw new BizException("该文档已导入（知识库条目 #" + existing.getId() + "）", HttpStatus.CONFLICT);
-        });
+        knowledgeEntries
+                .findFirstBySourceSha256(sha)
+                .ifPresent(
+                        existing -> {
+                            throw new BizException(
+                                    "该文档已导入（知识库条目 #" + existing.getId() + "）", HttpStatus.CONFLICT);
+                        });
 
         Path stored = store(bytes, sha, extension);
         KnowledgeEntry entry = new KnowledgeEntry();
-        entry.setTitle(StringUtils.hasText(title) ? truncate(title.trim(), 200)
-                : truncate(baseName(original), 200));
+        entry.setTitle(
+                StringUtils.hasText(title)
+                        ? truncate(title.trim(), 200)
+                        : truncate(baseName(original), 200));
         entry.setCategory(StringUtils.hasText(category) ? truncate(category.trim(), 64) : null);
         entry.setContent(null);
         entry.setEnabled(true);
@@ -114,9 +135,20 @@ public class RagDocumentService {
         entry.setIndexStatus("PENDING");
         entry.setChunkCount(0);
         KnowledgeEntry saved = knowledgeEntries.save(entry);
-        log.info("文档已导入：entryId={} file={} size={} ext={}", saved.getId(), original, size, extension);
+        log.info(
+                "文档已导入：entryId={} file={} size={} ext={}",
+                saved.getId(),
+                original,
+                size,
+                extension);
 
-        executor.execute(() -> parseAndIndex(saved.getId(), stored, extension));
+        try {
+            executor.execute(() -> parseAndIndex(saved.getId(), stored, extension));
+        } catch (RejectedExecutionException e) {
+            // 队列已满（P3-3）：不能停在 PENDING 让页面一直显示「排队中」，直接置 FAILED 并记录原因
+            log.warn("文档解析队列已满 entryId={}，标记为 FAILED", saved.getId());
+            markFailed(saved.getId(), "文档解析队列已满，请稍后重新导入");
+        }
         return saved;
     }
 
@@ -137,14 +169,23 @@ public class RagDocumentService {
 
             String text;
             try (InputStream in = Files.newInputStream(stored)) {
-                DocumentTextExtractor extractor = extractors.find(extension)
-                        .orElseThrow(() -> new BizException("没有可用的文档抽取器: " + extension));
+                // 解析前再按落盘文件大小兜底（上传时已校验，这里防止历史文件/并发替换绕过）
+                long storedSize = Files.size(stored);
+                if (storedSize > MAX_PARSE_BYTES) {
+                    throw new BizException(
+                            "文档超过解析上限（" + (MAX_PARSE_BYTES / 1024 / 1024) + "MB），请拆分后导入");
+                }
+                DocumentTextExtractor extractor =
+                        extractors
+                                .find(extension)
+                                .orElseThrow(() -> new BizException("没有可用的文档抽取器: " + extension));
                 text = extractor.extract(in);
             }
             text = normalize(text);
             if (!StringUtils.hasText(text)) {
                 throw new BizException("未能从文档中提取到文本（可能是扫描件或加密文件）");
             }
+            // 抽取器已在上限处提前截断/终止，这里仅兜底（第三方抽取器实现可能不遵守约定）
             if (text.length() > MAX_CONTENT_CHARS) {
                 log.warn("文档 {} 抽取文本 {} 字符，截断到 {}", entryId, text.length(), MAX_CONTENT_CHARS);
                 text = text.substring(0, MAX_CONTENT_CHARS);
@@ -169,11 +210,14 @@ public class RagDocumentService {
 
     private void markFailed(Long entryId, String error) {
         try {
-            knowledgeEntries.findById(entryId).ifPresent(entry -> {
-                entry.setIndexStatus("FAILED");
-                entry.setIndexError(truncate(error == null ? "未知错误" : error, 1000));
-                knowledgeEntries.save(entry);
-            });
+            knowledgeEntries
+                    .findById(entryId)
+                    .ifPresent(
+                            entry -> {
+                                entry.setIndexStatus("FAILED");
+                                entry.setIndexError(truncate(error == null ? "未知错误" : error, 1000));
+                                knowledgeEntries.save(entry);
+                            });
         } catch (Exception e) {
             log.warn("标记文档失败状态出错 entryId={}: {}", entryId, e.getMessage());
         }
@@ -200,12 +244,19 @@ public class RagDocumentService {
 
     private static boolean magicMatches(String extension, byte[] bytes) {
         if ("pdf".equals(extension)) {
-            return bytes.length >= 5 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D'
-                    && bytes[3] == 'F' && bytes[4] == '-';
+            return bytes.length >= 5
+                    && bytes[0] == '%'
+                    && bytes[1] == 'P'
+                    && bytes[2] == 'D'
+                    && bytes[3] == 'F'
+                    && bytes[4] == '-';
         }
         if ("docx".equals(extension)) {
-            return bytes.length >= 4 && bytes[0] == 'P' && bytes[1] == 'K'
-                    && (bytes[2] == 3 || bytes[2] == 5) && (bytes[3] == 4 || bytes[3] == 6);
+            return bytes.length >= 4
+                    && bytes[0] == 'P'
+                    && bytes[1] == 'K'
+                    && (bytes[2] == 3 || bytes[2] == 5)
+                    && (bytes[3] == 4 || bytes[3] == 6);
         }
         // txt/md：前 1024 字节出现 NUL 视为二进制，拒绝
         int limit = Math.min(1024, bytes.length);
@@ -269,5 +320,4 @@ public class RagDocumentService {
         }
         return value.length() <= max ? value : value.substring(0, max);
     }
-
 }

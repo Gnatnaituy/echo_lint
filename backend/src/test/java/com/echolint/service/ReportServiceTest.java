@@ -1,6 +1,13 @@
 package com.echolint.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.CallDirection;
 import com.echolint.domain.RecordingStatus;
@@ -12,6 +19,11 @@ import com.echolint.repository.RecordingRepository;
 import com.echolint.repository.ReviewRecordRepository;
 import com.echolint.util.CsvWriter;
 import com.echolint.util.TimeRanges;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,36 +34,22 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * 报表导出的 CSV 内容：BOM、表头、转义、行数上限、复核记录批量关联、审计。
- */
+/** 报表导出的 CSV 内容：BOM、表头、转义、行数上限、复核记录批量关联、审计。 */
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
 
-    @Mock
-    private RecordingRepository recordingRepository;
-    @Mock
-    private ReviewRecordRepository reviewRecordRepository;
-    @Mock
-    private AuditService auditService;
+    @Mock private RecordingRepository recordingRepository;
+    @Mock private ReviewRecordRepository reviewRecordRepository;
+    @Mock private AuditService auditService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ReportService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReportService(recordingRepository, reviewRecordRepository, objectMapper, auditService);
+        service =
+                new ReportService(
+                        recordingRepository, reviewRecordRepository, objectMapper, auditService);
     }
 
     private Recording recording(long id) {
@@ -67,8 +65,9 @@ class ReportServiceTest {
         r.setHitCount(3);
         r.setViolationType("INSULT");
         r.setViolationTypeLabel("辱骂");
-        r.setAiResultJson("{\"violation\":true,\"violationType\":\"INSULT\","
-                + "\"violationTypeLabel\":\"辱骂\",\"confidence\":0.91}");
+        r.setAiResultJson(
+                "{\"violation\":true,\"violationType\":\"INSULT\","
+                        + "\"violationTypeLabel\":\"辱骂\",\"confidence\":0.91}");
         r.setReviewer("bob");
         r.setReviewTime(LocalDateTime.of(2026, 10, 20, 10, 0));
         r.setReviewComment("客户先辱骂,坐席回怼");
@@ -81,10 +80,15 @@ class ReportServiceTest {
     }
 
     private String decode(byte[] bytes) {
-        assertArrayEquals(CsvWriter.UTF8_BOM,
-                java.util.Arrays.copyOf(bytes, CsvWriter.UTF8_BOM.length), "CSV 应带 UTF-8 BOM");
-        return new String(bytes, CsvWriter.UTF8_BOM.length,
-                bytes.length - CsvWriter.UTF8_BOM.length, StandardCharsets.UTF_8);
+        assertArrayEquals(
+                CsvWriter.UTF8_BOM,
+                java.util.Arrays.copyOf(bytes, CsvWriter.UTF8_BOM.length),
+                "CSV 应带 UTF-8 BOM");
+        return new String(
+                bytes,
+                CsvWriter.UTF8_BOM.length,
+                bytes.length - CsvWriter.UTF8_BOM.length,
+                StandardCharsets.UTF_8);
     }
 
     @Test
@@ -92,41 +96,81 @@ class ReportServiceTest {
         when(recordingRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(recording(1L))));
 
-        byte[] body = service.recordingsCsv(
-                RecordingFilter.byRange("2026-10-01", "2026-10-20"));
+        byte[] body = service.recordingsCsv(RecordingFilter.byRange("2026-10-01", "2026-10-20"));
 
         String text = decode(body);
         String[] lines = text.split("\r\n");
-        assertEquals("id,fileName,agentName,teamName,callTime,direction,businessLine,status,sampled,hitCount,"
-                + "violationType,violationTypeLabel,aiViolation,aiConfidence,reviewer,reviewTime,uploadTime,"
-                + "durationSeconds,errorMessage", lines[0]);
+        assertEquals(
+                "id,fileName,agentName,teamName,callTime,direction,businessLine,status,sampled,hitCount,"
+                    + "violationType,violationTypeLabel,aiViolation,aiConfidence,reviewer,reviewTime,uploadTime,"
+                    + "durationSeconds,errorMessage",
+                lines[0]);
         assertEquals(2, lines.length);
 
         String row = lines[1];
         assertTrue(row.startsWith("1,\"call, \"\"urgent\"\".mp3\",张三,"), row);
         assertTrue(row.contains(",INBOUND,售后,"), row);
         assertTrue(row.contains(",VIOLATION_CONFIRMED,true,3,INSULT,辱骂,true,0.91,bob,"), row);
-        assertTrue(row.contains("sampled") || lines[0].contains("sampled"), "recordings.csv 应包含 sampled 列");
+        assertTrue(
+                row.contains("sampled") || lines[0].contains("sampled"),
+                "recordings.csv 应包含 sampled 列");
         assertTrue(row.contains("\"bad\nline\""), row);
 
-        verify(auditService).record(eq(AuditAction.REPORT_EXPORT), eq("REPORT"), eq("recordings.csv"),
-                contains("1 行"));
+        verify(auditService)
+                .record(
+                        eq(AuditAction.REPORT_EXPORT),
+                        eq("REPORT"),
+                        eq("recordings.csv"),
+                        contains("1 行"));
     }
 
     @Test
-    void exportIsLimitedToTenThousandRowsNewestFirst() {
+    void recordingsCsvLoadsInTwoHundredRowBatchesNewestFirst() {
+        List<Recording> firstBatch =
+                IntStream.range(0, ReportService.EXPORT_BATCH_SIZE)
+                        .mapToObj(i -> recording(10_000L - i))
+                        .toList();
         when(recordingRepository.findAll(any(Specification.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of()));
+                .thenReturn(new PageImpl<>(firstBatch))
+                .thenReturn(new PageImpl<>(List.of(recording(1L))));
+
+        String text = decode(service.recordingsCsv(RecordingFilter.byRange(null, null)));
+
+        // 表头 + 201 行：第一页满 200 条后继续查第二页，不足一批即结束
+        assertEquals(ReportService.EXPORT_BATCH_SIZE + 2, text.split("\r\n").length);
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(recordingRepository, times(2)).findAll(any(Specification.class), captor.capture());
+        List<Pageable> pageables = captor.getAllValues();
+        assertEquals(0, pageables.get(0).getPageNumber());
+        assertEquals(1, pageables.get(1).getPageNumber());
+        assertEquals(ReportService.EXPORT_BATCH_SIZE, pageables.get(0).getPageSize());
+        assertEquals("id", pageables.get(0).getSort().iterator().next().getProperty());
+        assertEquals(
+                org.springframework.data.domain.Sort.Direction.DESC,
+                pageables.get(0).getSort().iterator().next().getDirection());
+    }
+
+    @Test
+    void recordingsCsvStopsAtTenThousandRows() {
+        List<Recording> fullBatch =
+                IntStream.range(0, ReportService.EXPORT_BATCH_SIZE)
+                        .mapToObj(i -> recording(i + 1L))
+                        .toList();
+        when(recordingRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(fullBatch));
 
         service.recordingsCsv(RecordingFilter.byRange(null, null));
 
-        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(recordingRepository).findAll(any(Specification.class), captor.capture());
-        assertEquals(ReportService.MAX_EXPORT_ROWS, captor.getValue().getPageSize());
-        assertEquals(0, captor.getValue().getPageNumber());
-        assertEquals("id", captor.getValue().getSort().iterator().next().getProperty());
-        assertEquals(org.springframework.data.domain.Sort.Direction.DESC,
-                captor.getValue().getSort().iterator().next().getDirection());
+        verify(
+                        recordingRepository,
+                        times(ReportService.MAX_EXPORT_ROWS / ReportService.EXPORT_BATCH_SIZE))
+                .findAll(any(Specification.class), any(Pageable.class));
+        verify(auditService)
+                .record(
+                        eq(AuditAction.REPORT_EXPORT),
+                        eq("REPORT"),
+                        eq("recordings.csv"),
+                        contains("10000 行"));
     }
 
     @Test
@@ -138,20 +182,36 @@ class ReportServiceTest {
 
         String text = decode(body);
         String[] lines = text.split("\r\n");
-        assertEquals("id,fileName,agentName,teamName,callTime,direction,businessLine,violationType,"
-                + "violationTypeLabel,reviewer,reviewTime,reviewComment,reviewCount,aiViolation,"
-                + "aiConfidence,hitCount,uploadTime", lines[0]);
+        assertEquals(
+                "id,fileName,agentName,teamName,callTime,direction,businessLine,violationType,"
+                    + "violationTypeLabel,reviewer,reviewTime,reviewComment,reviewCount,aiViolation,"
+                    + "aiConfidence,hitCount,uploadTime",
+                lines[0]);
         assertTrue(lines[1].contains("2,"));
         assertTrue(lines[1].contains("INSULT,辱骂,bob,"));
         assertTrue(lines[1].contains("\"客户先辱骂,坐席回怼\""));
-        verify(auditService).record(eq(AuditAction.REPORT_EXPORT), eq("REPORT"), eq("violations.csv"),
-                contains("1 行"));
+        verify(auditService)
+                .record(
+                        eq(AuditAction.REPORT_EXPORT),
+                        eq("REPORT"),
+                        eq("violations.csv"),
+                        contains("1 行"));
     }
 
     @Test
     void violationsFilterKeepsOtherConditionsButForcesConfirmedStatus() {
-        RecordingFilter forced = service.violationsFilter(RecordingFilter.of(null, "退款", null,
-                null, "张三", "客服一组", "outbound", "2026-10-01", "2026-10-02"));
+        RecordingFilter forced =
+                service.violationsFilter(
+                        RecordingFilter.of(
+                                null,
+                                "退款",
+                                null,
+                                null,
+                                "张三",
+                                "客服一组",
+                                "outbound",
+                                "2026-10-01",
+                                "2026-10-02"));
 
         assertEquals(List.of(RecordingStatus.VIOLATION_CONFIRMED), forced.statuses());
         assertEquals("退款", forced.keyword());
@@ -184,15 +244,45 @@ class ReportServiceTest {
 
         String text = decode(body);
         String[] lines = text.split("\r\n");
-        assertEquals("reviewId,recordingId,fileName,agentName,teamName,callTime,direction,businessLine,"
-                + "round,reviewer,result,violationType,comment,createdAt", lines[0]);
+        assertEquals(
+                "reviewId,recordingId,fileName,agentName,teamName,callTime,direction,businessLine,"
+                        + "round,reviewer,result,violationType,comment,createdAt",
+                lines[0]);
         assertTrue(lines[1].startsWith("11,5,\"call, \"\"urgent\"\".mp3\",张三,"), lines[1]);
         assertTrue(lines[1].contains(",2,bob,CONFIRMED_VIOLATION,INSULT,\"备注,含逗号\","));
 
         verify(recordingRepository).findAllById(List.of(5L));
         verify(recordingRepository, never()).findById(anyLong());
-        verify(auditService).record(eq(AuditAction.REPORT_EXPORT), eq("REPORT"), eq("reviews.csv"),
-                contains("1 行"));
+        verify(auditService)
+                .record(
+                        eq(AuditAction.REPORT_EXPORT),
+                        eq("REPORT"),
+                        eq("reviews.csv"),
+                        contains("1 行"));
+    }
+
+    @Test
+    void reviewsCsvChunksRecordingLookupByTwoHundredIds() {
+        List<ReviewRecord> reviews =
+                IntStream.rangeClosed(1, 250).mapToObj(i -> review((long) i, (long) i)).toList();
+        when(reviewRecordRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(reviews))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(recordingRepository.findAllById(anyList()))
+                .thenAnswer(
+                        invocation -> {
+                            List<Long> ids = invocation.getArgument(0);
+                            return ids.stream().map(id -> recording(id)).toList();
+                        });
+
+        String text = decode(service.reviewsCsv(TimeRanges.parseRange(null, null)));
+
+        assertEquals(251, text.split("\r\n").length);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
+        verify(recordingRepository, times(2)).findAllById(captor.capture());
+        assertEquals(200, captor.getAllValues().get(0).size());
+        assertEquals(50, captor.getAllValues().get(1).size());
     }
 
     @Test
@@ -216,7 +306,11 @@ class ReportServiceTest {
 
         assertEquals(1, text.split("\r\n").length);
         verify(recordingRepository, never()).findAllById(any());
-        verify(auditService).record(eq(AuditAction.REPORT_EXPORT), eq("REPORT"), eq("reviews.csv"),
-                contains("0 行"));
+        verify(auditService)
+                .record(
+                        eq(AuditAction.REPORT_EXPORT),
+                        eq("REPORT"),
+                        eq("reviews.csv"),
+                        contains("0 行"));
     }
 }

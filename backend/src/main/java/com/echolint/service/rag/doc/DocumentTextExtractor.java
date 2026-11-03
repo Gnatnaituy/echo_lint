@@ -5,10 +5,13 @@ import java.io.InputStream;
 /**
  * 文档文本抽取器（RAG Phase D）。
  *
- * <p>实现按扩展名支持 pdf / docx / txt / md；由 {@link DocumentTextExtractors} 注册表聚合。
- * 抽取失败抛异常，由上层把知识库条目置为 FAILED 并记录 index_error，不阻塞上传接口。</p>
+ * <p>实现按扩展名支持 pdf / docx / txt / md；由 {@link DocumentTextExtractors} 注册表聚合。 抽取失败抛异常，由上层把知识库条目置为
+ * FAILED 并记录 index_error，不阻塞上传接口。
  */
 public interface DocumentTextExtractor {
+
+    /** 单次解析最多保留的字符数（P2-14）：抽取器在内部提前截断/终止， 避免超大文本在内存中完整展开后再截断。与 KnowledgeEntry.content 上限一致。 */
+    int MAX_TEXT_CHARS = 100_000;
 
     /** 是否支持该扩展名（小写、不含点，如 pdf / docx / txt / md） */
     boolean supports(String extension);

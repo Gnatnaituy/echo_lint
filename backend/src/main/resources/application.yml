@@ -77,6 +77,19 @@ app:
   # 0=关闭（默认），1=全部抽检；AI 不可用/低置信度一律转人工复检，不会静默放行。
   sample:
     dfa-miss-rate: ${APP_SAMPLE_DFA_MISS_RATE:0.0}
+  # 数据保留/清理（审计 P2-30）：默认关闭，升级后不会静默删除历史数据；
+  # 开启后每天按保留期分批删除超期行（每批 500 条，避免长事务锁表）。
+  # 原始录音 uploads 目录不做自动删除（审计证据，需人工归档）；审计日志保留期按合规要求配置。
+  retention:
+    enabled: ${APP_RETENTION_ENABLED:false}
+    # 每日执行时间（Spring cron 6 段：秒 分 时 日 月 周；默认 03:30）
+    cron: "${APP_RETENTION_CRON:0 30 3 * * *}"
+    # AI 调用留痕保留天数（含请求/回复 TEXT，通常是容量大头）
+    ai-invocations-days: ${APP_RETENTION_AI_INVOCATIONS_DAYS:180}
+    # 审计日志保留天数（合规要求通常长于业务留痕）
+    audit-logs-days: ${APP_RETENTION_AUDIT_LOGS_DAYS:365}
+    # 流水线日志保留天数
+    pipeline-logs-days: ${APP_RETENTION_PIPELINE_LOGS_DAYS:90}
   # Webhook 通知告警（Batch 2b-2）：复核确认违规 / 流水线失败 / 每日待复核积压 / 测试通知。
   # URL 只来自配置（避免运行时 SSRF）；配置 webhook-secret 后会带 X-EchoLint-Signature 签名头。
   notify:
@@ -129,7 +142,8 @@ app:
     few-shot-count: 5
     request-timeout-seconds: 300
     # 全文分块复核（Batch 2b-2）：单次最多送 12000 字符，超出后带重叠分块逐块调用；
-    # 最多复核 6 段（其余截断并在日志注明），任一段违规即整体违规。
+    # 最多复核 6 段，任一段违规即整体违规；超出上限时尾部不送审，若其余各段均判合规将强制降级
+    # 转人工（不得静默放行，Batch 6 收尾补丁）。
     chunk-chars: ${APP_SCREEN_CHUNK_CHARS:12000}
     max-chunks: ${APP_SCREEN_MAX_CHUNKS:6}
     # violation=true 但置信度低于该值时降级人工复核（不允许自动放行）
@@ -201,6 +215,9 @@ app:
       dimensions: ${APP_RAG_EMBEDDING_DIMENSIONS:1024}
       # 显式发送 dimensions（阿里云 qwen3.7 / text-embedding-v3/v4 支持）
       send-dimensions: ${APP_RAG_EMBEDDING_SEND_DIMENSIONS:true}
+      # embedding 输入单价（USD / 1K tokens，可选）：为空时回退供应商的 inputPricePer1k。
+      # 同一供应商同时承载 chat 与 embedding（如阿里云）时建议显式配置，成本看板才准确（审计 P2-10）。
+      input-price-per-1k: ${APP_RAG_EMBEDDING_INPUT_PRICE_PER_1K:}
       timeout-seconds: ${APP_RAG_EMBEDDING_TIMEOUT:30}
       batch-size: ${APP_RAG_EMBEDDING_BATCH_SIZE:8}
     chunk:

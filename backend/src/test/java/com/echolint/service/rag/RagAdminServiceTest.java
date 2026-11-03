@@ -1,5 +1,10 @@
 package com.echolint.service.rag;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.echolint.domain.RagIndexStatus;
 import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.KnowledgeEntryRepository;
@@ -12,14 +17,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * RAG 管理端：索引统计、视图、重建 scope 与 pgvector 可用性检查。
- */
+/** RAG 管理端：索引统计、视图、重建 scope 与 pgvector 可用性检查。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RagAdminServiceTest {
@@ -35,10 +33,18 @@ class RagAdminServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(settings.current()).thenReturn(
-                new RagSettingsService.Snapshot(true, 4, 0.25, 2400, 5, "settings"));
-        when(embeddingClient.info()).thenReturn(new RagEmbeddingClient.EmbeddingInfo(
-                "openai", "OpenAI", "text-embedding-3-small", "/v1/embeddings", 1536, 30, true));
+        when(settings.current())
+                .thenReturn(new RagSettingsService.Snapshot(true, 4, 0.25, 2400, 5, "settings"));
+        when(embeddingClient.info())
+                .thenReturn(
+                        new RagEmbeddingClient.EmbeddingInfo(
+                                "openai",
+                                "OpenAI",
+                                "text-embedding-3-small",
+                                "/v1/embeddings",
+                                1536,
+                                30,
+                                true));
         when(knowledgeEntries.count()).thenReturn(10L);
         when(knowledgeEntries.countByIndexStatus(RagIndexStatus.READY.name())).thenReturn(7L);
         when(knowledgeEntries.countByIndexStatus(RagIndexStatus.FAILED.name())).thenReturn(1L);
@@ -46,8 +52,14 @@ class RagAdminServiceTest {
         when(corpusEntries.countByEmbeddingTextIsNotNull()).thenReturn(18L);
         when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class))).thenReturn(1);
         when(settings.lastReindexAt()).thenReturn(java.util.Optional.of("2026-10-20T20:00:00"));
-        service = new RagAdminService(settings, embeddingClient, indexService, knowledgeEntries,
-                corpusEntries, jdbcTemplate);
+        service =
+                new RagAdminService(
+                        settings,
+                        embeddingClient,
+                        indexService,
+                        knowledgeEntries,
+                        corpusEntries,
+                        jdbcTemplate);
     }
 
     @Test
@@ -71,8 +83,8 @@ class RagAdminServiceTest {
 
     @Test
     void updateDelegatesToSettingsAndReturnsView() {
-        RagSettingsService.Snapshot updated = new RagSettingsService.Snapshot(
-                true, 6, 0.3, 3000, 8, "settings");
+        RagSettingsService.Snapshot updated =
+                new RagSettingsService.Snapshot(true, 6, 0.3, 3000, 8, "settings");
         when(settings.update(true, 6, 0.3, 3000, 8)).thenReturn(updated);
         when(settings.current()).thenReturn(updated);
 
@@ -84,12 +96,14 @@ class RagAdminServiceTest {
 
     @Test
     void reindexAllQueuesKnowledgeAndCorpus() {
-        when(indexService.reindexKnowledge()).thenReturn(10);
-        when(indexService.reindexCorpus()).thenReturn(20);
+        when(indexService.reindexKnowledge()).thenReturn(new RagIndexService.EnqueueResult(8, 2));
+        when(indexService.reindexCorpus()).thenReturn(new RagIndexService.EnqueueResult(20, 0));
 
         RagAdminService.ReindexResult result = service.reindex("all");
 
-        assertEquals(30, result.queued());
+        assertEquals(28, result.queued());
+        assertEquals(2, result.skipped(), "队列满被拒绝的条目应如实回报");
+        assertTrue(result.message().contains("跳过"), result.message());
         verify(indexService).reindexKnowledge();
         verify(indexService).reindexCorpus();
         verify(settings).markReindexedNow();
@@ -97,11 +111,12 @@ class RagAdminServiceTest {
 
     @Test
     void reindexKnowledgeOnly() {
-        when(indexService.reindexKnowledge()).thenReturn(10);
+        when(indexService.reindexKnowledge()).thenReturn(new RagIndexService.EnqueueResult(10, 0));
 
         RagAdminService.ReindexResult result = service.reindex("knowledge");
 
         assertEquals(10, result.queued());
+        assertEquals(0, result.skipped());
         verify(indexService, never()).reindexCorpus();
     }
 
@@ -116,8 +131,9 @@ class RagAdminServiceTest {
 
     @Test
     void testDelegatesToEmbeddingClient() {
-        RagEmbeddingClient.TestResult testResult = new RagEmbeddingClient.TestResult(
-                true, "openai", "OpenAI", "text-embedding-3-small", 1536, 12, "ok");
+        RagEmbeddingClient.TestResult testResult =
+                new RagEmbeddingClient.TestResult(
+                        true, "openai", "OpenAI", "text-embedding-3-small", 1536, 12, "ok");
         when(embeddingClient.test()).thenReturn(testResult);
 
         assertSame(testResult, service.test());
