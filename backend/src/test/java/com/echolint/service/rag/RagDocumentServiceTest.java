@@ -1,11 +1,21 @@
 package com.echolint.service.rag;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import com.echolint.config.RagProperties;
 import com.echolint.entity.KnowledgeEntry;
 import com.echolint.exception.BizException;
 import com.echolint.repository.KnowledgeEntryRepository;
 import com.echolint.service.rag.doc.DocumentTextExtractor;
 import com.echolint.service.rag.doc.DocumentTextExtractors;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Optional;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,21 +28,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-/**
- * 文档导入：扩展名/魔数/大小/去重校验，异步解析后写正文并触发索引。
- */
+/** 文档导入：扩展名/魔数/大小/去重校验，异步解析后写正文并触发索引。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RagDocumentServiceTest {
@@ -43,8 +39,7 @@ class RagDocumentServiceTest {
     @Mock private RagIndexService indexService;
     @Mock private ThreadPoolTaskExecutor executor;
 
-    @TempDir
-    Path tempDir;
+    @TempDir Path tempDir;
 
     private RagProperties properties;
     private RagDocumentService service;
@@ -55,28 +50,35 @@ class RagDocumentServiceTest {
         properties.getDocuments().setDir(tempDir.toString());
         properties.getDocuments().setMaxBytes(10 * 1024 * 1024);
 
-        doAnswer(invocation -> {
-            Runnable task = invocation.getArgument(0);
-            task.run();
-            return null;
-        }).when(executor).execute(any());
+        doAnswer(
+                        invocation -> {
+                            Runnable task = invocation.getArgument(0);
+                            task.run();
+                            return null;
+                        })
+                .when(executor)
+                .execute(any());
         when(extractors.find("pdf")).thenReturn(Optional.of(extractor));
         when(extractors.find("txt")).thenReturn(Optional.of(extractor));
         when(extractors.find("md")).thenReturn(Optional.of(extractor));
         when(extractor.extract(any(InputStream.class))).thenReturn("文档正文内容");
         AtomicReference<KnowledgeEntry> saved = new AtomicReference<>();
-        when(knowledgeEntries.save(any(KnowledgeEntry.class))).thenAnswer(inv -> {
-            KnowledgeEntry entry = inv.getArgument(0);
-            if (entry.getId() == null) {
-                entry.setId(42L);
-            }
-            saved.set(entry);
-            return entry;
-        });
+        when(knowledgeEntries.save(any(KnowledgeEntry.class)))
+                .thenAnswer(
+                        inv -> {
+                            KnowledgeEntry entry = inv.getArgument(0);
+                            if (entry.getId() == null) {
+                                entry.setId(42L);
+                            }
+                            saved.set(entry);
+                            return entry;
+                        });
         when(knowledgeEntries.findById(42L)).thenAnswer(inv -> Optional.ofNullable(saved.get()));
         when(knowledgeEntries.findFirstBySourceSha256(any())).thenReturn(Optional.empty());
 
-        service = new RagDocumentService(knowledgeEntries, extractors, indexService, properties, executor);
+        service =
+                new RagDocumentService(
+                        knowledgeEntries, extractors, indexService, properties, executor);
     }
 
     private MockMultipartFile pdf(String name, String content) {
@@ -117,17 +119,24 @@ class RagDocumentServiceTest {
 
     @Test
     void rejectsUnsupportedExtension() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "a.exe", "application/octet-stream",
-                new byte[]{1, 2, 3});
-        BizException error = assertThrows(BizException.class, () -> service.importDocument(file, null, null));
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file", "a.exe", "application/octet-stream", new byte[] {1, 2, 3});
+        BizException error =
+                assertThrows(BizException.class, () -> service.importDocument(file, null, null));
         assertTrue(error.getMessage().contains("不支持的文档类型"));
     }
 
     @Test
     void rejectsMagicMismatch() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "fake.pdf", "application/pdf",
-                "not a pdf".getBytes(StandardCharsets.UTF_8));
-        BizException error = assertThrows(BizException.class, () -> service.importDocument(file, null, null));
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "fake.pdf",
+                        "application/pdf",
+                        "not a pdf".getBytes(StandardCharsets.UTF_8));
+        BizException error =
+                assertThrows(BizException.class, () -> service.importDocument(file, null, null));
         assertTrue(error.getMessage().contains("内容与扩展名不匹配"));
     }
 
@@ -137,7 +146,8 @@ class RagDocumentServiceTest {
         when(knowledgeEntries.findFirstBySourceSha256(any()))
                 .thenReturn(Optional.of(entryWithId(7L)));
 
-        BizException error = assertThrows(BizException.class, () -> service.importDocument(file, null, null));
+        BizException error =
+                assertThrows(BizException.class, () -> service.importDocument(file, null, null));
         assertTrue(error.getMessage().contains("已导入"));
         assertTrue(error.getMessage().contains("#7"));
     }
@@ -145,14 +155,17 @@ class RagDocumentServiceTest {
     @Test
     void rejectsOversizedFile() throws Exception {
         properties.getDocuments().setMaxBytes(1024);
-        BizException error = assertThrows(BizException.class,
-                () -> service.importDocument(pdf("big.pdf", "x".repeat(2000)), null, null));
+        BizException error =
+                assertThrows(
+                        BizException.class,
+                        () -> service.importDocument(pdf("big.pdf", "x".repeat(2000)), null, null));
         assertTrue(error.getMessage().contains("大小上限"));
     }
 
     @Test
     void parseFailureMarksEntryFailed() throws Exception {
-        when(extractor.extract(any(InputStream.class))).thenThrow(new RuntimeException("broken pdf"));
+        when(extractor.extract(any(InputStream.class)))
+                .thenThrow(new RuntimeException("broken pdf"));
 
         service.importDocument(pdf("broken.pdf", "x"), "标题", null);
 
@@ -165,8 +178,12 @@ class RagDocumentServiceTest {
 
     @Test
     void plainTextFileAccepted() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "notes.md", "text/markdown",
-                "# 标题\n正文".getBytes(StandardCharsets.UTF_8));
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "notes.md",
+                        "text/markdown",
+                        "# 标题\n正文".getBytes(StandardCharsets.UTF_8));
         KnowledgeEntry entry = service.importDocument(file, null, null);
 
         assertEquals("notes", entry.getTitle());
@@ -179,6 +196,33 @@ class RagDocumentServiceTest {
         KnowledgeEntry entry = service.importDocument(file, null, null);
 
         assertEquals("passwd.pdf", entry.getSourceFilename());
+    }
+
+    @Test
+    void rejectsDocumentAboveParseLimitEvenWhenUploadLimitRaised() {
+        properties.getDocuments().setMaxBytes(64L * 1024 * 1024);
+        byte[] huge = new byte[(int) RagDocumentService.MAX_PARSE_BYTES + 1];
+        huge[0] = '%';
+        huge[1] = 'P';
+        huge[2] = 'D';
+        huge[3] = 'F';
+        huge[4] = '-';
+        MockMultipartFile file = new MockMultipartFile("file", "huge.pdf", "application/pdf", huge);
+
+        BizException error =
+                assertThrows(BizException.class, () -> service.importDocument(file, null, null));
+
+        assertTrue(error.getMessage().contains("解析上限"), error.getMessage());
+    }
+
+    @Test
+    void queueRejectionMarksEntryFailedInsteadOfPending() throws Exception {
+        doThrow(new RejectedExecutionException("queue full")).when(executor).execute(any());
+
+        KnowledgeEntry entry = service.importDocument(pdf("queued.pdf", "x"), "标题", null);
+
+        assertEquals("FAILED", entry.getIndexStatus(), "入队失败不能停在 PENDING");
+        assertTrue(entry.getIndexError().contains("队列已满"));
     }
 
     private static KnowledgeEntry entryWithId(long id) {

@@ -1,22 +1,5 @@
 package com.echolint.service;
 
-import com.echolint.domain.TaskStatus;
-import com.echolint.entity.PipelineTask;
-import com.echolint.exception.BizException;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.core.task.TaskExecutor;
-import org.springframework.http.HttpStatus;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -27,10 +10,25 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 任务调度器（Batch 3b-1）：领取后提交执行、成功/失败回写、非法/不存在任务跳过、
- * 调度异常不外抛、提交失败退回 PENDING。
- */
+import com.echolint.domain.TaskStatus;
+import com.echolint.entity.PipelineTask;
+import com.echolint.exception.BizException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.http.HttpStatus;
+
+/** 任务调度器（Batch 3b-1）：领取后提交执行、成功/失败回写、非法/不存在任务跳过、 调度异常不外抛、提交失败退回 PENDING。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PipelineTaskSchedulerTest {
@@ -38,10 +36,8 @@ class PipelineTaskSchedulerTest {
     private static final Long TASK_ID = 100L;
     private static final Long RECORDING_ID = 9L;
 
-    @Mock
-    private PipelineTaskService taskService;
-    @Mock
-    private PipelineService pipelineService;
+    @Mock private PipelineTaskService taskService;
+    @Mock private PipelineService pipelineService;
 
     private PipelineTaskScheduler scheduler;
 
@@ -79,7 +75,9 @@ class PipelineTaskSchedulerTest {
         when(taskService.findDueTasks()).thenReturn(List.of(task()));
         when(taskService.claim(TASK_ID)).thenReturn(true);
         when(taskService.get(TASK_ID)).thenReturn(Optional.of(task()));
-        doThrow(new RuntimeException("ffmpeg crashed")).when(pipelineService).processNow(RECORDING_ID);
+        doThrow(new RuntimeException("ffmpeg crashed"))
+                .when(pipelineService)
+                .processNow(RECORDING_ID);
 
         scheduler.dispatchDueTasks();
 
@@ -93,7 +91,8 @@ class PipelineTaskSchedulerTest {
         when(taskService.claim(TASK_ID)).thenReturn(true);
         when(taskService.get(TASK_ID)).thenReturn(Optional.of(task()));
         doThrow(new BizException("录音不存在: 9", HttpStatus.NOT_FOUND))
-                .when(pipelineService).processNow(RECORDING_ID);
+                .when(pipelineService)
+                .processNow(RECORDING_ID);
 
         scheduler.dispatchDueTasks();
 
@@ -132,9 +131,11 @@ class PipelineTaskSchedulerTest {
 
     @Test
     void executorRejectionRequeuesTask() {
-        TaskExecutor rejecting = command -> {
-            throw new RuntimeException("pool shutdown");
-        };
+        // AbortPolicy 的拒绝异常是 RejectedExecutionException（P2-6）：必须退回 PENDING 而不是丢任务
+        TaskExecutor rejecting =
+                command -> {
+                    throw new RejectedExecutionException("queue full");
+                };
         scheduler = new PipelineTaskScheduler(taskService, pipelineService, rejecting);
         when(taskService.findDueTasks()).thenReturn(List.of(task()));
         when(taskService.claim(TASK_ID)).thenReturn(true);
@@ -143,5 +144,31 @@ class PipelineTaskSchedulerTest {
 
         verify(taskService).requeue(TASK_ID);
         verify(pipelineService, never()).processNow(any());
+    }
+
+    @Test
+    void rejectedSubmissionDoesNotStopFollowingTasks() {
+        PipelineTask second = task();
+        second.setId(200L);
+        second.setRecordingId(10L);
+        AtomicInteger submits = new AtomicInteger();
+        TaskExecutor flaky =
+                command -> {
+                    if (submits.incrementAndGet() == 1) {
+                        throw new RejectedExecutionException("queue full");
+                    }
+                    command.run();
+                };
+        scheduler = new PipelineTaskScheduler(taskService, pipelineService, flaky);
+        when(taskService.findDueTasks()).thenReturn(List.of(task(), second));
+        when(taskService.claim(100L)).thenReturn(true);
+        when(taskService.claim(200L)).thenReturn(true);
+        when(taskService.get(200L)).thenReturn(Optional.of(second));
+
+        scheduler.dispatchDueTasks();
+
+        verify(taskService).requeue(100L);
+        verify(pipelineService).processNow(10L);
+        verify(taskService).markSucceeded(200L);
     }
 }

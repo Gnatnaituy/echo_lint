@@ -2,6 +2,7 @@ package com.echolint.service;
 
 import com.echolint.entity.PipelineTask;
 import com.echolint.exception.BizException;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
@@ -9,17 +10,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
  * 流水线任务调度器（Batch 3b-1）。
  *
- * <p>每 5s 取一批到期 PENDING 任务：先用条件更新原子领取（PENDING -> RUNNING），
- * 再提交到 {@code pipelineExecutor} 执行。领取失败说明任务已被其它实例/线程拿走，直接跳过，
- * 因此多实例部署也不会重复执行同一条任务。</p>
+ * <p>每 5s 取一批到期 PENDING 任务：先用条件更新原子领取（PENDING -> RUNNING）， 再提交到 {@code pipelineExecutor}
+ * 执行。领取失败说明任务已被其它实例/线程拿走，直接跳过， 因此多实例部署也不会重复执行同一条任务。
  *
- * <p>执行失败由任务层记录（attempts/退避/死信），调度线程本身绝不向外抛异常，
- * 避免一次异常终止后续调度。</p>
+ * <p>执行失败由任务层记录（attempts/退避/死信），调度线程本身绝不向外抛异常， 避免一次异常终止后续调度。
+ *
+ * <p>线程池拒绝（{@code pipelineExecutor} 用 AbortPolicy，队列满时抛 {@link
+ * java.util.concurrent.RejectedExecutionException}）时把刚领取的任务退回 PENDING， 下个周期再派发，绝不让调度线程亲自执行流水线。
  */
 @Slf4j
 @Component
@@ -29,9 +29,10 @@ public class PipelineTaskScheduler {
     private final PipelineService pipelineService;
     private final TaskExecutor pipelineExecutor;
 
-    public PipelineTaskScheduler(PipelineTaskService taskService,
-                                 PipelineService pipelineService,
-                                 @Qualifier("pipelineExecutor") TaskExecutor pipelineExecutor) {
+    public PipelineTaskScheduler(
+            PipelineTaskService taskService,
+            PipelineService pipelineService,
+            @Qualifier("pipelineExecutor") TaskExecutor pipelineExecutor) {
         this.taskService = taskService;
         this.pipelineService = pipelineService;
         this.pipelineExecutor = pipelineExecutor;

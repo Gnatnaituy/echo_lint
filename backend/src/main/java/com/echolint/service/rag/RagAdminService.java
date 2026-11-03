@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 /**
  * RAG 管理端视图与动作（Batch 6，Phase C）：设置读取/更新、连通性测试、重建索引、索引统计。
  *
- * <p>视图只读、不含任何密钥；embedding 供应商信息来自 {@code ai_providers} 的掩码配置。</p>
+ * <p>视图只读、不含任何密钥；embedding 供应商信息来自 {@code ai_providers} 的掩码配置。
  */
 @Slf4j
 @Service
@@ -30,47 +30,81 @@ public class RagAdminService {
     private volatile Boolean vectorAvailable;
     private volatile long vectorCheckedAt;
 
-    public record EmbeddingView(String providerId, String providerLabel, String model, String path,
-                                int dimensions, long timeoutSeconds, boolean apiKeyConfigured) {
-    }
+    public record EmbeddingView(
+            String providerId,
+            String providerLabel,
+            String model,
+            String path,
+            int dimensions,
+            long timeoutSeconds,
+            boolean apiKeyConfigured) {}
 
-    public record RetrievalView(int topK, double minScore, int maxContextChars, int corpusExamples) {
-    }
+    public record RetrievalView(
+            int topK, double minScore, int maxContextChars, int corpusExamples) {}
 
-    public record IndexView(long knowledgeTotal, long knowledgeReady, long knowledgePending,
-                            long knowledgeFailed, long corpusTotal, long corpusReady,
-                            String lastReindexAt, boolean vectorAvailable) {
-    }
+    public record IndexView(
+            long knowledgeTotal,
+            long knowledgeReady,
+            long knowledgePending,
+            long knowledgeFailed,
+            long corpusTotal,
+            long corpusReady,
+            String lastReindexAt,
+            boolean vectorAvailable) {}
 
-    public record RagView(boolean enabled, String source, EmbeddingView embedding,
-                          RetrievalView retrieval, IndexView index) {
-    }
+    public record RagView(
+            boolean enabled,
+            String source,
+            EmbeddingView embedding,
+            RetrievalView retrieval,
+            IndexView index) {}
 
-    public record ReindexResult(int queued, int skipped, String message) {
-    }
+    public record ReindexResult(int queued, int skipped, String message) {}
 
     public RagView view() {
         RagSettingsService.Snapshot snapshot = settings.current();
         RagEmbeddingClient.EmbeddingInfo info = embeddingClient.info();
         long knowledgeTotal = safeCount(knowledgeEntries::count);
-        long ready = safeCount(() -> knowledgeEntries.countByIndexStatus(RagIndexStatus.READY.name()));
-        long failed = safeCount(() -> knowledgeEntries.countByIndexStatus(RagIndexStatus.FAILED.name()));
+        long ready =
+                safeCount(() -> knowledgeEntries.countByIndexStatus(RagIndexStatus.READY.name()));
+        long failed =
+                safeCount(() -> knowledgeEntries.countByIndexStatus(RagIndexStatus.FAILED.name()));
         long pending = Math.max(0, knowledgeTotal - ready - failed);
         long corpusTotal = safeCount(corpusEntries::count);
         long corpusReady = safeCount(corpusEntries::countByEmbeddingTextIsNotNull);
         return new RagView(
                 snapshot.enabled(),
                 snapshot.source(),
-                new EmbeddingView(info.providerId(), info.providerLabel(), info.model(), info.path(),
-                        info.dimensions(), info.timeoutSeconds(), info.apiKeyConfigured()),
-                new RetrievalView(snapshot.topK(), snapshot.minScore(), snapshot.maxContextChars(),
+                new EmbeddingView(
+                        info.providerId(),
+                        info.providerLabel(),
+                        info.model(),
+                        info.path(),
+                        info.dimensions(),
+                        info.timeoutSeconds(),
+                        info.apiKeyConfigured()),
+                new RetrievalView(
+                        snapshot.topK(),
+                        snapshot.minScore(),
+                        snapshot.maxContextChars(),
                         snapshot.corpusExamples()),
-                new IndexView(knowledgeTotal, ready, pending, failed, corpusTotal, corpusReady,
-                        settings.lastReindexAt().orElse(null), vectorAvailable()));
+                new IndexView(
+                        knowledgeTotal,
+                        ready,
+                        pending,
+                        failed,
+                        corpusTotal,
+                        corpusReady,
+                        settings.lastReindexAt().orElse(null),
+                        vectorAvailable()));
     }
 
-    public RagView update(Boolean enabled, Integer topK, Double minScore,
-                          Integer maxContextChars, Integer corpusExamples) {
+    public RagView update(
+            Boolean enabled,
+            Integer topK,
+            Double minScore,
+            Integer maxContextChars,
+            Integer corpusExamples) {
         boolean wasEnabled = settings.current().enabled();
         settings.update(enabled, topK, minScore, maxContextChars, corpusExamples);
         RagView view = view();
@@ -86,24 +120,36 @@ public class RagAdminService {
     }
 
     /**
-     * 异步重建索引。scope=knowledge|corpus|all；返回已入队数量（不是完成数）。
+     * 异步重建索引。scope=knowledge|corpus|all；返回真实入队/跳过数量（不是完成数）。 队列满被拒绝的条目计入 skipped（P3-3），不再虚报「已入队 N
+     * 条」。
      */
     public ReindexResult reindex(String scope) {
         String value = scope == null ? "all" : scope.trim().toLowerCase();
-        int queued = 0;
-        if ("knowledge".equals(value) || "all".equals(value)) {
-            queued += indexService.reindexKnowledge();
-        }
-        if ("corpus".equals(value) || "all".equals(value)) {
-            queued += indexService.reindexCorpus();
-        }
         if (!"knowledge".equals(value) && !"corpus".equals(value) && !"all".equals(value)) {
             return new ReindexResult(0, 0, "未知 scope：" + scope + "（支持 knowledge / corpus / all）");
         }
+        RagIndexService.EnqueueResult result = new RagIndexService.EnqueueResult(0, 0);
+        if ("knowledge".equals(value) || "all".equals(value)) {
+            result = result.plus(indexService.reindexKnowledge());
+        }
+        if ("corpus".equals(value) || "all".equals(value)) {
+            result = result.plus(indexService.reindexCorpus());
+        }
         settings.markReindexedNow();
-        log.info("RAG 重建索引已入队：scope={} queued={}（异步执行）", value, queued);
-        return new ReindexResult(queued, 0,
-                "已入队 " + queued + " 条（异步执行，进度见索引统计）");
+        log.info(
+                "RAG 重建索引已入队：scope={} queued={} skipped={}（异步执行）",
+                value,
+                result.queued(),
+                result.skipped());
+        String message =
+                result.skipped() > 0
+                        ? "已入队 "
+                                + result.queued()
+                                + " 条；另有 "
+                                + result.skipped()
+                                + " 条因索引队列已满被跳过，请稍后重试"
+                        : "已入队 " + result.queued() + " 条（异步执行，进度见索引统计）";
+        return new ReindexResult(result.queued(), result.skipped(), message);
     }
 
     /** pgvector 扩展与分块表是否就绪；30 秒缓存，避免每次设置页刷新都查系统表 */
@@ -121,11 +167,15 @@ public class RagAdminService {
 
     private boolean checkVectorAvailable() {
         try {
-            Integer extension = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM pg_extension WHERE extname = 'vector'", Integer.class);
-            Integer table = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM pg_class WHERE relname = 'knowledge_chunks' AND relkind = 'r'",
-                    Integer.class);
+            Integer extension =
+                    jdbcTemplate.queryForObject(
+                            "SELECT count(*) FROM pg_extension WHERE extname = 'vector'",
+                            Integer.class);
+            Integer table =
+                    jdbcTemplate.queryForObject(
+                            "SELECT count(*) FROM pg_class WHERE relname = 'knowledge_chunks' AND"
+                                    + " relkind = 'r'",
+                            Integer.class);
             return extension != null && extension > 0 && table != null && table > 0;
         } catch (Exception e) {
             log.warn("检查 pgvector 可用性失败：{}", e.getMessage());
