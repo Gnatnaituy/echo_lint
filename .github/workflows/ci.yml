@@ -2,18 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/production-p1p2]
+    # 只保留受保护主线；旧特性分支（feat/production-p1p2）已合并，不再触发
+    branches: [main]
   pull_request:
+
+# 最小权限原则：CI 只需要读取仓库内容（审计 P2-29）
+permissions:
+  contents: read
+
+# 同一分支/PR 的重复流水线只保留最新一次，节省 CI 资源
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
-    name: Backend tests
+    name: Backend tests & format
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Spotless ratchet 需要与 origin/main 比对，必须拉全量历史
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -21,9 +34,15 @@ jobs:
           cache: maven
       - name: Run backend tests
         run: mvn -B test
+      # 格式守卫（审计 P2-29）：ratchet 只校验本 PR 变更过的 Java 文件，
+      # 不会因为存量代码未格式化而整片失败；本地可用 `mvn spotless:apply` 修正。
+      - name: Check Java formatting (Spotless)
+        env:
+          SPOTLESS_RATCHET: origin/${{ github.base_ref || 'main' }}
+        run: mvn -B spotless:check -Dspotless.ratchetFrom="${SPOTLESS_RATCHET}"
 
   frontend:
-    name: Frontend build & tests
+    name: Frontend lint, test & build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,12 +51,59 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Lint (ESLint 9)
+        run: npm run lint
+      - name: Check formatting (Prettier 3)
+        run: npm run format:check
       - name: Build
         run: npm run build
       - name: Run frontend tests
         run: npm test
+      - name: Audit production dependencies (high severity)
+        run: npm audit --omit=dev --audit-level=high
+
+  # 镜像构建冒烟（审计 P2-29）：两个 Dockerfile 至少能完整构建，
+  # 防止基础镜像/依赖锁/构建脚本失效直到发布才暴露。使用 GitHub Actions 缓存复用层。
+  docker:
+    name: Docker image build smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          # CI 直连官方 registry，不依赖 npmmirror 的可用性
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  compose:
+    name: Compose config & env parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 守卫：application.yml 的每个 ${ENV} 都必须在 compose 显式注入或 .env.example 中记录，
+      # 否则该变量在 compose 部署下会静默失效（见审计 P1-1）。
+      - name: Check env parity
+        run: bash tools/check-env-parity.sh
+      # 校验 compose 文件语法 + .env.example 能被正常加载（等价于快速开始的第一步）
+      - name: Validate docker compose config
+        run: |
+          cp .env.example .env
+          docker compose config -q
