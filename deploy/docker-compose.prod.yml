@@ -1,0 +1,141 @@
+name: echolint
+
+# =============================================================================
+# EchoLint 生产编排（P2-27：生产拓扑入库）
+#
+# 与仓库根 docker-compose.yml 的关系：
+#   - 本文件是「独立的生产编排」，不是根 compose 的 overlay；本地开发继续用根文件。
+#   - 服务名 / 镜像名 / 卷名与根 compose 保持一致，且 `name: echolint` 相同，因此
+#     `echolint-backend`、`echolint-frontend` 镜像与 `echolint_pg-data` / `echolint_uploads` /
+#     `echolint_knowledge-docs` 命名卷在两个编排之间共享——从开发切到生产不会换卷丢数据。
+#   - 与根 compose 的差异：
+#       * frontend 发布到宿主 80（公网入口；TLS 建议由宿主 nginx/Caddy 终结，见 DEPLOY.md）；
+#       * backend/postgres 仍只绑回环（127.0.0.1）；
+#       * backend 使用 PostgreSQL 低权限角色 echolint_app，不再用 bootstrap 超级用户 audit（P2-28）；
+#       * backend 的变量来自 deploy/.env.prod（根 compose 用仓库根 .env）；
+#       * 挂载 deploy/postgres/init（仅全新空数据卷首次初始化时执行：vector 扩展 + app 角色）。
+#
+# 使用（在仓库根目录执行）：
+#   cp deploy/.env.prod.example deploy/.env.prod && chmod 600 deploy/.env.prod
+#   # 填好 POSTGRES_PASSWORD / ECHOLINT_APP_PASSWORD / APP_ADMIN_PASSWORD / APP_SECRET_KEY
+#   docker compose --env-file deploy/.env.prod -f deploy/docker-compose.prod.yml config -q
+#   docker compose --env-file deploy/.env.prod -f deploy/docker-compose.prod.yml up -d --build
+#
+# 完整步骤、TLS 反代、已有数据卷迁移、备份/回滚见 deploy/DEPLOY.md。
+# =============================================================================
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: echolint-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: echolint
+      # bootstrap 超级用户：仅用于初始化、管理、备份；应用不使用它（见 backend）
+      POSTGRES_USER: audit
+      # 超级用户口令：生产必须在 deploy/.env.prod 覆盖
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      # 低权限应用角色的口令：仅首次初始化时由 02-app-password.sh 写入角色（P2-28）
+      ECHOLINT_APP_PASSWORD: ${ECHOLINT_APP_PASSWORD:-}
+      PGTZ: Asia/Shanghai
+      TZ: Asia/Shanghai
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 仅在「全新空数据卷」首次启动时执行；已有数据卷请按 DEPLOY.md §4 手工迁移
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # 运维/备份用；只绑回环，公网不暴露
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit -d echolint"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build: ../backend
+    image: echolint-backend
+    container_name: echolint-backend
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 生产应用变量（AI 密钥、通知、抽样、集成开关、RAG 参数等）统一放 deploy/.env.prod；
+    # 同名项以下方 environment 为准（容器内地址、数据库账号等固定值）。
+    env_file:
+      - path: .env.prod
+        required: false
+    # Linux Docker Engine 需要显式映射，容器内才能解析 host.docker.internal（whisper.cpp）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/echolint
+      # P2-28：应用使用非超级用户 echolint_app（库 owner，可建表/迁移，但不能跨库/读宿主文件）
+      SPRING_DATASOURCE_USERNAME: echolint_app
+      SPRING_DATASOURCE_PASSWORD: ${ECHOLINT_APP_PASSWORD:-}
+      APP_UPLOAD_DIR: /app/data/uploads
+      APP_RAG_DOCUMENTS_DIR: /app/data/knowledge-docs
+      WHISPER_BASE_URL: ${WHISPER_BASE_URL:-http://host.docker.internal:9900}
+      WHISPER_API_KEY: ${WHISPER_API_KEY:-local}
+      TZ: Asia/Shanghai
+    volumes:
+      - uploads:/app/data/uploads
+      - knowledge-docs:/app/data/knowledge-docs
+    ports:
+      # 只绑回环，供宿主 nginx/运维诊断使用，公网不可达
+      - "127.0.0.1:8082:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # backend 镜像无 curl/wget：用 bash /dev/tcp 校验 /actuator/health 返回 UP
+      test:
+        - "CMD"
+        - "bash"
+        - "-c"
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/8080 || exit 1
+          printf 'GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3
+          grep -q '"status":"UP"' <&3
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+  frontend:
+    build: ../frontend
+    image: echolint-frontend
+    container_name: echolint-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      # 公网入口。若由宿主 nginx/Caddy 终结 TLS，改为 "127.0.0.1:8081:80"（见 DEPLOY.md §5）
+      - "80:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  # 与根 compose 同名：复用已有的 echolint_pg-data / echolint_uploads / echolint_knowledge-docs
+  pg-data:
+  uploads:
+  knowledge-docs:

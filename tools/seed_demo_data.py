@@ -8,23 +8,36 @@
 
 用法：
     python3 tools/seed_demo_data.py                     # 写入 12 条演示录音（id 从 1000 起，含分段与标记）
+    python3 tools/seed_demo_data.py --dry-run           # 只生成待执行 SQL 并打印路径，不写库
     python3 tools/seed_demo_data.py --with-audio        # 额外为 #1001 生成等长静音音轨，可演示音画联动
     python3 tools/seed_demo_data.py --clean             # 仅删除演示数据
-    python3 tools/seed_demo_data.py --api http://localhost:8082 --container echolint-postgres
+    python3 tools/seed_demo_data.py --api https://prod.example.com --yes   # 非本机 API 必须显式 --yes
+
+环境变量（命令行参数优先）：
+    PG_USER / PG_DB / PG_CONTAINER         PostgreSQL 用户 / 库名 / 容器名
+    UPLOAD_CONTAINER / UPLOAD_DIR          后端容器名 / 容器内上传目录（--with-audio 用）
 """
 import argparse
 import json
+import os
 import re
 import subprocess
+import tempfile
+import urllib.parse
 import urllib.request
 import wave
 from datetime import datetime, timedelta
 from pathlib import Path
 
-SQL_FILE = Path("/tmp/seed_demo_data.sql")
-# 通过 docker exec 在 PostgreSQL 容器里执行 psql（compose 服务 postgres / 容器 echolint-postgres）。
-# 官方镜像的本地 socket 是 trust 认证，因此不需要在命令行里传密码。
-PG_USER, PG_DB = "audit", "echolint"
+# 通过 docker exec 在 PostgreSQL 容器里执行 psql（官方镜像的本地 socket 是 trust 认证，
+# 因此不需要在命令行里传密码）。连接信息可用环境变量覆盖，适配非默认部署。
+PG_USER = os.environ.get("PG_USER", "audit")
+PG_DB = os.environ.get("PG_DB", "echolint")
+DEFAULT_PG_CONTAINER = os.environ.get("PG_CONTAINER", "echolint-postgres")
+DEFAULT_UPLOAD_CONTAINER = os.environ.get("UPLOAD_CONTAINER", "echolint-backend")
+DEFAULT_UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/data/uploads")
+# 仅本机 API 免 --yes；其它主机一律要求显式确认（防误写生产库）
+LOCAL_API_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 ID_BASE = 1000  # 演示数据 id 起始，删除时按 id >= ID_BASE 清理
 AUDIO_DEMO_ID = 1001  # --with-audio 时为该条生成等长静音音频，用于演示音画联动
 
@@ -191,7 +204,7 @@ def build_records(now):
     ]
 
 
-def generate_sql(api: str, with_audio: bool = False) -> int:
+def generate_sql(api: str, with_audio: bool, sql_path: Path) -> int:
     now = datetime.now()
     records = build_records(now)
     lines = ["SET client_encoding TO 'UTF8';",
@@ -266,8 +279,8 @@ def generate_sql(api: str, with_audio: bool = False) -> int:
         "EXISTS (SELECT 1 FROM recordings));"
     )
 
-    SQL_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"已生成 {len(records)} 条演示录音（DFA 命中 {hit_total} 处）→ {SQL_FILE}")
+    sql_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"已生成 {len(records)} 条演示录音（DFA 命中 {hit_total} 处）→ {sql_path}")
     return len(records)
 
 
@@ -286,7 +299,7 @@ def psql_base(container: str) -> list:
             "-v", "ON_ERROR_STOP=1"]
 
 
-def apply_sql(container: str, clean_only: bool) -> None:
+def apply_sql(container: str, clean_only: bool = False, sql_file=None) -> None:
     if clean_only:
         sql = (f"SET client_encoding TO 'UTF8'; "
                f"DELETE FROM pipeline_logs WHERE recording_id >= {ID_BASE}; "
@@ -295,7 +308,9 @@ def apply_sql(container: str, clean_only: bool) -> None:
               "-v", "ON_ERROR_STOP=1", "-c", sql])
         print(f"已清理演示数据（id >= {ID_BASE}）")
         return
-    with SQL_FILE.open("rb") as f:
+    if sql_file is None:
+        raise SystemExit("内部错误：apply_sql 需要 sql_file")
+    with Path(sql_file).open("rb") as f:
         _run(psql_base(container), stdin=f)
     print("演示数据已写入数据库")
 
@@ -319,32 +334,68 @@ def attach_demo_audio(container: str, upload_dir: str) -> None:
             targets.append((f"demo-{AUDIO_DEMO_ID}.wav.L.wav", 440, seconds))
             targets.append((f"demo-{AUDIO_DEMO_ID}.wav.R.wav", 660, seconds))
 
-    for name, kind, seconds in targets:
-        local = Path(f"/tmp/{name}")
-        if kind == "silent":
-            generate_silent_wav(local, seconds)
-        else:
-            generate_tone_wav(local, seconds, kind)
-        subprocess.run(["docker", "cp", str(local), f"{container}:{upload_dir}/{name}"],
-                       check=True, capture_output=True)
+    # 临时音轨放临时目录（不再写死 /tmp，避免并发/多用户冲突），with 块结束后自动清理
+    with tempfile.TemporaryDirectory(prefix="echolint-demo-audio-") as tmp_dir:
+        for name, kind, seconds in targets:
+            local = Path(tmp_dir) / name
+            if kind == "silent":
+                generate_silent_wav(local, seconds)
+            else:
+                generate_tone_wav(local, seconds, kind)
+            _run(["docker", "cp", str(local), f"{container}:{upload_dir}/{name}"])
     print(f"已生成 {len(targets)} 个演示音轨 → {container}:{upload_dir}/（含双声道 440/660Hz 分轨）")
 
 
+def guard_remote_api(api: str, assume_yes: bool) -> None:
+    """目标 API 不是本机时要求 --yes：避免把演示数据误写进生产后端（P3-4）。"""
+    host = urllib.parse.urlparse(api).hostname or ""
+    if host in LOCAL_API_HOSTS or assume_yes:
+        return
+    raise SystemExit(
+        f"目标 API 不是本机（host={host or '未知'}），可能指向生产环境。\n"
+        "确认要写入请加 --yes；建议先用 --dry-run 生成 SQL 检查。"
+    )
+
+
 def main():
-    parser = argparse.ArgumentParser(description="生成/清理录音稽核演示数据")
+    parser = argparse.ArgumentParser(
+        description="生成/清理录音稽核演示数据（默认写本机开发库；非本机 API 需 --yes）",
+        epilog="连接信息也可用环境变量 PG_USER/PG_DB/PG_CONTAINER/UPLOAD_CONTAINER/UPLOAD_DIR 配置",
+    )
     parser.add_argument("--api", default="http://localhost:8082", help="后端地址（用于计算 DFA 命中）")
-    parser.add_argument("--container", default="echolint-postgres", help="PostgreSQL 容器名（compose 服务 postgres）")
+    parser.add_argument("--container", default=DEFAULT_PG_CONTAINER,
+                        help=f"PostgreSQL 容器名（默认 {DEFAULT_PG_CONTAINER}，可用 PG_CONTAINER 覆盖）")
     parser.add_argument("--clean", action="store_true", help="仅清理演示数据")
     parser.add_argument("--with-audio", action="store_true", help="为演示录音生成等长静音音频")
-    parser.add_argument("--upload-container", default="echolint-backend", help="后端容器名（投放音频用）")
-    parser.add_argument("--upload-dir", default="/app/data/uploads", help="后端容器内上传目录")
+    parser.add_argument("--upload-container", default=DEFAULT_UPLOAD_CONTAINER,
+                        help=f"后端容器名（默认 {DEFAULT_UPLOAD_CONTAINER}，可用 UPLOAD_CONTAINER 覆盖）")
+    parser.add_argument("--upload-dir", default=DEFAULT_UPLOAD_DIR,
+                        help=f"后端容器内上传目录（默认 {DEFAULT_UPLOAD_DIR}，可用 UPLOAD_DIR 覆盖）")
+    parser.add_argument("--dry-run", action="store_true", help="只生成待执行 SQL 并打印路径，不写入数据库")
+    parser.add_argument("--yes", action="store_true", help="确认写入：目标 API 非本机时必须显式指定")
     args = parser.parse_args()
+
+    guard_remote_api(args.api, args.yes)
 
     if args.clean:
         apply_sql(args.container, clean_only=True)
         return
-    generate_sql(args.api, args.with_audio)
-    apply_sql(args.container, clean_only=False)
+
+    fd, tmp_name = tempfile.mkstemp(prefix="echolint-seed-", suffix=".sql")
+    os.close(fd)
+    sql_path = Path(tmp_name)
+    try:
+        generate_sql(args.api, args.with_audio, sql_path)
+        if args.dry_run:
+            print(f"[dry-run] 未写入数据库；SQL 已生成：{sql_path}")
+            return
+        apply_sql(args.container, sql_file=sql_path)
+    finally:
+        if not args.dry_run:
+            try:
+                sql_path.unlink()
+            except FileNotFoundError:
+                pass
     if args.with_audio:
         attach_demo_audio(args.upload_container, args.upload_dir)
 
