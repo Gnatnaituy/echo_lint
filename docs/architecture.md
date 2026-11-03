@@ -4,11 +4,11 @@
 
 ## 1. 系统架构图
 
-![EchoLint 系统架构](architecture.png)
+![EchoLint 系统架构](architecture.svg)
 
 ## 2. 核心业务流程与 RAG 数据流
 
-![核心业务流程与 RAG 数据流](architecture-flow.png)
+![核心业务流程与 RAG 数据流](architecture-flow.svg)
 
 ## 3. 分层说明
 
