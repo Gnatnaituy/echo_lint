@@ -168,7 +168,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.direction')" width="74" align="center">
+        <el-table-column
+          :label="t('recordings.table.direction')"
+          width="88"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span
               v-if="row.direction && DIRECTION_META[row.direction]"
@@ -189,7 +195,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.duration')" width="92" align="center">
+        <el-table-column
+          :label="t('recordings.table.duration')"
+          width="92"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span v-if="row.durationSeconds != null" class="num call-duration">
               {{ formatDuration(row.durationSeconds) }}
@@ -198,7 +210,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.channels')" width="88" align="center">
+        <el-table-column
+          :label="t('recordings.table.channels')"
+          width="96"
+          align="center"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span v-if="channelKind(row.channelCount) === 'stereo'" class="chip brand">
               {{ t('recordings.table.channelsStereo') }}
