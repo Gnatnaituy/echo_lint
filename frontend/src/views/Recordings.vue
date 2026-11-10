@@ -142,8 +142,6 @@
                 <div class="file-sub">
                   <span class="mono">#{{ row.id }}</span>
                   <span class="sep">·</span>
-                  <span class="num">{{ formatDuration(row.durationSeconds) }}</span>
-                  <span class="sep">·</span>
                   <span class="num">{{ formatTimeShort(row.uploadTime) }}</span>
                 </div>
               </div>
@@ -170,20 +168,33 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.callTime')" width="102">
+        <el-table-column :label="t('recordings.table.direction')" width="74" align="center">
           <template #default="{ row }">
-            <div class="call-cell">
-              <span v-if="row.callTime" class="num call-time" :title="formatTime(row.callTime)">
-                {{ formatTimeShort(row.callTime) }}
-              </span>
-              <span v-else class="dim">—</span>
-              <span
-                v-if="row.direction && DIRECTION_META[row.direction] && row.direction !== 'UNKNOWN'"
-                class="chip dir-chip"
-                :class="DIRECTION_META[row.direction].type"
-                >{{ DIRECTION_META[row.direction].label }}</span
-              >
-            </div>
+            <span
+              v-if="row.direction && DIRECTION_META[row.direction]"
+              class="chip dir-chip"
+              :class="DIRECTION_META[row.direction].type"
+              >{{ DIRECTION_META[row.direction].label }}</span
+            >
+            <span v-else class="dim">—</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="t('recordings.table.callTime')" width="170">
+          <template #default="{ row }">
+            <span v-if="row.callTime" class="num call-time" :title="formatTime(row.callTime)">
+              {{ formatTime(row.callTime) }}
+            </span>
+            <span v-else class="dim">—</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="t('recordings.table.duration')" width="92" align="center">
+          <template #default="{ row }">
+            <span v-if="row.durationSeconds != null" class="num call-duration">
+              {{ formatDuration(row.durationSeconds) }}
+            </span>
+            <span v-else class="dim">—</span>
           </template>
         </el-table-column>
 
@@ -1630,16 +1641,12 @@ onUnmounted(() => {
   color: var(--el-text-color-placeholder);
 }
 /* 通话时间 + 方向：两行排布，避免挤压 */
-.call-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-width: 0;
-  font-size: 12.5px;
-}
 .call-time {
   color: var(--ink-700);
+  white-space: nowrap;
+}
+.call-duration {
+  color: var(--ink-600);
   white-space: nowrap;
 }
 .dir-chip {

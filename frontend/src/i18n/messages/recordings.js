@@ -49,7 +49,9 @@ export default {
     // 列表
     'recordings.table.recording': '录音',
     'recordings.table.agentTeam': '坐席 / 团队',
+    'recordings.table.direction': '方向',
     'recordings.table.callTime': '通话时间',
+    'recordings.table.duration': '通话时长',
     'recordings.table.channels': '声道',
     'recordings.table.channelsStereo': '双声道',
     'recordings.table.channelsMono': '单声道',
@@ -237,7 +239,9 @@ export default {
     // Table
     'recordings.table.recording': 'Recording',
     'recordings.table.agentTeam': 'Agent / Team',
+    'recordings.table.direction': 'Direction',
     'recordings.table.callTime': 'Call time',
+    'recordings.table.duration': 'Duration',
     'recordings.table.channels': 'Channels',
     'recordings.table.channelsStereo': 'Stereo',
     'recordings.table.channelsMono': 'Mono',
