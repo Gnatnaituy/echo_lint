@@ -186,7 +186,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.callTime')" width="170">
+        <el-table-column
+          :label="t('recordings.table.callTime')"
+          width="180"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <span v-if="row.callTime" class="num call-time" :title="formatTime(row.callTime)">
               {{ formatTime(row.callTime) }}
