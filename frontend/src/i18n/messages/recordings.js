@@ -173,7 +173,8 @@ export default {
     'recordings.upload.batchDone': '本批已全部处理完成，可关闭窗口或重新选择文件',
     'recordings.upload.failed': '上传失败',
     'recordings.upload.httpError': '服务器返回 HTTP {status}',
-    'recordings.upload.networkError': '网络错误：上传请求未到达服务器，请检查网络或代理后重试',
+    'recordings.upload.networkError':
+      '网络错误：上传请求未到达服务器（可能被浏览器插件、安全软件或 VPN/代理拦截），请检查后重试',
     'recordings.upload.timeoutError': '上传超时，请检查网络后重试',
     'recordings.upload.tooLarge': '超过 {maxMb}MB 单文件上限',
     'recordings.upload.unknownFile': '未知文件',
@@ -364,7 +365,7 @@ export default {
     'recordings.upload.failed': 'Upload failed',
     'recordings.upload.httpError': 'Server returned HTTP {status}',
     'recordings.upload.networkError':
-      'Network error: the upload did not reach the server. Check your network or proxy and retry.',
+      'Network error: the upload did not reach the server. It may be blocked by a browser extension, security software or VPN/proxy — check and retry.',
     'recordings.upload.timeoutError': 'Upload timed out. Check your network and retry.',
     'recordings.upload.tooLarge': 'Exceeds {maxMb} MB per-file limit',
     'recordings.upload.unknownFile': 'Unknown file',

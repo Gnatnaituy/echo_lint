@@ -218,3 +218,13 @@
 | 改进（已上线） | 上传新增「网络层失败自动重试一次」；错误原因细化（HTTP 状态 + 后端 message / 网络错误 / 超时，替代裸 `Network Error`）；修正上传上限文案（对话框/提示原写 25MB，实际 `MAX_UPLOAD_BYTES` 默认 200MB，改为按配置动态展示） |
 | 验证 | 前端 210 tests、lint/format/i18n/build 全绿；线上新入口 JS 200、`recordings` 深链 200、错误文案已进产物 |
 | 备份 | `backups/fe-r4-20261110-201542/`（前端 dist） |
+
+### 2026-11-10 20:22 上传失败定位：`net::ERR_ACCESS_DENIED`（客户端本地拦截）
+
+| 项 | 值 |
+|---|---|
+| 关键证据 | 浏览器控制台：`POST https://ravooo.cn/api/recordings/upload net::ERR_ACCESS_DENIED`。该错误由 Chrome 在**发出请求前**产生（本机扩展 / 安全软件 / VPN 代理 / 企业策略拦截），不是服务端响应；宿主 nginx 与前端容器日志中确实**没有任何**该请求 |
+| 服务端复测 | 从服务器走公网 IP、HTTP/2 与 HTTP/1.1 分别上传 4.6MB 均到达后端（HTTP 202/400 取决于文件内容），说明 nginx、体积限制与链路均正常 |
+| 结论 | 失败发生在用户本机网络栈：常见于安全 DLP 插件（如 Netskope / 深信服 / 奇安信等）、广告/隐私扩展、系统代理/VPN、Chrome 企业策略；小 GET/登录 POST 正常、仅带文件的 multipart POST 被拦 |
+| 处理 | ① 指导用户用无痕窗口 / Safari / 手机热点 / 其它上传入口分别验证以定位拦截层；② 抓包（tcpdump，端口 443、用户 IP）持续监听用于确认「零包到达」；③ 顺手修复控制台 `favicon.svg 403`（静态文件权限 600 → Dockerfile 增加 `chmod -R a+rX`）；④ 网络错误提示补充「可能被浏览器插件/安全软件/VPN 代理拦截」 |
+| 验证 | favicon 200、新入口 JS 200、上传错误文案已进产物；前端 210 tests、lint/format/i18n/build 全绿 |
