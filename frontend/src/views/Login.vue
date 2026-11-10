@@ -6,9 +6,7 @@
     <section class="login-card">
       <!-- 品牌 -->
       <div class="brand">
-        <div class="brand-mark">
-          <el-icon :size="20"><Headset /></el-icon>
-        </div>
+        <BrandMark class="brand-mark" />
         <div class="brand-text">
           <div class="brand-name">EchoLint</div>
           <div class="brand-sub">Audio Compliance Audit</div>
@@ -79,7 +77,7 @@ import { User, Lock } from '@element-plus/icons-vue'
 import auth from '../auth'
 import { safeRedirect } from '../constants'
 import { useI18n } from '../i18n'
-import { Headset } from '../components/icons.js'
+import BrandMark from '../components/BrandMark.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -197,10 +195,6 @@ onMounted(() => {
   height: 42px;
   flex: none;
   border-radius: 13px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   box-shadow: 0 6px 16px rgba(59, 110, 246, 0.32);
 }
 .brand-name {

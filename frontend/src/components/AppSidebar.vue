@@ -6,9 +6,7 @@
   >
     <!-- 品牌 -->
     <div class="brand">
-      <div class="brand-mark">
-        <el-icon :size="18"><Headset /></el-icon>
-      </div>
+      <BrandMark class="brand-mark" />
       <div v-show="showLabels" class="brand-text">
         <div class="brand-name">EchoLint</div>
         <div class="brand-sub">{{ t('app.subtitle') }}</div>
@@ -71,7 +69,6 @@ import {
   Expand,
   Files,
   Fold,
-  Headset,
   Key,
   List,
   Monitor,
@@ -85,6 +82,7 @@ import {
 } from './icons.js'
 import { visibleMenuGroups } from '../menu.js'
 import { useI18n } from '../i18n'
+import BrandMark from './BrandMark.vue'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -214,13 +212,7 @@ const badgeCount = computed(() => props.badgeCount)
   height: 34px;
   flex: none;
   border-radius: 11px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow:
-    0 6px 14px rgba(59, 110, 246, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 14px rgba(59, 110, 246, 0.28);
 }
 .brand-text {
   min-width: 0;
