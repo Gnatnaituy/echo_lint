@@ -37,6 +37,7 @@
       </div>
       <div class="hint tiny dim">
         <div>{{ t('users.roleHint') }}</div>
+        <div>{{ t('users.menuHint') }}</div>
         <div>{{ t('users.securityHint') }}</div>
       </div>
     </section>
@@ -73,6 +74,19 @@
             <span class="chip" :class="ROLE_CHIP[row.role] || 'info'">
               {{ roleLabel(row.role) }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('users.menus')" width="104" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="menuSummary(row)" placement="top" :disabled="!row.menuRestricted">
+              <span class="chip" :class="row.menuRestricted ? 'brand' : 'info'">
+                {{
+                  row.menuRestricted
+                    ? tn('users.menusCount', menuCount(row), { count: menuCount(row) })
+                    : t('users.menusAll')
+                }}
+              </span>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column :label="t('common.status')" width="100" align="center">
@@ -143,7 +157,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="editing ? t('users.editTitle') : t('users.createTitle')"
-      width="470px"
+      width="560px"
       append-to-body
       @closed="resetForm"
     >
@@ -181,6 +195,48 @@
               />
             </el-select>
             <div class="tiny dim role-desc">{{ ROLE_META[form.role]?.description }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item :label="t('users.menus')" prop="menuKeys">
+          <div class="menu-field">
+            <div class="tiny dim menu-hint">{{ t('users.menusHint') }}</div>
+            <div class="menu-actions">
+              <span class="tiny dim">
+                {{
+                  t('users.menusRoleScope', {
+                    role: roleLabel(form.role),
+                    count: allowedMenuKeys.length
+                  })
+                }}
+              </span>
+              <span class="menu-actions-btns">
+                <el-button link type="primary" size="small" @click="selectAllMenus">
+                  {{ t('users.menusSelectAll') }}
+                </el-button>
+                <el-button link size="small" @click="clearMenus">
+                  {{ t('users.menusClear') }}
+                </el-button>
+              </span>
+            </div>
+            <div v-for="group in menuGroupsForForm" :key="group.titleKey" class="menu-group">
+              <div class="menu-group-head">
+                <span class="menu-group-title">{{ t(group.titleKey) }}</span>
+                <span class="tiny dim">{{ group.selectedCount }}/{{ group.items.length }}</span>
+                <el-button
+                  link
+                  size="small"
+                  class="menu-group-toggle"
+                  @click="toggleMenuGroup(group)"
+                >
+                  {{ group.allSelected ? t('users.menusClear') : t('users.menusSelectAll') }}
+                </el-button>
+              </div>
+              <el-checkbox-group v-model="form.menuKeys" class="menu-checkboxes">
+                <el-checkbox v-for="item in group.items" :key="item.key" :value="item.key">
+                  {{ t(item.labelKey) }}
+                </el-checkbox>
+              </el-checkbox-group>
+            </div>
           </div>
         </el-form-item>
         <el-form-item
@@ -221,18 +277,21 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import api from '../api'
 import auth from '../auth'
 import { formatTimeShort, ROLE_META, ROLE_OPTIONS, roleLabel } from '../constants'
 import { useI18n } from '../i18n'
+import { MENU_BY_KEY, MENU_GROUPS, MENU_ITEMS, reconcileMenuSelection } from '../menu.js'
 import { User, WarningFilled } from '../components/icons.js'
 
 const { t, tn } = useI18n()
 
 const rows = ref([])
+/** 可绑定菜单目录（后端 MenuKey）：请求失败时用本地目录兜底，保证弹窗始终可编辑 */
+const menuOptions = ref([])
 const loading = ref(false)
 const error = ref('')
 const keyword = ref('')
@@ -240,6 +299,33 @@ const page = ref(1)
 const pageSize = 10
 
 const ROLE_CHIP = { ADMIN: 'brand', REVIEWER: 'warn', VIEWER: 'info' }
+
+/** 可绑定菜单的来源：后端目录优先，缺失时回退本地目录（两者 key 一致） */
+function menuOptionSource() {
+  return menuOptions.value.length
+    ? menuOptions.value
+    : MENU_ITEMS.map((item) => ({ key: item.key, adminOnly: !!item.adminOnly }))
+}
+
+/** 指定角色允许绑定的菜单 key 全集（ADMIN 全部；其余仅非 adminOnly） */
+function allowedMenuKeysForRole(role) {
+  return menuOptionSource()
+    .filter((opt) => role === 'ADMIN' || !opt.adminOnly)
+    .map((opt) => opt.key)
+    .filter((key) => MENU_BY_KEY[key])
+}
+
+function menuCount(row) {
+  return Array.isArray(row?.menuKeys) ? row.menuKeys.length : 0
+}
+
+function menuSummary(row) {
+  const keys = Array.isArray(row?.menuKeys) ? row.menuKeys : []
+  const menus = keys
+    .map((key) => (MENU_BY_KEY[key] ? t(MENU_BY_KEY[key].labelKey) : key))
+    .join(' / ')
+  return t('users.menusSummary', { menus })
+}
 
 const filteredRows = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
@@ -292,6 +378,16 @@ async function load() {
   }
 }
 
+/** 拉取可绑定菜单目录；失败时静默回退本地目录，不阻断用户列表 */
+async function loadMenuOptions() {
+  try {
+    const data = await api.listMenuOptions()
+    menuOptions.value = Array.isArray(data) ? data : []
+  } catch {
+    menuOptions.value = []
+  }
+}
+
 /* ---------- 新建 / 编辑 ---------- */
 const dialogVisible = ref(false)
 const editing = ref(null)
@@ -302,13 +398,72 @@ const form = reactive({
   displayName: '',
   role: 'REVIEWER',
   password: '',
-  enabled: true
+  enabled: true,
+  menuKeys: []
 })
+
+/** 程序化回填表单时暂停「角色切换 → 菜单自动调整」，避免覆盖行上已绑定的菜单 */
+let roleSyncPaused = false
+
+const allowedMenuKeys = computed(() => allowedMenuKeysForRole(form.role))
+const allowedMenuKeySet = computed(() => new Set(allowedMenuKeys.value))
+
+/** 弹窗内按侧栏分组展示的菜单复选：只显示当前角色允许的项，并统计每组已选数量 */
+const menuGroupsForForm = computed(() =>
+  MENU_GROUPS.map((group) => {
+    const items = group.items.filter((item) => allowedMenuKeySet.value.has(item.key))
+    const selectedCount = items.filter((item) => form.menuKeys.includes(item.key)).length
+    return {
+      ...group,
+      items,
+      selectedCount,
+      allSelected: items.length > 0 && selectedCount === items.length
+    }
+  }).filter((group) => group.items.length > 0)
+)
+
+function selectAllMenus() {
+  form.menuKeys = [...allowedMenuKeys.value]
+}
+
+function clearMenus() {
+  form.menuKeys = []
+}
+
+function toggleMenuGroup(group) {
+  const keys = group.items.map((item) => item.key)
+  if (group.allSelected) {
+    form.menuKeys = form.menuKeys.filter((key) => !keys.includes(key))
+  } else {
+    form.menuKeys = Array.from(new Set([...form.menuKeys, ...keys]))
+  }
+}
+
+// 角色切换时收窄已选菜单：原来「全选旧角色可用项」则自动全选新角色可用项，
+// 否则保留交集；交集为空时回填新角色可用项，避免出现「一个菜单都没选」的死状态。
+watch(
+  () => form.role,
+  (role, previousRole) => {
+    if (roleSyncPaused) return
+    form.menuKeys = reconcileMenuSelection(
+      form.menuKeys,
+      allowedMenuKeysForRole(previousRole),
+      allowedMenuKeysForRole(role)
+    )
+  }
+)
 
 function validatePassword(rule, value, callback) {
   if (editing.value && !value) return callback()
   if (!value) return callback(new Error(t('users.passwordRequired')))
   if (String(value).length < 8) return callback(new Error(t('users.passwordMin')))
+  callback()
+}
+
+function validateMenus(rule, value, callback) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return callback(new Error(t('users.menusRequired')))
+  }
   callback()
 }
 
@@ -323,6 +478,7 @@ const rules = computed(() => ({
   ],
   displayName: [{ required: true, message: t('users.displayNameRequired'), trigger: 'blur' }],
   role: [{ required: true, message: t('users.roleRequired'), trigger: 'change' }],
+  menuKeys: [{ validator: validateMenus, trigger: 'change' }],
   password: [{ validator: validatePassword, trigger: 'blur' }]
 }))
 
@@ -333,22 +489,41 @@ function resetForm() {
   form.role = 'REVIEWER'
   form.password = ''
   form.enabled = true
+  form.menuKeys = []
   formRef.value?.clearValidate?.()
 }
 
 function openCreate() {
+  // 回填期间暂停角色联动；下一次 watcher flush 结束后再恢复（nextTick 必须在 mutation 之后调用，
+  // 否则会先于 watcher 恢复，导致后面的回填被联动逻辑覆盖）
+  roleSyncPaused = true
   resetForm()
+  form.menuKeys = allowedMenuKeysForRole('REVIEWER')
   dialogVisible.value = true
+  nextTick(() => {
+    roleSyncPaused = false
+  })
 }
 
 function openEdit(row) {
+  roleSyncPaused = true
   editing.value = row
   form.username = row.username || ''
   form.displayName = row.displayName || ''
   form.role = row.role || 'REVIEWER'
   form.password = ''
   form.enabled = row.enabled !== false
+  const allowed = allowedMenuKeysForRole(form.role)
+  const allowedSet = new Set(allowed)
+  const effective = Array.isArray(row.menuKeys)
+    ? row.menuKeys.filter((key) => allowedSet.has(key))
+    : []
+  // 不限制（全部可见）时回填角色允许全集；受限时回填已绑定菜单
+  form.menuKeys = row.menuRestricted && effective.length ? effective : allowed
   dialogVisible.value = true
+  nextTick(() => {
+    roleSyncPaused = false
+  })
 }
 
 async function submit() {
@@ -361,11 +536,13 @@ async function submit() {
   saving.value = true
   try {
     const displayName = form.displayName.trim()
+    const menuKeys = [...form.menuKeys]
     if (editing.value) {
       const payload = {
         displayName,
         role: form.role,
-        enabled: form.enabled
+        enabled: form.enabled,
+        menuKeys
       }
       if (form.password) payload.password = form.password
       await api.updateUser(editing.value.id, payload)
@@ -375,14 +552,15 @@ async function submit() {
         username: form.username.trim().toLowerCase(),
         password: form.password,
         displayName,
-        role: form.role
+        role: form.role,
+        menuKeys
       })
       ElMessage.success(t('users.created'))
     }
     dialogVisible.value = false
     await load()
   } catch {
-    // 请求层已统一提示（403 等）
+    // 请求层已统一提示（403 / 最后一个管理员菜单保护等）
   } finally {
     saving.value = false
   }
@@ -412,7 +590,10 @@ async function enable(row) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadMenuOptions()
+})
 </script>
 
 <style scoped>
@@ -532,6 +713,57 @@ onMounted(load)
 .role-desc {
   margin-top: 4px;
   line-height: 1.5;
+}
+/* 菜单绑定：分组复选，限高滚动避免把弹窗撑得过高 */
+.menu-field {
+  width: 100%;
+}
+.menu-hint {
+  line-height: 1.6;
+}
+.menu-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 8px;
+}
+.menu-actions-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.menu-group {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 10px 4px;
+  margin-bottom: 8px;
+  background: #fcfdff;
+}
+.menu-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.menu-group-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+.menu-group-toggle {
+  margin-left: auto;
+}
+.menu-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+}
+.menu-checkboxes :deep(.el-checkbox) {
+  height: 26px;
+  margin-right: 0;
+  font-size: 12.5px;
 }
 .ml-8 {
   margin-left: 8px;

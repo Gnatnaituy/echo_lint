@@ -181,7 +181,8 @@ export default {
     'api.genericError': '请求失败，请检查后端服务是否可用',
     'api.forbidden': '无权限执行该操作',
     'auth.notLoggedIn': '未登录',
-    'auth.noPermissionPage': '无权限访问该页面'
+    'auth.noPermissionPage': '无权限访问该页面',
+    'auth.noMenuPermission': '该账号未绑定此菜单，无法访问'
   },
   en: {
     // Common
@@ -357,6 +358,7 @@ export default {
     'api.genericError': 'Request failed. Please check that the backend service is available.',
     'api.forbidden': 'You do not have permission to perform this action.',
     'auth.notLoggedIn': 'Not signed in',
-    'auth.noPermissionPage': 'You do not have permission to access this page'
+    'auth.noPermissionPage': 'You do not have permission to access this page',
+    'auth.noMenuPermission': 'This menu is not bound to your account'
   }
 }

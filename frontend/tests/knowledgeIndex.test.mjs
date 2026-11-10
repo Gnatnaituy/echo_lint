@@ -274,11 +274,15 @@ test('路由：/knowledge-index 重定向到 /knowledge?tab=index，不再直接
 })
 
 test('侧栏：知识组只剩词典 / 语料 / 知识库三项，不再挂索引明细入口', () => {
+  // 菜单目录已统一收敛到 src/menu.js（侧栏 / 路由 / 用户菜单绑定共用一份）
+  const menu = readSource('src/menu.js')
   const sidebar = readSource('src/components/AppSidebar.vue')
+  assert.ok(!menu.includes('/knowledge-index'), '菜单目录不应再有 /knowledge-index 入口')
+  assert.ok(!menu.includes('nav.knowledgeIndex'), '菜单目录不应再引用 nav.knowledgeIndex')
   assert.ok(!sidebar.includes('/knowledge-index'), '侧栏不应再有 /knowledge-index 入口')
   assert.ok(!sidebar.includes('nav.knowledgeIndex'), '侧栏不应再引用 nav.knowledgeIndex')
 
-  const group = sidebar.match(/titleKey:\s*'nav\.group\.knowledge',\s*items:\s*\[([\s\S]*?)\]/)
+  const group = menu.match(/titleKey:\s*'nav\.group\.knowledge',\s*items:\s*\[([\s\S]*?)\]\s*\}\)?/)
   assert.ok(group, '未找到知识组配置')
   const paths = [...group[1].matchAll(/path:\s*'([^']+)'/g)].map((match) => match[1])
   assert.deepEqual(paths, ['/dictionary', '/corpus', '/knowledge'])

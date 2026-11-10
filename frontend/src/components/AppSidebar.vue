@@ -83,6 +83,7 @@ import {
   Setting,
   User
 } from './icons.js'
+import { visibleMenuGroups } from '../menu.js'
 import { useI18n } from '../i18n'
 
 const props = defineProps({
@@ -100,41 +101,33 @@ const { t } = useI18n()
 /** 抽屉模式下始终展示完整标签（不受桌面折叠态影响） */
 const showLabels = computed(() => (props.overlay ? props.open : !props.collapsed))
 
-// 系统设置 / 知识库 / 数据大屏对所有角色可见；成本看板 / 任务队列 / API 密钥 / 用户管理 / 操作审计仅 ADMIN
-const groups = computed(() => {
-  const systemItems = [{ path: '/settings', labelKey: 'nav.settings', icon: Setting }]
-  if (auth.hasRole('ADMIN')) {
-    systemItems.push(
-      { path: '/costs', labelKey: 'nav.costs', icon: Money },
-      { path: '/tasks', labelKey: 'nav.tasks', icon: Operation },
-      { path: '/ai-chat', labelKey: 'nav.aiChat', icon: ChatDotRound },
-      { path: '/api-keys', labelKey: 'nav.apiKeys', icon: Key },
-      { path: '/users', labelKey: 'nav.users', icon: User },
-      { path: '/audit', labelKey: 'nav.audit', icon: List }
-    )
-  }
-  return [
-    {
-      titleKey: 'nav.group.auditOps',
-      items: [
-        { path: '/', labelKey: 'nav.dashboard', icon: Odometer },
-        { path: '/recordings', labelKey: 'nav.recordings', icon: Files },
-        { path: '/reports', labelKey: 'nav.reports', icon: DataAnalysis },
-        { path: '/review', labelKey: 'nav.review', icon: DocumentChecked, badge: true },
-        { path: '/screen', labelKey: 'nav.screen', icon: Monitor }
-      ]
-    },
-    {
-      titleKey: 'nav.group.knowledge',
-      items: [
-        { path: '/dictionary', labelKey: 'nav.dictionary', icon: Collection },
-        { path: '/corpus', labelKey: 'nav.corpus', icon: Notebook },
-        { path: '/knowledge', labelKey: 'nav.knowledge', icon: Reading }
-      ]
-    },
-    { titleKey: 'nav.group.system', items: systemItems }
-  ]
-})
+/** 菜单目录 key → 图标：目录本身保持纯数据（供 auth/路由/测试复用），图标只在渲染层绑定 */
+const MENU_ICONS = {
+  DASHBOARD: Odometer,
+  RECORDINGS: Files,
+  REPORTS: DataAnalysis,
+  REVIEW: DocumentChecked,
+  SCREEN: Monitor,
+  DICTIONARY: Collection,
+  CORPUS: Notebook,
+  KNOWLEDGE: Reading,
+  SETTINGS: Setting,
+  COSTS: Money,
+  TASKS: Operation,
+  AI_CHAT: ChatDotRound,
+  API_KEYS: Key,
+  USERS: User,
+  AUDIT: List
+}
+
+// 可见菜单 = 角色允许范围 ∩ 用户菜单绑定（由后端 /api/auth/me 下发）；
+// 菜单绑定只影响前端入口，接口权限仍由后端角色矩阵独立校验。
+const groups = computed(() =>
+  visibleMenuGroups(auth.user).map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item, icon: MENU_ICONS[item.key] || List }))
+  }))
+)
 
 // 前缀匹配要求路径段边界：/knowledge 不能把 /knowledge-xxx 误判为激活
 const isActive = (path) =>

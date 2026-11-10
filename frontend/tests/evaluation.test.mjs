@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { AUDIT_ACTION_OPTIONS, auditActionLabel } from '../src/constants.js'
+import { mergeScreeningProviders } from '../src/utils/providers.js'
 import {
   evaluationLabelMeta,
   formatAbPercent,
@@ -218,4 +219,129 @@ test('标签 / 百分比 / 耗时展示格式化', () => {
 test('审计动作：MODEL_EVALUATE 有中文文案并进入筛选选项', () => {
   assert.equal(auditActionLabel('MODEL_EVALUATE'), '模型评测')
   assert.ok(AUDIT_ACTION_OPTIONS.some((opt) => opt.value === 'MODEL_EVALUATE'))
+})
+
+/* ---------- 复筛页：供应商网格合并视图（注册表 + screen-model） ---------- */
+
+const REGISTRY = [
+  {
+    key: 'aliyun',
+    label: '阿里云百炼',
+    baseUrl: 'https://dashscope.aliyuncs.com',
+    chatPath: '/chat/completions',
+    defaultModel: 'qwen-plus',
+    models: ['qwen-plus', 'qwen-max'],
+    enabled: true,
+    builtIn: true,
+    apiKeyMasked: '****LOOY',
+    apiKeyConfigured: true
+  },
+  {
+    key: 'deepseek',
+    label: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-flash',
+    models: ['deepseek-flash'],
+    enabled: true,
+    builtIn: true,
+    apiKeyConfigured: true,
+    apiKeyMasked: '****abcd'
+  },
+  {
+    key: 'custom-gw',
+    label: '自建网关',
+    baseUrl: 'https://gateway.example.com',
+    defaultModel: 'gpt-4o-mini',
+    models: [],
+    enabled: false,
+    builtIn: false,
+    apiKeyConfigured: true
+  },
+  {
+    key: 'openai',
+    label: 'OpenAI',
+    baseUrl: 'https://api.openai.com',
+    defaultModel: 'gpt-4o-mini',
+    models: [],
+    enabled: true,
+    builtIn: true,
+    apiKeyConfigured: false
+  }
+]
+
+const SCREEN_MODEL = {
+  providerId: 'deepseek',
+  providerLabel: 'DeepSeek',
+  model: 'deepseek-flash',
+  apiKeyConfigured: true,
+  source: 'DATABASE',
+  fewShotCount: 3,
+  providers: [
+    {
+      id: 'deepseek',
+      label: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      apiKeyConfigured: true
+    },
+    {
+      id: 'aliyun',
+      label: '阿里云百炼',
+      baseUrl: 'https://dashscope.aliyuncs.com',
+      apiKeyConfigured: true
+    }
+  ],
+  ab: null
+}
+
+test('供应商网格：注册表为主，合并当前生效 / 选中 / 停用 / 未配 Key 状态', () => {
+  const cards = mergeScreeningProviders({
+    providers: REGISTRY,
+    view: SCREEN_MODEL,
+    selectedKey: 'aliyun'
+  })
+  assert.deepEqual(
+    cards.map((c) => c.key),
+    ['aliyun', 'deepseek', 'custom-gw', 'openai']
+  )
+
+  const [aliyun, deepseek, custom, openai] = cards
+  // 标签 / 地址 / 掩码来自注册表；模型列表补上默认模型
+  assert.equal(aliyun.label, '阿里云百炼')
+  assert.equal(aliyun.baseUrl, 'https://dashscope.aliyuncs.com')
+  assert.equal(aliyun.keyMasked, '****LOOY')
+  assert.equal(aliyun.builtIn, true)
+  assert.deepEqual(aliyun.models, ['qwen-plus', 'qwen-max'])
+  // 当前生效来自 screen-model，选中来自草稿选择（大小写不敏感）
+  assert.equal(aliyun.selected, true)
+  assert.equal(aliyun.current, false)
+  assert.equal(deepseek.current, true)
+  assert.equal(deepseek.selected, false)
+
+  // 停用 / 未配 Key：灰显并给出原因码（文案由页面翻译）
+  assert.equal(custom.disabled, true)
+  assert.equal(custom.disabledReason, 'disabled')
+  assert.equal(openai.disabled, true)
+  assert.equal(openai.disabledReason, 'missingKey')
+  assert.equal(aliyun.disabled, false)
+  assert.equal(aliyun.fallback, false)
+})
+
+test('供应商网格：注册表为空时回退 screen-model 的 providers（不可编辑）', () => {
+  const cards = mergeScreeningProviders({
+    providers: [],
+    view: SCREEN_MODEL,
+    selectedKey: 'deepseek'
+  })
+  assert.equal(cards.length, 2)
+  assert.ok(cards.every((c) => c.fallback === true))
+  assert.ok(cards.every((c) => c.builtIn === false))
+  assert.equal(cards[0].current, true)
+  assert.equal(cards[0].selected, true)
+  assert.equal(cards[1].baseUrl, 'https://dashscope.aliyuncs.com')
+})
+
+test('供应商网格：注册表缺失 / 视图缺失时返回空数组，不抛错', () => {
+  assert.deepEqual(mergeScreeningProviders(), [])
+  assert.deepEqual(mergeScreeningProviders({ providers: null, view: null }), [])
+  assert.deepEqual(mergeScreeningProviders({ providers: [], view: 'oops' }), [])
 })

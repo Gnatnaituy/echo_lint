@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { t } from '../i18n/index.js'
 import { blobErrorMessage, dateStamp, filenameFromDisposition } from '../utils/download.js'
 import { normalizeNotificationSettings, normalizeNotificationTest } from '../utils/notifications.js'
+import { normalizeAsrSettings, normalizeAsrTest } from '../utils/asr.js'
 import { normalizeProviderTest, normalizeProviders } from '../utils/providers.js'
 import { normalizeAiUsage } from '../utils/aiUsage.js'
 import {
@@ -222,6 +223,10 @@ export const api = {
   // 用户管理（ADMIN）
   listUsers() {
     return http.get('/users')
+  },
+  /** 可绑定菜单目录（后端 MenuKey 枚举）：[{key,path,adminOnly}] */
+  listMenuOptions() {
+    return http.get('/users/menu-options')
   },
   createUser(payload) {
     return http.post('/users', payload)
@@ -558,6 +563,22 @@ export const api = {
     return http
       .post('/settings/notifications/test', undefined, { silent: true })
       .then((data) => normalizeNotificationTest(data))
+  },
+
+  // 系统设置：语音转写（ASR，ADMIN）；读 silent 由页面展示 403/404 降级，写失败走全局提示（含后端「未就绪」原因）
+  /** GET /api/settings/asr -> 归一化 {activeProvider, timeoutSeconds, local, dashscope} */
+  getAsrSettings() {
+    return http.get('/settings/asr', { silent: true }).then((data) => normalizeAsrSettings(data))
+  },
+  /** PUT /api/settings/asr -> 同 GET；apiKey 留空表示保持已保存的密钥 */
+  updateAsrSettings(payload) {
+    return http.put('/settings/asr', payload).then((data) => normalizeAsrSettings(data))
+  },
+  /** POST /api/settings/asr/test {provider?}（省略 = 测当前生效）-> {ok, provider, model, latencyMs, message} */
+  testAsr(provider) {
+    return http
+      .post('/settings/asr/test', provider ? { provider } : {}, { silent: true })
+      .then((data) => normalizeAsrTest(data))
   },
 
   // 系统设置：AI 供应商注册表（ADMIN）；列表/测试 silent，由设置页卡片内展示降级提示

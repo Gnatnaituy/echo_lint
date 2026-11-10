@@ -10,7 +10,9 @@
       :key="String(opt.value)"
       type="button"
       class="seg-item"
-      :class="{ on: isActive(opt) }"
+      :class="{ on: isActive(opt), off: opt.disabled === true, muted: opt.muted === true }"
+      :disabled="opt.disabled === true"
+      :title="opt.title || undefined"
       :aria-pressed="isActive(opt) ? 'true' : 'false'"
       @click="select(opt)"
     >
@@ -34,12 +36,13 @@
  *
  * 用法：
  *   <SegmentedControl v-model="statusFilter" :options="statusOptions" @change="reload" />
- *   options: [{ value: '', label: '全部', count: 9 }, ...]（value 与 v-model 严格相等匹配）
+ *   options: [{ value: '', label: '全部', count: 9, disabled?: false, muted?: false, title?: '' }, ...]
+ *   （value 与 v-model 严格相等匹配；disabled 不可点击，muted 只是灰显提示「未就绪但可选中」。）
  */
 const props = defineProps({
   /** 当前选中值；「全部」建议用空字符串保持与现有查询参数一致 */
   modelValue: { type: [String, Number, Boolean], default: '' },
-  /** [{ value, label, count?, hot? }] */
+  /** [{ value, label, count?, hot?, disabled?, muted?, title? }] */
   options: { type: Array, required: true },
   ariaLabel: { type: String, default: '' }
 })
@@ -48,6 +51,7 @@ const emit = defineEmits(['update:modelValue', 'change'])
 const isActive = (opt) => props.modelValue === opt.value
 
 function select(opt) {
+  if (opt.disabled === true) return
   if (isActive(opt)) return
   emit('update:modelValue', opt.value)
   emit('change', opt.value)
@@ -89,6 +93,21 @@ function select(opt) {
   background: #fff;
   color: var(--brand-600);
   box-shadow: var(--sh-xs);
+}
+/* 禁用项：不可点击，保留 hover 提示 */
+.seg-item.off {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.seg-item.off:hover {
+  color: var(--el-text-color-regular);
+}
+/* 未就绪但仍可选中（如 ASR 未配置 Key 的 provider：选中后可在下方填写并保存） */
+.seg-item.muted {
+  opacity: 0.62;
+}
+.seg-item.muted:hover:not(.on) {
+  color: var(--brand-600);
 }
 .seg-count {
   min-width: 16px;

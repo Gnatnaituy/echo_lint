@@ -101,11 +101,7 @@
           </div>
         </div>
 
-        <div class="hint tiny dim">
-          {{ t('settings.notify.hintA') }}
-          {{ t('settings.notify.hintB') }}
-          {{ t('settings.notify.hintC') }}
-        </div>
+        <div class="hint tiny dim">{{ t('settings.notify.hintEnv') }}</div>
       </template>
     </div>
   </section>

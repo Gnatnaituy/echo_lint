@@ -7,6 +7,25 @@
  */
 export default {
   zh: {
+    // 设置页二级导航：路由 titleKey / 页内导航共用（meta.titleKey 引用这些 key）
+    'settings.nav.label': '系统设置导航',
+    'settings.nav.screening': '复筛模型',
+    'settings.nav.transcription': '语音转写',
+    'settings.nav.rag': '知识增强',
+    'settings.nav.notifications': '通知与抽样',
+    'settings.nav.runtime': '运行环境',
+
+    // 设置页页头说明（子路由 meta.descKey）
+    'settings.page.screeningDesc':
+      '当前生效的 AI 复筛模型、供应商与 A/B 评测；保存后立即生效、重启保持。',
+    'settings.page.transcriptionDesc':
+      '选择语音转写服务并配置：本地 whisper.cpp 或阿里云百炼，保存后立即生效、重启保持。',
+    'settings.page.ragDesc': '检索增强（RAG）开关、检索参数、索引统计与效果评测。',
+    'settings.page.notificationsDesc': '合规抽样比例与 Webhook 告警的只读展示与连通性测试。',
+    'settings.page.runtimeDesc': '设置生效范围、密钥策略与非密钥环境变量默认值。',
+
+    // 复筛页内部分区
+
     // 通用状态胶囊
     'settings.state.enabled': '已启用',
     'settings.state.disabled': '未启用',
@@ -21,31 +40,29 @@ export default {
     'settings.source.uiSwitch': '界面切换',
     'settings.source.uiSaved': '界面保存',
 
-    // ① 当前生效模型
-    'settings.active.title': '当前 AI 复筛模型',
-    'settings.active.subtitle': '作用于语义复筛与敏感词挖掘',
-    'settings.active.keyConfigured': 'API Key 已配置，可正常调用',
-    'settings.active.keyMissing': 'API Key 未配置：DFA 命中的录音会降级转人工复检，不会漏审',
-    'settings.active.testConnection': '测试连通性',
-    'settings.active.switched': '已切换到 {provider} · {model}',
-
-    // 连通性测试结果（模型 / 供应商共用）
+    // 连通性测试结果（复筛模型 / 供应商 / 语音转写 / RAG / 通知共用）
     'settings.test.ok': '连通正常',
     'settings.test.fail': '连通失败',
     'settings.test.latency': '耗时 {ms} ms',
     'settings.test.emptyReply': '（无返回内容）',
 
-    // ② 切换模型
-    'settings.model.title': '切换模型',
-    'settings.model.subtitle': '保存后立即生效，无需重启；选择会持久化保存',
-    'settings.model.providerDisabled': '该供应商已在「AI 供应商」中停用，启用后才能切换',
+    // AI 复筛模型（状态行 + 供应商网格 + 模型选择合并为一张卡片）
+    'settings.model.title': 'AI 复筛模型',
+    'settings.model.subtitle': '作用于语义复筛与敏感词挖掘；保存后立即生效、重启保持',
+    'settings.model.current': '当前生效',
+    'settings.model.testActive': '测试连通性',
+    'settings.model.chooseProvider': '选择供应商',
+    'settings.model.chooseProviderHint':
+      '点击卡片选中；停用或未配置密钥的供应商不可选，可点右上角编辑补全',
     'settings.model.keyConfigured': 'Key 已配置',
-    'settings.model.keyMissingEnv': '缺少 {env}',
     'settings.model.keyMissing': 'Key 未配置',
+    'settings.model.providerDisabled': '已停用，启用后才能选择',
+    'settings.model.providerMissingKey': '未配置 API Key，请点右上角编辑填写',
     'settings.model.label': '模型',
     'settings.model.placeholder': '选择或直接输入模型名',
     'settings.model.test': '测试',
     'settings.model.save': '保存并生效',
+    'settings.model.switched': '已切换到 {provider} · {model}',
     'settings.model.hintSelect':
       '可下拉选择，也可直接输入候选之外的新模型名（供应商上新模型时无需改配置重启）。',
     'settings.model.hintEffect':
@@ -53,35 +70,23 @@ export default {
     'settings.model.readonlyAlert':
       '只读角色可查看当前生效模型；切换模型与连通性测试仅管理员可用。',
 
-    // ③ AI 供应商注册表
-    'settings.provider.title': 'AI 供应商',
-    'settings.provider.subtitle': '内置供应商由后端配置首次启动落库；密钥加密存储，仅显示掩码',
+    // AI 供应商（网格卡片：选择 / 编辑 / 新增 / 删除；密钥只回掩码）
     'settings.provider.create': '新增供应商',
     'settings.provider.editTitle': '编辑供应商',
+    'settings.provider.deleteTitle': '删除供应商',
     'settings.provider.current': '当前',
     'settings.provider.builtIn': '内置',
     'settings.provider.unavailable': '供应商列表暂不可用',
-    'settings.provider.columnName': '供应商',
-    'settings.provider.baseUrl': '接入地址',
-    'settings.provider.defaultChatPath': '默认 chatPath',
-    'settings.provider.defaultModel': '默认模型',
     'settings.provider.modelCount': '{count} 个候选模型',
+    'settings.provider.defaultModel': '默认模型',
     'settings.provider.pricePer1k': '价格 / 1K',
-    'settings.provider.priceTooltip': '单位 USD / 1K tokens；入 = 输入价格，出 = 输出价格',
-    'settings.provider.priceIn': '入',
-    'settings.provider.priceOut': '出',
-    'settings.provider.keyColumn': '密钥',
-    'settings.provider.test': '测试',
-    'settings.provider.activeDeleteTooltip': '当前生效供应商不可删除，请先切换模型',
     'settings.provider.deleteConfirm': '删除后该供应商配置与密钥将被移除（不可恢复），确认删除？',
+    'settings.provider.activeDeleteTooltip':
+      '当前生效供应商不可删除，请先在网格中选择其它供应商并保存',
     'settings.provider.empty': '暂无供应商',
     'settings.provider.emptyHint':
-      '内置供应商会在后端首次启动时自动落库；也可点击右上角「新增供应商」接入自定义网关',
-    'settings.provider.hintA':
-      '内置供应商可编辑接入信息、价格与密钥，但不可删除；自定义供应商可增删。',
-    'settings.provider.hintB': '停用或删除不会影响历史录音结论与已产生的调用留痕。',
+      '内置供应商会在后端首次启动时自动落库；也可点击「新增供应商」接入自定义网关',
     'settings.provider.loadFailed': '供应商列表加载失败，请稍后重试',
-    'settings.provider.testFailed': '测试请求失败，请检查网关与后端日志',
     'settings.provider.updated': '供应商 {label} 已更新',
     'settings.provider.created': '供应商 {label} 已创建',
     'settings.provider.deleted': '供应商 {label} 已删除',
@@ -115,14 +120,6 @@ export default {
     'settings.provider.ruleDefaultModelRequired': '请输入默认模型',
     'settings.provider.ruleKeyRequired': '请输入唯一标识',
     'settings.provider.ruleKeyPattern': '1-64 位小写字母 / 数字 / . _ -，以字母或数字开头',
-
-    // 供应商连通性测试弹窗
-    'settings.providerTest.title': '测试供应商连通性',
-    'settings.providerTest.disabledChip': '已停用',
-    'settings.providerTest.model': '测试模型',
-    'settings.providerTest.modelPlaceholder': '留空使用默认模型：{model}',
-    'settings.providerTest.failHint': '请检查 Base URL / 密钥 / 模型名',
-    'settings.providerTest.send': '发送测试请求',
 
     // ④ A/B 分流
     'settings.ab.title': 'A/B 与模型评测',
@@ -249,10 +246,6 @@ export default {
     'settings.rag.casesEmpty': '暂无逐条结果',
     'settings.rag.casesEmptyHint': '后端返回 cases 后展示基线 / RAG 预测与引用',
     'settings.rag.evalEmpty': '还没有 RAG 评测结果：设置样本数（5~20）后点击「评测 RAG 效果」。',
-    'settings.rag.hintA':
-      'Embedding 供应商复用「AI 供应商」中的 Base URL 与密钥；未配置 / 不可用时 RAG 自动降级为',
-    'settings.rag.hintB':
-      '不注入检索结果，不阻塞复筛。索引重建与评测均为 ADMIN 接口，重建任务在后台异步执行。',
     'settings.rag.saved': 'RAG 检索参数已保存，立即生效',
     'settings.rag.enabledToast': 'RAG 检索增强已启用，立即生效',
     'settings.rag.disabledToast': 'RAG 检索增强已停用，复筛行为与旧版一致',
@@ -276,23 +269,85 @@ export default {
     'settings.rag.vectorUnavailableNote': 'RAG 将自动降级为不注入检索结果，不阻塞复筛',
     'settings.rag.vectorUnknownNote': '接口未返回向量能力状态（后端可能为旧版本）',
 
-    // ⑥ 生效范围与密钥
-    'settings.scope.title': '生效范围与密钥配置',
+    // ⑤ 语音转写（ASR）：单卡承载 状态行 + 服务切换 + 选中服务配置 + 一组操作
+    'settings.asr.title': '转写服务与配置',
+    'settings.asr.subtitle': '默认本地 whisper.cpp，可切换阿里云百炼；保存后立即生效、重启保持',
+    'settings.asr.active.label': '当前生效',
+    'settings.asr.active.note': '作用于录音转写流水线',
+    'settings.asr.active.notReadyNote': '当前服务未就绪，请在下方填写并保存 API Key',
+    'settings.asr.key.masked': 'Key {masked}',
+    'settings.asr.key.configured': 'Key 已配置',
+    'settings.asr.key.notConfigured': '未配置 API Key',
+    'settings.asr.key.keep': '已配置（{masked}），留空表示不修改',
+    'settings.asr.key.empty': '未配置 API Key，填写后保存',
+    'settings.asr.switch.title': '服务',
+    'settings.asr.switch.current': '当前生效：{provider}',
+    'settings.asr.switch.dirty': '修改后点「保存并生效」更新当前服务配置',
+    'settings.asr.switch.pendingSwitch': '点「保存并生效」后将切换到 {provider}',
+    'settings.asr.switch.pendingKey':
+      '已填写 API Key：点「保存并生效」将保存配置并切换到 {provider}',
+    'settings.asr.switch.missingKey': '{provider}未配置 API Key，请在下方填写并保存',
+    'settings.asr.switch.saved': '已切换到 {provider}',
+    'settings.asr.provider.local': '本地 whisper.cpp',
+    'settings.asr.provider.dashscope': '阿里云百炼',
+    'settings.asr.unknownProvider': '未知服务',
+    'settings.asr.local.title': '本地 whisper.cpp',
+    'settings.asr.local.subtitle': '本机 / 内网 whisper.cpp 的 OpenAI 兼容接口',
+    'settings.asr.local.baseUrl': '服务地址',
+    'settings.asr.local.model': '模型名',
+    'settings.asr.local.apiKey': 'API Key（可选）',
+    'settings.asr.local.note':
+      'whisper.cpp 通常不校验密钥，可填 local 等占位值；留空表示不修改已保存的密钥。',
+    'settings.asr.dashscope.title': '阿里云百炼（DashScope）',
+    'settings.asr.dashscope.subtitle': '录音文件识别（异步任务），按音频时长 / Token 计费',
+    'settings.asr.dashscope.apiKey': 'API Key',
+    'settings.asr.dashscope.model': '转写模型',
+    'settings.asr.dashscope.modelHint': '可下拉选择，也可直接输入候选之外的模型名',
+    'settings.asr.dashscope.baseUrl': '服务地址',
+    'settings.asr.dashscope.baseUrlHint':
+      '默认 https://dashscope.aliyuncs.com；也可填业务空间域名 https://{workspace}.cn-beijing.maas.aliyuncs.com（路径不变）',
+    'settings.asr.dashscope.languageHints': '语言提示',
+    'settings.asr.dashscope.languageHintsHint': '逗号分隔的语言代码，如 zh 或 zh,en；默认 zh',
+    'settings.asr.dashscope.timeout': '转写超时（秒）',
+    'settings.asr.dashscope.timeoutHint': '本地与百炼统一生效，范围 {min}–{max} 秒，默认 {default}',
+    'settings.asr.save': '保存并生效',
+    'settings.asr.saved': '转写配置已保存，立即生效',
+    'settings.asr.test': '测试连接',
+    'settings.asr.test.failed': '测试请求失败，请检查地址、密钥与后端日志',
+    'settings.asr.unavailable': '语音转写设置暂不可用',
+    'settings.asr.loadFailed': '语音转写设置加载失败，请稍后重试',
+    'settings.asr.forbidden': '当前账号无权限查看或修改语音转写设置（需要 ADMIN）',
+    'settings.asr.notes.local':
+      '本地方案需先运行 whisper.cpp 服务（默认 9900 端口，OpenAI 兼容 /v1/audio/transcriptions）；后端在容器内可用 host.docker.internal 访问宿主机。',
+    'settings.asr.notes.billing':
+      '百炼按音频时长（3.0）或 Token（3.1）计费；录音上传至阿里云境内 DashScope 临时存储（数据不出境），48 小时后过期，结果链接 24 小时有效，由本系统即时消费。',
+    'settings.asr.notes.upload':
+      'DashScope 临时上传接口官方限流 100 QPS，不适合高并发生产；当前量级可接受，未来可换自有 OSS。',
+    'settings.asr.notes.security':
+      'API Key 在设置页录入后 AES-GCM 加密存库，接口只回掩码；输入框留空表示保持原值，不会把掩码写回。',
+
+    // ⑥ 运行环境：生效范围 / 密钥策略 / 非密钥环境变量默认值
+    'settings.scope.title': '生效范围与配置来源',
     'settings.scope.aiScreening': 'AI 语义复筛',
     'settings.scope.aiScreeningNote': 'DFA 命中后的语境判断，结论决定是否转人工',
     'settings.scope.mining': '敏感词挖掘',
     'settings.scope.miningNote': '确认违规后由 AI 提炼新词入库（默认停用待审核）',
-    'settings.scope.transcription': '语音转写（Whisper）',
-    'settings.scope.transcriptionNote': '固定走本机 whisper.cpp；chat 类供应商不提供转写能力',
+    'settings.scope.transcription': '语音转写',
+    'settings.scope.transcriptionNote': '本地 whisper.cpp 或阿里云百炼，可在「语音转写」设置页切换',
     'settings.scope.dfa': 'DFA 初筛',
     'settings.scope.dfaNote': '本地 Aho-Corasick 匹配，不调用外部模型',
-    'settings.scope.envTitle': '在 .env 中补充密钥（docker compose 自动读取）',
-    'settings.scope.envKeyComment': 'DeepSeek 密钥（切换前必须先配置）',
-    'settings.scope.envOptionalComment': '可选：让 DeepSeek 成为首次启动的默认模型',
+    'settings.scope.keyPolicyTitle': 'API Key 只存数据库',
+    'settings.scope.keyPolicy':
+      '所有 API Key 都在系统设置页录入，AES-GCM 加密后写入数据库，界面与接口只显示掩码；环境变量仅作为首次启动的一次性引导值，不再作为运行时密钥来源。',
+    'settings.scope.envTitle': '环境变量默认值（非密钥）',
+    'settings.scope.aiEnvComment': '首次启动的默认复筛供应商与接入地址（可在设置页切换）',
+    'settings.scope.asrEnvComment': '语音转写默认地址 / 模型 / 语言 / 超时（可在设置页覆盖）',
+    'settings.scope.envHint':
+      '以上变量仅在设置页未保存对应配置时作为默认值；保存后以数据库配置为准，修改无需重启。',
 
     // ⑦ 抽样与通知
-    'settings.notify.title': '抽样与通知',
-    'settings.notify.subtitle': '合规抽样与 Webhook 告警，仅管理员可查看',
+    'settings.notify.title': '合规抽样与告警',
+    'settings.notify.subtitle': '仅管理员可见',
     'settings.notify.unavailable': '通知设置暂不可用',
     'settings.notify.sampleRate': 'DFA 未命中抽样比例',
     'settings.notify.webhook': 'Webhook 通知',
@@ -305,9 +360,8 @@ export default {
     'settings.notify.testFail': '测试通知发送失败',
     'settings.notify.testSuccessMsg': 'Webhook 已接收测试事件',
     'settings.notify.testFailMsg': '请检查 Webhook 地址、签名密钥与网络连通性',
-    'settings.notify.hintA': '抽样比例、Webhook 地址 / 密钥 / 超时、积压阈值均由后端环境变量配置',
-    'settings.notify.hintB': '（APP_SAMPLE_DFA_MISS_RATE、APP_NOTIFY_*），修改后需重启后端。',
-    'settings.notify.hintC': '通知只发送到后端配置的地址，前端不接触 URL 与签名密钥。',
+    'settings.notify.hintEnv':
+      '抽样比例、Webhook 地址 / 密钥 / 超时与积压阈值由后端环境变量（APP_SAMPLE_DFA_MISS_RATE、APP_NOTIFY_*）配置，修改后需重启后端。',
     'settings.notify.sampleRateNote': 'DFA 无命中的录音按该比例进入 AI 语义复筛 / 人工复检',
     'settings.notify.sampleRateMissing':
       '后端未返回当前值：由环境变量 APP_SAMPLE_DFA_MISS_RATE 配置（0~1，重启生效）',
@@ -330,6 +384,27 @@ export default {
     'settings.error.notFound': '后端尚未提供该接口（HTTP 404），请确认后端版本'
   },
   en: {
+    // Settings secondary navigation: shared by route titleKey and in-page nav (meta.titleKey)
+    'settings.nav.label': 'Settings navigation',
+    'settings.nav.screening': 'Screening model',
+    'settings.nav.transcription': 'Speech transcription',
+    'settings.nav.rag': 'Knowledge enhancement',
+    'settings.nav.notifications': 'Notifications and sampling',
+    'settings.nav.runtime': 'Runtime environment',
+
+    // Settings page descriptions (child route meta.descKey)
+    'settings.page.screeningDesc':
+      'Active AI screening model, providers and A/B evaluation; changes take effect immediately and survive restarts.',
+    'settings.page.transcriptionDesc':
+      'Choose and configure the speech transcription service: local whisper.cpp or Alibaba Cloud Bailian; changes take effect immediately and survive restarts.',
+    'settings.page.ragDesc':
+      'Retrieval-augmented generation (RAG) switch, retrieval parameters, index statistics and evaluation.',
+    'settings.page.notificationsDesc':
+      'Read-only view of the compliance sampling rate and webhook alerts, plus connectivity tests.',
+    'settings.page.runtimeDesc': 'Scope, key policy and non-secret environment defaults.',
+
+    // Screening page sections
+
     // Shared state chips
     'settings.state.enabled': 'Enabled',
     'settings.state.disabled': 'Not enabled',
@@ -344,34 +419,30 @@ export default {
     'settings.source.uiSwitch': 'Switched in UI',
     'settings.source.uiSaved': 'Saved in UI',
 
-    // ① Active model
-    'settings.active.title': 'Active AI screening model',
-    'settings.active.subtitle': 'Used for semantic screening and keyword mining',
-    'settings.active.keyConfigured': 'API key configured and ready to call',
-    'settings.active.keyMissing':
-      'API key not configured: recordings with DFA hits fall back to manual review, so nothing is missed',
-    'settings.active.testConnection': 'Test connection',
-    'settings.active.switched': 'Switched to {provider} · {model}',
-
-    // Connection test result (shared by model / provider)
+    // Connection test result (model / provider / ASR / RAG / notification)
     'settings.test.ok': 'Connection OK',
     'settings.test.fail': 'Connection failed',
     'settings.test.latency': 'Took {ms} ms',
     'settings.test.emptyReply': '(empty response)',
 
-    // ② Switch model
-    'settings.model.title': 'Switch model',
+    // AI screening model (status row + provider grid + model select in one card)
+    'settings.model.title': 'AI screening model',
     'settings.model.subtitle':
-      'Takes effect immediately after saving — no restart needed; the selection is persisted',
-    'settings.model.providerDisabled':
-      'This provider is disabled under AI Providers. Enable it before switching',
+      'Used for semantic screening and keyword mining; changes apply immediately and survive restarts',
+    'settings.model.current': 'Active',
+    'settings.model.testActive': 'Test connection',
+    'settings.model.chooseProvider': 'Choose provider',
+    'settings.model.chooseProviderHint':
+      'Click a card to select; disabled or key-less providers cannot be selected — use the edit action to fix them',
     'settings.model.keyConfigured': 'Key configured',
-    'settings.model.keyMissingEnv': 'Missing {env}',
     'settings.model.keyMissing': 'Key not configured',
+    'settings.model.providerDisabled': 'Disabled — enable it before selecting',
+    'settings.model.providerMissingKey': 'No API key configured — use the edit action to add one',
     'settings.model.label': 'Model',
     'settings.model.placeholder': 'Select or type a model name',
     'settings.model.test': 'Test',
     'settings.model.save': 'Save and apply',
+    'settings.model.switched': 'Switched to {provider} · {model}',
     'settings.model.hintSelect':
       'Pick from the list or type a model that is not listed (no config change or restart needed when a provider ships a new model).',
     'settings.model.hintEffect':
@@ -379,39 +450,24 @@ export default {
     'settings.model.readonlyAlert':
       'Read-only roles can view the active model; switching models and connection tests require an administrator.',
 
-    // ③ AI provider registry
-    'settings.provider.title': 'AI Providers',
-    'settings.provider.subtitle':
-      'Built-in providers are seeded from backend config on first startup; keys are encrypted and only shown masked',
+    // AI providers (grid cards: select / edit / create / delete; keys are masked only)
     'settings.provider.create': 'New provider',
     'settings.provider.editTitle': 'Edit provider',
+    'settings.provider.deleteTitle': 'Delete provider',
     'settings.provider.current': 'Active',
     'settings.provider.builtIn': 'Built-in',
     'settings.provider.unavailable': 'Provider list is unavailable',
-    'settings.provider.columnName': 'Provider',
-    'settings.provider.baseUrl': 'Endpoint',
-    'settings.provider.defaultChatPath': 'Default chat path',
-    'settings.provider.defaultModel': 'Default model',
     'settings.provider.modelCount': 'Candidates: {count}',
+    'settings.provider.defaultModel': 'Default model',
     'settings.provider.pricePer1k': 'Price / 1K',
-    'settings.provider.priceTooltip': 'USD per 1K tokens; in = input price, out = output price',
-    'settings.provider.priceIn': 'In',
-    'settings.provider.priceOut': 'Out',
-    'settings.provider.keyColumn': 'API key',
-    'settings.provider.test': 'Test',
-    'settings.provider.activeDeleteTooltip':
-      'The active provider cannot be deleted. Switch to another model first',
     'settings.provider.deleteConfirm':
       'The provider configuration and API key will be removed permanently. Delete anyway?',
+    'settings.provider.activeDeleteTooltip':
+      'The active provider cannot be deleted. Select another provider in the grid and save first',
     'settings.provider.empty': 'No providers yet',
     'settings.provider.emptyHint':
-      'Built-in providers are seeded when the backend first starts; use “New provider” in the top right to connect a custom gateway',
-    'settings.provider.hintA':
-      'Built-in providers can have their endpoint, pricing and key edited but cannot be deleted; custom providers can be added and removed.',
-    'settings.provider.hintB':
-      'Disabling or deleting a provider does not affect past recording results or existing call logs.',
+      'Built-in providers are seeded when the backend first starts; use “New provider” to connect a custom gateway',
     'settings.provider.loadFailed': 'Failed to load providers. Please try again later',
-    'settings.provider.testFailed': 'Test request failed. Check the gateway and backend logs',
     'settings.provider.updated': 'Provider {label} updated',
     'settings.provider.created': 'Provider {label} created',
     'settings.provider.deleted': 'Provider {label} deleted',
@@ -448,14 +504,6 @@ export default {
     'settings.provider.ruleKeyRequired': 'Please enter a key',
     'settings.provider.ruleKeyPattern':
       '1-64 characters: lowercase letters, digits, . _ - (must start with a letter or digit)',
-
-    // Provider connection test dialog
-    'settings.providerTest.title': 'Test provider connection',
-    'settings.providerTest.disabledChip': 'Disabled',
-    'settings.providerTest.model': 'Test model',
-    'settings.providerTest.modelPlaceholder': 'Leave empty to use the default model: {model}',
-    'settings.providerTest.failHint': 'Check the Base URL / API key / model name',
-    'settings.providerTest.send': 'Send test request',
 
     // ④ A/B split
     'settings.ab.title': 'A/B and model evaluation',
@@ -600,10 +648,6 @@ export default {
       'Shown once the backend returns cases (baseline / RAG predictions and references)',
     'settings.rag.evalEmpty':
       'No RAG evaluation yet: set the sample size (5-20) and click “Evaluate RAG”.',
-    'settings.rag.hintA':
-      'The embedding provider reuses the AI provider Base URL and key; when unconfigured / unavailable, RAG degrades to',
-    'settings.rag.hintB':
-      'not injecting retrieval results without blocking screening. Reindex and evaluation endpoints require ADMIN; reindex runs asynchronously in the background.',
     'settings.rag.saved': 'RAG retrieval parameters saved and applied',
     'settings.rag.enabledToast': 'RAG retrieval enabled and applied',
     'settings.rag.disabledToast': 'RAG retrieval disabled; screening behaves as before',
@@ -632,28 +676,99 @@ export default {
     'settings.rag.vectorUnknownNote':
       'The API returned no vector capability status (the backend may be outdated)',
 
-    // ⑥ Scope and keys
-    'settings.scope.title': 'Scope and key configuration',
+    // ⑤ Speech transcription (ASR): one card = status row + service switch + selected config + actions
+    'settings.asr.title': 'Transcription service and configuration',
+    'settings.asr.subtitle':
+      'Defaults to local whisper.cpp; switch to Alibaba Cloud Bailian. Changes apply immediately and survive restarts',
+    'settings.asr.active.label': 'Active',
+    'settings.asr.active.note': 'Used by the recording transcription pipeline',
+    'settings.asr.active.notReadyNote':
+      'The active service is not ready; fill in and save an API key below',
+    'settings.asr.key.masked': 'Key {masked}',
+    'settings.asr.key.configured': 'Key configured',
+    'settings.asr.key.notConfigured': 'No API key',
+    'settings.asr.key.keep': 'Configured ({masked}); leave empty to keep it unchanged',
+    'settings.asr.key.empty': 'No API key configured yet; fill it in and save',
+    'settings.asr.switch.title': 'Service',
+    'settings.asr.switch.current': 'Active: {provider}',
+    'settings.asr.switch.dirty':
+      'Click “Save and apply” to update the active service configuration',
+    'settings.asr.switch.pendingSwitch': 'Click “Save and apply” to switch to {provider}',
+    'settings.asr.switch.pendingKey':
+      'API key entered: “Save and apply” will save it and switch to {provider}',
+    'settings.asr.switch.missingKey':
+      '{provider} has no API key configured; fill it in and save below',
+    'settings.asr.switch.saved': 'Switched to {provider}',
+    'settings.asr.provider.local': 'Local whisper.cpp',
+    'settings.asr.provider.dashscope': 'Alibaba Cloud Bailian',
+    'settings.asr.unknownProvider': 'Unknown service',
+    'settings.asr.local.title': 'Local whisper.cpp',
+    'settings.asr.local.subtitle': 'OpenAI-compatible endpoint of a local / intranet whisper.cpp',
+    'settings.asr.local.baseUrl': 'Service URL',
+    'settings.asr.local.model': 'Model name',
+    'settings.asr.local.apiKey': 'API key (optional)',
+    'settings.asr.local.note':
+      'whisper.cpp usually ignores the key, so a placeholder such as local is fine; leave empty to keep the saved key.',
+    'settings.asr.dashscope.title': 'Alibaba Cloud Bailian (DashScope)',
+    'settings.asr.dashscope.subtitle':
+      'Recording file transcription (async tasks), billed by audio duration / tokens',
+    'settings.asr.dashscope.apiKey': 'API key',
+    'settings.asr.dashscope.model': 'Transcription model',
+    'settings.asr.dashscope.modelHint': 'Pick from the list or type a model that is not listed',
+    'settings.asr.dashscope.baseUrl': 'Service URL',
+    'settings.asr.dashscope.baseUrlHint':
+      'Defaults to https://dashscope.aliyuncs.com; a workspace domain https://{workspace}.cn-beijing.maas.aliyuncs.com also works (same paths)',
+    'settings.asr.dashscope.languageHints': 'Language hints',
+    'settings.asr.dashscope.languageHintsHint':
+      'Comma-separated language codes such as zh or zh,en; defaults to zh',
+    'settings.asr.dashscope.timeout': 'Transcription timeout (seconds)',
+    'settings.asr.dashscope.timeoutHint':
+      'Applies to both local and DashScope, range {min}-{max} seconds, default {default}',
+    'settings.asr.save': 'Save and apply',
+    'settings.asr.saved': 'Transcription configuration saved and applied',
+    'settings.asr.test': 'Test connection',
+    'settings.asr.test.failed': 'Test request failed. Check the URL, API key and backend logs',
+    'settings.asr.unavailable': 'Speech transcription settings are unavailable',
+    'settings.asr.loadFailed':
+      'Failed to load speech transcription settings. Please try again later',
+    'settings.asr.forbidden':
+      'Your account cannot view or change speech transcription settings (ADMIN required)',
+    'settings.asr.notes.local':
+      'The local option requires a running whisper.cpp service (default port 9900, OpenAI-compatible /v1/audio/transcriptions); from a container the backend can reach the host via host.docker.internal.',
+    'settings.asr.notes.billing':
+      'Bailian bills by audio duration (3.0) or tokens (3.1); recordings are uploaded to Alibaba Cloud DashScope temporary storage in mainland China (no cross-border transfer), expire after 48 hours, and the result link is valid for 24 hours and consumed immediately by this system.',
+    'settings.asr.notes.upload':
+      'The DashScope temporary upload API is officially rate-limited to 100 QPS and is not meant for high-concurrency production use; acceptable at the current scale, with a dedicated OSS bucket as the future option.',
+    'settings.asr.notes.security':
+      'API keys entered on this page are stored encrypted with AES-GCM in the database and only masks are ever returned; leaving the input empty keeps the current value and the mask is never written back.',
+
+    // ⑥ Runtime environment: scope / key policy / non-secret environment defaults
+    'settings.scope.title': 'Scope and configuration sources',
     'settings.scope.aiScreening': 'AI semantic screening',
     'settings.scope.aiScreeningNote':
       'Context judgement after a DFA hit; the result decides whether human review is needed',
     'settings.scope.mining': 'Sensitive word mining',
     'settings.scope.miningNote':
       'After a confirmed violation, AI extracts new entries into the dictionary (disabled pending review by default)',
-    'settings.scope.transcription': 'Speech transcription (Whisper)',
+    'settings.scope.transcription': 'Speech transcription',
     'settings.scope.transcriptionNote':
-      'Always uses the local whisper.cpp; chat-only providers do not offer transcription',
+      'Local whisper.cpp or Alibaba Cloud Bailian; switch it on the Speech transcription settings page',
     'settings.scope.dfa': 'DFA screening',
     'settings.scope.dfaNote': 'Local Aho-Corasick matching; no external model calls',
-    'settings.scope.envTitle': 'Add the key to .env (docker compose picks it up automatically)',
-    'settings.scope.envKeyComment': 'DeepSeek key (must be configured before switching)',
-    'settings.scope.envOptionalComment':
-      'Optional: make DeepSeek the default model on first startup',
+    'settings.scope.keyPolicyTitle': 'API keys live in the database only',
+    'settings.scope.keyPolicy':
+      'Every API key is entered on the settings pages, encrypted with AES-GCM and stored in the database; the UI and API only return masks. Environment variables are a one-time bootstrap value on first startup and are no longer used as the runtime key source.',
+    'settings.scope.envTitle': 'Environment defaults (non-secret)',
+    'settings.scope.aiEnvComment':
+      'Default screening provider and endpoint on first startup (switchable on the settings page)',
+    'settings.scope.asrEnvComment':
+      'Default transcription endpoint / model / languages / timeout (overridable on the settings page)',
+    'settings.scope.envHint':
+      'These variables are defaults only, used when the corresponding configuration has not been saved on the settings page; once saved, the database configuration wins and changes take effect without a restart.',
 
     // ⑦ Sampling and notifications
-    'settings.notify.title': 'Sampling and notifications',
-    'settings.notify.subtitle':
-      'Compliance sampling and webhook alerts; visible to administrators only',
+    'settings.notify.title': 'Compliance sampling and alerts',
+    'settings.notify.subtitle': 'Visible to administrators only',
     'settings.notify.unavailable': 'Notification settings are unavailable',
     'settings.notify.sampleRate': 'DFA-miss sampling rate',
     'settings.notify.webhook': 'Webhook notifications',
@@ -667,12 +782,8 @@ export default {
     'settings.notify.testFail': 'Test notification failed',
     'settings.notify.testSuccessMsg': 'The webhook received the test event',
     'settings.notify.testFailMsg': 'Check the webhook URL, signing secret and network connectivity',
-    'settings.notify.hintA':
-      'Sampling rate, webhook URL / secret / timeout and the backlog threshold are configured through backend environment variables',
-    'settings.notify.hintB':
-      ' (APP_SAMPLE_DFA_MISS_RATE, APP_NOTIFY_*); restart the backend after changing them.',
-    'settings.notify.hintC':
-      'Notifications go only to the configured backend address; the frontend never handles the URL or signing secret.',
+    'settings.notify.hintEnv':
+      'The sampling rate, webhook URL / secret / timeout and backlog threshold are configured through backend environment variables (APP_SAMPLE_DFA_MISS_RATE, APP_NOTIFY_*); restart the backend after changing them.',
     'settings.notify.sampleRateNote':
       'Recordings without DFA hits enter AI semantic screening / manual review at this rate',
     'settings.notify.sampleRateMissing':

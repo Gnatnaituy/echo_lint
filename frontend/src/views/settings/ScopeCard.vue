@@ -1,5 +1,5 @@
 <template>
-  <!-- ⑥ 生效范围 -->
+  <!-- 运行环境：生效范围、密钥策略与「非密钥」环境变量默认值 -->
   <section class="panel">
     <div class="panel-head">
       <div class="section-title">{{ t('settings.scope.title') }}</div>
@@ -15,16 +15,32 @@
         </li>
       </ul>
 
+      <!-- 密钥策略：所有 Key 只在设置页录入、加密落库、界面只回掩码 -->
+      <div class="key-policy">
+        <el-icon :size="16" class="key-policy-icon"><Lock /></el-icon>
+        <div>
+          <div class="key-policy-title">{{ t('settings.scope.keyPolicyTitle') }}</div>
+          <div class="tiny dim">{{ t('settings.scope.keyPolicy') }}</div>
+        </div>
+      </div>
+
       <div class="code-block mono">
         <div class="code-title">{{ t('settings.scope.envTitle') }}</div>
         <pre>
-# {{ t('settings.scope.envKeyComment') }}
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
-
-# {{ t('settings.scope.envOptionalComment') }}
+# {{ t('settings.scope.aiEnvComment') }}
 # APP_SCREEN_PROVIDER=deepseek
-# DEEPSEEK_SCREEN_MODEL=deepseek-flash</pre>
+# DEEPSEEK_SCREEN_MODEL=deepseek-flash
+# DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+# {{ t('settings.scope.asrEnvComment') }}
+WHISPER_BASE_URL=http://127.0.0.1:9900
+WHISPER_MODEL=whisper-1
+# DASHSCOPE_ASR_BASE_URL=https://dashscope.aliyuncs.com
+# DASHSCOPE_ASR_MODEL=qwen-audio-3.1-asr-flash-filetrans
+# DASHSCOPE_ASR_LANGUAGE_HINTS=zh
+# ASR_TIMEOUT_SECONDS=600</pre>
       </div>
+      <p class="tiny dim scope-env-hint">{{ t('settings.scope.envHint') }}</p>
     </div>
   </section>
 </template>
@@ -32,7 +48,7 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
-import { CircleCheckFilled, RemoveFilled } from '../../components/icons.js'
+import { CircleCheckFilled, Lock, RemoveFilled } from '../../components/icons.js'
 
 const { t } = useI18n()
 
@@ -80,6 +96,29 @@ const scope = computed(() => [
   color: var(--ink-700);
   font-weight: 500;
 }
+
+/* 密钥策略 */
+.key-policy {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 12px 14px;
+  border: 1px solid var(--brand-100);
+  border-radius: var(--r-md);
+  background: var(--brand-50);
+}
+.key-policy-icon {
+  color: var(--brand-600);
+  flex: none;
+  margin-top: 2px;
+}
+.key-policy-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-bottom: 3px;
+}
+
 .code-block {
   margin-top: 15px;
   border-radius: var(--r-md);
@@ -99,5 +138,9 @@ const scope = computed(() => [
   color: var(--ink-600);
   white-space: pre-wrap;
   word-break: break-all;
+}
+.scope-env-hint {
+  margin: 10px 0 0;
+  line-height: 1.7;
 }
 </style>

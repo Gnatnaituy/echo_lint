@@ -442,11 +442,6 @@
         <div v-else-if="!ragEvaluating && !ragEvaluationError" class="eval-empty tiny dim">
           {{ t('settings.rag.evalEmpty') }}
         </div>
-
-        <div class="hint tiny dim">
-          {{ t('settings.rag.hintA') }}
-          {{ t('settings.rag.hintB') }}
-        </div>
       </template>
     </div>
   </section>

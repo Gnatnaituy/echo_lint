@@ -15,6 +15,8 @@ export default {
     'users.create': '新建用户',
     'users.roleHint':
       '角色：管理员 拥有全部权限；复核员 可上传、认领与提交复核结论；只读 仅可查看。',
+    'users.menuHint':
+      '菜单权限：在角色允许范围内勾选该账号可见的侧栏菜单；全部勾选等于不限制。接口权限仍由角色决定。',
     'users.securityHint':
       '禁用账号不会删除历史数据与审计记录，可随时重新启用；密码以 BCrypt 存储，最少 8 位。',
 
@@ -22,6 +24,11 @@ export default {
     'users.username': '用户名',
     'users.displayName': '显示名',
     'users.role': '角色',
+    'users.menus': '菜单权限',
+    'users.menusAll': '全部',
+    'users.menusCount.one': '{count} 项',
+    'users.menusCount.other': '{count} 项',
+    'users.menusSummary': '可见菜单：{menus}',
     'users.statusDisabled': '已禁用',
     'users.self': '当前账号',
     'users.emptyFilteredTitle': '没有匹配的账号',
@@ -40,6 +47,12 @@ export default {
     'users.passwordPlaceholder': '至少 8 位',
     'users.disableHint': '禁用后该账号无法登录，历史审计保留',
     'users.selfAlert': '这是当前登录账号，修改角色/禁用可能影响本会话的权限',
+    'users.menusHint':
+      '勾选该账号可见的侧栏菜单。只显示当前角色允许的菜单，全部勾选等于不限制；接口权限仍由角色决定，菜单绑定只影响导航与页面访问。',
+    'users.menusRoleScope': '当前角色 {role} 可绑定 {count} 个菜单',
+    'users.menusSelectAll': '全选',
+    'users.menusClear': '清空',
+    'users.menusRequired': '请至少勾选一个菜单',
     'users.saveChanges': '保存修改',
     'users.createSubmit': '创建用户',
 
@@ -74,6 +87,8 @@ export default {
     'users.create': 'New user',
     'users.roleHint':
       'Roles: administrators have full access; reviewers can upload, claim recordings and submit review results; read-only users can only view.',
+    'users.menuHint':
+      'Menus: choose which sidebar menus the account can see within its role; selecting all means unrestricted. API permissions still follow the role.',
     'users.securityHint':
       'Disabling an account neither deletes its history nor its audit records, and it can be re-enabled at any time. Passwords are stored with BCrypt and must be at least 8 characters.',
 
@@ -81,6 +96,11 @@ export default {
     'users.username': 'Username',
     'users.displayName': 'Display name',
     'users.role': 'Role',
+    'users.menus': 'Menus',
+    'users.menusAll': 'All',
+    'users.menusCount.one': '{count} menu',
+    'users.menusCount.other': '{count} menus',
+    'users.menusSummary': 'Visible menus: {menus}',
     'users.statusDisabled': 'Disabled',
     'users.self': 'Current account',
     'users.emptyFilteredTitle': 'No matching accounts',
@@ -100,6 +120,12 @@ export default {
     'users.disableHint': 'Disabled accounts cannot sign in; audit history is kept',
     'users.selfAlert':
       'This is the signed-in account. Changing its role or disabling it may affect the permissions of this session.',
+    'users.menusHint':
+      'Choose the sidebar menus this account can see. Only menus allowed by the role are listed; selecting all means unrestricted. API permissions still follow the role — menu binding only affects navigation and page access.',
+    'users.menusRoleScope': '{count} menus can be bound to role {role}',
+    'users.menusSelectAll': 'Select all',
+    'users.menusClear': 'Clear',
+    'users.menusRequired': 'Select at least one menu',
     'users.saveChanges': 'Save changes',
     'users.createSubmit': 'Create user',
 

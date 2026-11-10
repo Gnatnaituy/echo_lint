@@ -144,6 +144,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
+import auth from '../auth'
 import TrendChart from '../components/TrendChart.vue'
 import { useI18n } from '../i18n'
 import {
@@ -263,7 +264,9 @@ function tick() {
 }
 
 function exit() {
-  router.push('/')
+  // 回到当前账号的首个可见菜单（首位不会是大屏本身，见 menu.js firstAllowedPath），
+  // 避免固定 `/` 在「工作台被菜单绑定掉」时被守卫弹回大屏。
+  router.push(auth.homePath)
 }
 
 function onKeydown(event) {

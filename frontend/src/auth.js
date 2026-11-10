@@ -10,6 +10,7 @@ import { reactive } from 'vue'
 import api from './api'
 import { ROLE_META } from './constants'
 import { t } from './i18n/index.js'
+import { firstAllowedPath, resolveVisibleMenuKeys } from './menu.js'
 
 const state = reactive({
   /** 当前登录用户：{id, username, displayName, role}；null 表示未登录 */
@@ -59,6 +60,19 @@ export const auth = {
       ROLE_META[state.user?.role]?.label ||
       (state.user?.role ? String(state.user.role) : t('auth.notLoggedIn'))
     )
+  },
+  /** 当前用户生效菜单 key 列表（角色允许范围内，已按用户绑定收窄） */
+  get menus() {
+    return resolveVisibleMenuKeys(state.user)
+  },
+  /** 首页路径：当前用户第一个可见菜单（侧栏顺序），无可见菜单时回退 `/` */
+  get homePath() {
+    return firstAllowedPath(state.user)
+  },
+  /** 菜单门禁：菜单绑定后的生效集合里是否包含该菜单（无 menuKey 的路由不受限） */
+  canSeeMenu(menuKey) {
+    if (!menuKey) return true
+    return resolveVisibleMenuKeys(state.user).includes(menuKey)
   },
   get isAuthenticated() {
     return !!state.user

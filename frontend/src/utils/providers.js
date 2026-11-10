@@ -86,3 +86,56 @@ export function formatPricePer1k(value) {
   const text = price.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')
   return `$${text}`
 }
+
+/**
+ * 复筛页「供应商网格」合并视图：注册表（GET /settings/providers）+ screen-model 视图。
+ *
+ * - 网格主体用注册表（含掩码 / 是否内置 / 是否启用 / 候选模型），注册表不可用时回退
+ *   screen-model 自带的 providers（此时没有编辑/删除入口，避免用不完整表单覆盖配置）。
+ * - 「当前生效」与「当前选中」来自 screen-model（providerId / 选择草稿）。
+ * - disabled + disabledReason 只给界面灰显与提示：停用 / 未配置 Key 的供应商不可切换，
+ *   但仍可点「编辑」补全密钥（内置供应商不可删）。
+ *
+ * @param {{providers?: Array, view?: object|null, selectedKey?: string}} input
+ * @returns {Array<object>} 供网格渲染的卡片数据（顺序与注册表一致）
+ */
+export function mergeScreeningProviders({ providers, view, selectedKey = '' } = {}) {
+  const registry = Array.isArray(providers) ? providers.filter(Boolean) : []
+  const rawView = asObject(view)
+  const viewProviders = Array.isArray(rawView.providers) ? rawView.providers : []
+  // 注册表为空 / 不可用时回退 screen-model 的 providers：可切换但不可编辑（避免残缺表单覆盖配置）
+  const fallback = registry.length === 0
+  const source = fallback ? viewProviders : registry
+  const activeKey = toText(rawView.providerId).toLowerCase()
+  const selectedKeyText = toText(selectedKey || rawView.providerId).toLowerCase()
+
+  return source.map((item) => {
+    const data = asObject(item)
+    const key = toText(pick(data, ['key', 'id', 'providerKey', 'providerId']))
+    const normalizedKey = key.toLowerCase()
+    const enabled = toBoolean(pick(data, ['enabled']))
+    const keyConfigured = toBoolean(pick(data, ['apiKeyConfigured', 'keyConfigured']))
+    const models = toStringList(pick(data, ['models', 'modelList', 'modelNames']))
+    const defaultModel = toText(pick(data, ['defaultModel', 'model']))
+    if (defaultModel && !models.includes(defaultModel)) models.unshift(defaultModel)
+    // 停用优先于未配 Key：两者都会让卡片灰显，但原因文案不同
+    const disabledReason =
+      enabled === false ? 'disabled' : keyConfigured === false ? 'missingKey' : ''
+    return {
+      key,
+      label: toText(pick(data, ['label', 'name'])),
+      baseUrl: toText(pick(data, ['baseUrl', 'baseURL', 'base_url', 'endpoint'])),
+      models,
+      defaultModel,
+      builtIn: toBoolean(pick(data, ['builtIn', 'built_in'])) === true,
+      enabled,
+      keyConfigured,
+      keyMasked: toText(pick(data, ['apiKeyMasked', 'masked'])),
+      current: !!normalizedKey && normalizedKey === activeKey,
+      selected: !!normalizedKey && normalizedKey === selectedKeyText,
+      disabled: disabledReason !== '',
+      disabledReason,
+      fallback
+    }
+  })
+}

@@ -1,10 +1,10 @@
 /**
- * 「当前生效模型 / 切换模型」共享状态与请求。
+ * AI 复筛模型（当前生效 / 切换合并为一张卡）共享状态与请求。
  *
- * ① 当前生效卡片与 ② 切换卡片读写同一份 view / draft / testResult：
- * - 任一张卡片的连通性测试结果都显示在 ① 卡片内，测试按钮之间互斥（testing）。
- * - 在 ② 保存成功后同步刷新 ① 与 A/B 卡片依赖的 view。
- * 状态由 Settings.vue 在 setup 中创建后 provide 下发，页面卸载即释放。
+ * - view = 当前生效（状态行 + A/B 评测共用）；draft = 网格里选中的供应商与模型。
+ * - 状态行「测试连通性」测当前生效，「测试」测待保存选择；两者互斥（testing），结果共用。
+ * - 保存成功后同步刷新状态行与 A/B 卡片依赖的 view。
+ * 状态由 SettingsLayout.vue 在 setup 中创建后 provide 下发，页面卸载即释放。
  */
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -57,7 +57,7 @@ export function useScreenModel() {
       draft.providerId = data.providerId
       draft.model = data.model
       ElMessage.success(
-        t('settings.active.switched', { provider: data.providerLabel, model: data.model })
+        t('settings.model.switched', { provider: data.providerLabel, model: data.model })
       )
     } catch {
       // 请求层已统一提示

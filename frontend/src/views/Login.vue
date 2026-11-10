@@ -109,8 +109,9 @@ async function submit() {
   try {
     const user = await auth.login(form.username, form.password)
     ElMessage.success(t('login.welcome', { name: user?.displayName || user?.username || '' }))
-    // 登录后回到被拦截的原地址（仅接受站内路径，避免开放重定向）
-    router.replace(safeRedirect(route.query.redirect))
+    // 登录后回到被拦截的原地址（仅接受站内路径，避免开放重定向）；
+    // 没有 redirect 时落到首个可见菜单：工作台被菜单绑定掉时不再经 `/` 触发一次无意义的重定向/提示
+    router.replace(safeRedirect(route.query.redirect, auth.homePath))
   } catch (e) {
     error.value = e?.message || t('login.error')
   } finally {
