@@ -2,7 +2,7 @@
 
 > 把每一通录音当作待检代码：先机械查词，再让 AI 读语境，最后交给人拍板。
 
-EchoLint 是基于**本机 whisper.cpp** 的录音合规稽核服务：上传后自动完成
+EchoLint 是录音合规稽核服务，语音转写支持**阿里云百炼 / 本机 whisper.cpp 双方案运行时切换**：上传后自动完成
 **转写 → DFA 初筛 → AI 语义复筛 →（命中则）人工复检**，复检结论回馈语料库并挖掘新敏感词，
 形成自增长闭环；支持 PostgreSQL + pgvector 知识库 RAG、AI 调用全程留痕，以及**全站中 / 英双语**。
 
@@ -20,7 +20,7 @@ EchoLint 是基于**本机 whisper.cpp** 的录音合规稽核服务：上传后
 |---|---|
 | ![录音详情](docs/screenshots/recording-detail.webp) | ![双声道对话](docs/screenshots/stereo-dialogue.webp) |
 
-| 数据大屏 | 系统设置（模型切换 / 供应商 / RAG） |
+| 数据大屏 | 系统设置（复筛模型[含供应商管理] / 语音转写 / 知识增强 / 通知与抽样 / 运行环境） |
 |---|---|
 | ![数据大屏](docs/screenshots/screen.webp) | ![系统设置](docs/screenshots/settings.webp) |
 
@@ -40,7 +40,7 @@ EchoLint 是基于**本机 whisper.cpp** 的录音合规稽核服务：上传后
 
 ## 核心能力
 
-- **四段流水线**：Whisper 转写 → DFA 初筛（Aho-Corasick + 字符跳变，`f u c k` / `f.u.c.k` 也能命中）→
+- **四段流水线**：语音转写（默认阿里云百炼录音文件识别，可在设置页切回本地 whisper.cpp）→ DFA 初筛（Aho-Corasick + 字符跳变，`f u c k` / `f.u.c.k` 也能命中）→
   AI 语义复筛（few-shot 语料 + 说话人标注）→ 人工复检；初筛与复筛均判违规才进复检队列。
 - **闭环自增长**：复检结论自动写入语料库作为 few-shot 参考；确认违规的录音由 AI 挖掘新敏感词入库
   （默认停用，人工审核后启用）。AI 不可用时**降级转人工**，不漏审。
@@ -51,7 +51,8 @@ EchoLint 是基于**本机 whisper.cpp** 的录音合规稽核服务：上传后
 - **知识库 RAG**：PDF / DOCX / TXT / MD 导入 → 分块向量化（pgvector / HNSW）→ 复筛时语义召回注入；
   默认关闭（`APP_RAG_ENABLED=false`），不可用时自动降级为不注入。
 - **工程能力**：持久任务队列（退避重试 / 死信）、Webhook 通知（HMAC 签名）、开放 API（`X-API-Key`）、
-  操作审计、多角色（ADMIN / REVIEWER / VIEWER）、单人 / 双人复核、数据大屏、响应式与键盘无障碍。
+  操作审计、多角色（ADMIN / REVIEWER / VIEWER）与**用户级菜单绑定**（在角色允许范围内为每个账号勾选可见菜单，
+  登录后侧栏与路由按绑定收窄）、单人 / 双人复核、数据大屏、响应式与键盘无障碍。
 
 ## 录音状态
 
@@ -67,7 +68,7 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 | 层 | 技术 |
 |---|---|
 | 后端 | Spring Boot 3.5 / Java 17，Spring Data JPA，WebClient，Flyway，PostgreSQL 17 + pgvector |
-| AI | DeepSeek / 阿里云百炼（OpenAI 兼容协议，可换任意兼容网关）+ 本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp) 转写 |
+| AI | 复筛/词挖掘：DeepSeek / 阿里云百炼（OpenAI 兼容协议，可换任意兼容网关）；语音转写：阿里云百炼录音文件识别（`qwen-audio-3.1-asr-flash-filetrans`）或本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp)，设置页运行时切换 |
 | 前端 | Vue 3 + Vite 7 + Element Plus + vue-router + axios；零依赖轻量 i18n（中 / 英全站切换） |
 | 部署 | docker compose（PostgreSQL/pgvector + 后端 + Nginx 前端）；生产编排与迁移手册见 [deploy/DEPLOY.md](deploy/DEPLOY.md) |
 
@@ -83,8 +84,10 @@ Node 24 / Vite 7.3.7 / Vue 3.5 / Element Plus 2.14 / ESLint 9 + Prettier 3。
 
 ```bash
 cp .env.example .env            # 生产至少改 POSTGRES_PASSWORD / APP_ADMIN_PASSWORD / APP_SECRET_KEY
-                                # AI：填 DEEPSEEK_API_KEY；RAG 另需 DASHSCOPE_API_KEY
-tools/whisper-server.sh --daemon  # 可选：本机 whisper.cpp（未配置则上传录音会转写失败）
+                                # 各类 API Key 推荐启动后在「系统设置」页录入（加密存库、只回掩码）
+# 语音转写：默认走本地 whisper.cpp（需先启动服务）；要上阿里云百炼，到「系统设置 → 语音转写」
+# 填 Key 并点「保存并生效」（Key 加密落库，可随时切回本地）
+# 本地：tools/whisper-server.sh --daemon
 docker compose up -d --build
 
 # 前端: http://localhost:8081   后端: http://localhost:8082/actuator/health
@@ -107,7 +110,9 @@ docker compose up -d --build
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `WHISPER_BASE_URL` / `WHISPER_API_KEY` | `127.0.0.1:9900` / `local` | 转写服务（本机 whisper.cpp，容器内用 `host.docker.internal`） |
+| `WHISPER_BASE_URL` / `WHISPER_API_KEY` | `127.0.0.1:9900` / `local` | 本地 whisper.cpp 转写（容器内用 `host.docker.internal`）；百炼 Key 配置后默认不再用它 |
+| `DASHSCOPE_ASR_BASE_URL` / `DASHSCOPE_ASR_MODEL` / `DASHSCOPE_ASR_LANGUAGE_HINTS` | `https://dashscope.aliyuncs.com` / `qwen-audio-3.1-asr-flash-filetrans` / `zh` | 阿里云百炼录音文件识别；base-url 是 **API 根**（不是 compatible-mode 地址），也可填业务空间域名 |
+| `ASR_TIMEOUT_SECONDS` | `600` | 单次转写总预算（本地 / 云端统一，30–1800） |
 | `DEEPSEEK_API_KEY` | (空) | DeepSeek 复筛 / 词挖掘密钥 |
 | `DASHSCOPE_API_KEY` | (空) | 阿里云百炼 RAG embedding 密钥 |
 | `APP_SCREEN_PROVIDER` | `deepseek` | 首次启动的默认复筛供应商（之后可在设置页切换） |
@@ -189,11 +194,14 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 
 ## 注意事项
 
-- **转写不在容器内**：Docker 镜像内置 ffmpeg/ffprobe 处理声道，但 Whisper 需单独启动；
-  未配置时上传录音会进入 `FAILED`，可在录音管理里重试。Linux 生产机（Docker Engine）还需：
-  compose 已配 `extra_hosts: host.docker.internal:host-gateway`；启动脚本要加 `WHISPER_HOST=0.0.0.0`
-  （默认只绑 127.0.0.1，容器访问不到），并用防火墙只放行 Docker 网桥网段；排障命令见
-  `tools/whisper-server.sh` 顶部注释（容器内 `/dev/tcp` 探端口 + 宿主机 `curl` 端点）。
+- **API Key 只存数据库**：复筛供应商、语音转写（本地/百炼）的密钥都在系统设置页录入，AES-GCM 加密存
+  `app_settings`，接口与界面只回掩码（如 `****LOOY`）；环境变量里的密钥仅作为首次启动的一次性引导值，
+  之后以数据库为准（`.env` 中可删除）。
+- **转写方案可切换（「系统设置 → 语音转写」）**：**默认本地 whisper.cpp**（需单独启动服务）；
+  在设置页选择阿里云百炼并「保存并生效」后走云端（按量计费、数据不出境；临时上传接口限流 100 QPS，
+  量大建议换自有 OSS）。只保存配置不会切换生效服务；配置与切换立即生效、重启保持。Docker 镜像内置
+  ffmpeg/ffprobe 处理声道；Linux 生产机本地 whisper 需 compose `extra_hosts: host.docker.internal:<docker 网关>`
+  且服务绑到网卡而不是 127.0.0.1；两种方案都不可用时上传录音会进入 `FAILED`，可在录音管理里重试。
 - **降级而非漏审**：AI 调用失败时，DFA 命中的录音转人工复检（`aiResultJson.degraded=true`）。
 - **词典要收同音变体**：流水线是「DFA 命中才进 AI 复筛」，DFA 漏检即静默判合规。实测 Whisper 会把
   「傻逼」转写成「少逼」，因此词典按 ASR 可能听错的方式补词，而不只是按人怎么写。

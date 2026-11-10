@@ -52,15 +52,32 @@
 - ADMIN + REVIEWER：`/api/reviews/**`、录音上传/重试/删除/认领/指派/重开。
 - 其余 `/api/**` 与 `/uploads/**`：登录即可。
 - 前端按角色隐藏入口，后端必须独立校验（不能只靠前端）。
+- 用户菜单绑定（Batch 7）只收窄**前端导航与页面访问**（侧栏 + 路由守卫），不是第二套 API 授权：
+  接口权限仍由上述角色 URL 矩阵独立校验，越权绑定在写入时即被拒绝。
 
-### 1.4 用户管理（ADMIN）
+### 1.4 用户管理（ADMIN，含菜单绑定）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/users` | 用户列表 |
-| POST | `/api/users` | `{username,password,displayName,role}` |
-| PUT | `/api/users/{id}` | `{displayName,role,enabled,password?}` |
+| GET | `/api/users` | 用户列表；每项含 `menuKeys`（生效菜单）与 `menuRestricted` |
+| GET | `/api/users/menu-options` | 可绑定菜单目录 `[{key,path,adminOnly}]`（按枚举顺序） |
+| POST | `/api/users` | `{username,password,displayName,role,menuKeys?}` |
+| PUT | `/api/users/{id}` | `{displayName,role,enabled,password?,menuKeys?}`；`menuKeys` 省略/`null` = 不修改 |
 | DELETE | `/api/users/{id}` | 禁用（不物理删除，保留审计引用） |
+
+- 菜单键（`MenuKey`）：`DASHBOARD` / `RECORDINGS` / `REPORTS` / `REVIEW` / `SCREEN` / `DICTIONARY` /
+  `CORPUS` / `KNOWLEDGE` / `SETTINGS` / `COSTS` / `TASKS` / `AI_CHAT` / `API_KEYS` / `USERS` / `AUDIT`；
+  后 6 项 `adminOnly=true`（仅 ADMIN 可绑定，对应前端 ADMIN 专属菜单）。
+- 存储：`app_user.menu_keys`（逗号分隔枚举名，`null` = 不限制）。生效菜单 =
+  存储 ∩ 角色允许；交集为空时回退角色允许，避免历史数据/降级造成空白侧栏。
+- 写入校验：至少 1 项；未知 key 或角色不可绑定的 key 返回 400；去重后覆盖角色允许全集时自动折叠为
+  `null`（= 跟随角色，新增菜单自动可见）。
+- 防锁死：不能移除最后一个「启用且可访问用户管理菜单」的 ADMIN 的用户管理菜单 / 角色 / 启用状态
+  （409），避免无人能再进入用户管理。
+- 生效时机：菜单 / 角色 / 密码任一变化都会 bump 会话纪元，该账号旧会话在下一次请求立即 401
+  （需重新登录），与既有「会话里保存登录时刻权限快照」的策略一致。
+- 边界：菜单绑定是「角色允许范围内的可见性收窄」，不放大权限；被绑定掉的页面即使直接敲 URL 也会被
+  前端路由守卫拦回首个可见菜单，但其接口仍按角色矩阵授权（与现有「前端隐藏入口、后端独立校验」一致）。
 
 ### 1.5 操作审计（ADMIN）
 
@@ -95,10 +112,14 @@
 
 ### 1.7 前端
 
-- `/login` 独立页（不套壳层）；登录成功跳工作台。
-- 路由守卫：未登录 → `/login`；ADMIN 页面校验角色，无权限回工作台并提示。
+- `/login` 独立页（不套壳层）；登录成功跳首个可见菜单（默认工作台）。
+- 路由守卫：未登录 → `/login`；ADMIN 页面校验角色；页面 `meta.menuKey` 再校验用户菜单绑定：
+  登录落地 `/` 被绑定掉时**静默**跳首个可见菜单，直接访问未绑定页面才提示；
+  `homePath` 优先普通页面、不把全屏数据大屏作为落地页（仅大屏是唯一可见菜单时才落 `/screen`）。
 - `AppHeader` 显示当前用户/角色；菜单：修改密码、退出登录。
-- 侧栏按角色显示「用户管理」「操作审计」；非 ADMIN 隐藏敏感词/设置写操作。
+- 侧栏 = 角色允许 ∩ 用户菜单绑定（空分组不渲染）；非 ADMIN 不显示用户管理 / 审计等入口。
+- 用户管理页：「菜单权限」列展示「全部 / N 项」，新建 / 编辑弹窗内按侧栏分组勾选可见菜单
+  （只列当前角色允许的菜单，带全选 / 清空与每组计数），全选等于跟随角色不限制。
 - 复核页：队列展示指派/优先级；认领、指派（ADMIN）、优先级筛选、复核历史、双人复核进度；
   提交后按「已提交 1/2」「已完成」提示。
 - 新增用户管理页、操作审计页。

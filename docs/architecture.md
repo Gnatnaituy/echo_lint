@@ -14,7 +14,7 @@
 
 | 层 | 组成 | 说明 |
 |---|---|---|
-| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 15 个页面：工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、设置等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER） |
+| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 15 个页面：工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、设置等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER）；用户管理可为账号绑定可见菜单，侧栏与路由按「角色允许 ∩ 用户绑定」渲染 |
 | 前端容器 | Nginx | 静态资源、SPA fallback、`/api` 与 `/uploads` 反向代理、gzip/长缓存；宿主端口 8081 |
 | 后端 API | Spring Boot 3.3 / Java 17 | 18 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
 | 稽核流水线 | `PipelineService`、`PipelineTaskScheduler`、`AudioTranscriptionService`、`DfaService`、`SemanticScreeningService`、`ReviewService` | 上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈 |

@@ -613,7 +613,7 @@ P1/P2 的“切换”是配置切换：修改 `application.yml` / 环境变量�
 | `backend/src/main/java/com/echolint/entity/KnowledgeChunk.java` | 分块字段 |
 | `backend/src/main/resources/db/migration/V2__postgres_pgvector_rag.sql` | `knowledge_chunks` 建表 + 增量列 |
 | `backend/src/main/resources/db/migration/V3__rag_embedding_1024.sql` | HNSW 维度调整先例 |
-| `frontend/src/views/Settings.vue` | RAG 设置区 |
+| `frontend/src/views/settings/RagSettings.vue`（`/settings/rag`） | RAG 设置区（2026-11-10 起系统设置拆分为子页面） |
 | `backend/src/test/java/com/echolint/service/rag/TextChunkerTest.java` | 现有切块行为基线 |
 
 ## 附录 B：与现有接口的兼容性
