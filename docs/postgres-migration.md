@@ -1,5 +1,9 @@
 # MySQL 8 → PostgreSQL 17 + pgvector 迁移手册（Batch 6）
 
+> **状态：已于 2026-10-22 生产执行完成**（13 张表 / 281 行逐行校验一致）。本文保留为迁移与回滚手册；
+> 实际迁移使用 `tools/migrate_mysql_to_pg.py`（pgloader 的 QMynd 不支持 MySQL 8.4 `caching_sha2_password`），
+> 新环境无需再执行；仅回看历史或演练回滚时参考。
+
 > 本文是 **EchoLint 从 MySQL 8 迁移到 PostgreSQL 17（pgvector 镜像）** 的操作手册：
 > 迁移前检查、schema 初始化顺序、pgloader 只搬数据、数据校验、pgvector 校验、回滚到 MySQL 备份、常见坑。
 >

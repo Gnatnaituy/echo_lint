@@ -1,6 +1,7 @@
 # EchoLint 部署记录
 
-> 本文件收录历次生产部署的详细记录（环境、数据迁移、验证结果、回滚点与遗留问题）。
+> 本文件收录历次生产部署的详细记录（环境、数据迁移、验证结果、回滚点与遗留问题），按时间保留历史原貌。
+> 2026-10-22 之前的条目为 **MySQL 8** 时代；此后为 PostgreSQL 17 + pgvector。当前状态见 [production-readiness.md](production-readiness.md)。
 > 当前系统状态、验收清单与已知限制见 [production-readiness.md](production-readiness.md)。
 
 ---

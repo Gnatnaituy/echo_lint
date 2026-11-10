@@ -187,7 +187,7 @@ app:
 
 ### 3.3 开启前准备（最小步骤）
 
-1. 在「AI 供应商」中配置阿里云百炼：base-url `https://dashscope.aliyuncs.com/compatible-mode/v1`（以业务空间控制台为准），填好 `DASHSCOPE_API_KEY`；
+1. 在「AI 供应商」中配置阿里云百炼：base-url `https://dashscope.aliyuncs.com/compatible-mode/v1`（以业务空间控制台为准），录入 API Key（「系统设置」页，AES-GCM 加密存库、界面只回掩码；`DASHSCOPE_API_KEY` 环境变量仅首次启动引导）；
    embedding 复用现有供应商注册表，密钥仍是 AES-GCM 加密存储。
    > DeepSeek 目前不提供 embedding 接口，不能作为 embedding 供应商。
 2. 确认模型中英文名与 `APP_RAG_EMBEDDING_MODEL` 一致，维度与 HNSW 索引一致（默认 1024）。
@@ -602,7 +602,7 @@ CREATE INDEX idx_knowledge_chunks_hnsw
 9. **文档解析能力有限**：扫描件/加密 PDF 无文本层会 `FAILED`；DOCX 抽取段落与表格文本（表格行内单元格用竖线展平），不保留样式，页眉页脚不抽取；单文档文本截断 100,000 字符。
 10. **多租户未隔离**：RAG 沿用当前单租户模型，知识库与检索结果没有 tenant 维度隔离。
 11. **Flyway 版本提示**：Flyway 10.10 对 PostgreSQL 17 会打印版本支持告警，但迁移可正常执行（仅告警）。
-12. **迁移遗留**：MySQL → PostgreSQL 的 pgloader 数据迁移尚未端到端执行，操作步骤与校验清单见
+12. **迁移已完成**：MySQL → PostgreSQL 已于 2026-10-22 生产切换（工具 `tools/migrate_mysql_to_pg.py`），迁移与回滚手册见
     [docs/postgres-migration.md](postgres-migration.md)，上线前仍需按清单演练。
 
 ---

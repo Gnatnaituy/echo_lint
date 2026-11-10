@@ -28,7 +28,9 @@
 - Docker Engine 24+、Docker Compose **≥ 2.24**（`env_file` 长语法 `required: false`）。
 - 仓库 checkout 到服务器（如 `/opt/echolint`），且已构建/拉取所需基础镜像。
 - 宿主已安装 `curl`（健康检查与运维脚本使用；容器内部不需要）。
-- whisper.cpp 转写服务（可选但强烈建议）：见 `tools/whisper-server.sh` 顶部注释。Linux 宿主需
+- 语音转写（部署后在「系统设置 → 语音转写」选择，二选一）：
+  ① 阿里云百炼录音文件识别——只需在设置页录入 API Key，无需宿主服务（推荐）；
+  ② 本机 whisper.cpp（可选兜底）——见 `tools/whisper-server.sh` 顶部注释；Linux 宿主需
   `WHISPER_HOST=0.0.0.0` 启动并用防火墙只放行 Docker 网桥网段（whisper.cpp 无鉴权）。
 - HTTPS：本编排默认仍是 HTTP 80（与现有部署一致），TLS 由宿主反代终结，见 §5。
 
@@ -39,7 +41,7 @@
 | frontend (nginx) | `0.0.0.0:80 → 80` | 公网入口；使用宿主 TLS 反代时改为 `127.0.0.1:8081:80` |
 | backend (Spring Boot) | `127.0.0.1:8082 → 8080` | 仅回环；`/actuator/health` 可直接本机访问 |
 | postgres | `127.0.0.1:5433 → 5432` | 仅回环；备份/运维用 |
-| whisper.cpp（宿主进程） | `:9900` | 容器经 `host.docker.internal:9900` 访问 |
+| whisper.cpp（宿主进程） | `:9900` | 可选（本地方案）；容器经 `host.docker.internal:9900` 访问，百炼方案无需 |
 
 ## 4. 首次部署（全新数据卷）
 
@@ -49,7 +51,7 @@ cd /opt/echolint
 # 1) 准备生产变量文件
 cp deploy/.env.prod.example deploy/.env.prod
 chmod 600 deploy/.env.prod
-$EDITOR deploy/.env.prod          # 替换所有 CHANGE_ME_*，填 API Key
+$EDITOR deploy/.env.prod          # 替换所有 CHANGE_ME_*；API Key 推荐部署后在系统设置页录入（加密落库）
 
 # 2) 部署前自检（可选但推荐）：示例口令/空口令必须为零
 grep -n 'CHANGE_ME' deploy/.env.prod && echo "!! 仍有示例口令，停止" && exit 1

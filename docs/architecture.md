@@ -1,6 +1,6 @@
 # EchoLint 系统架构
 
-> 基于 `main` 分支当前代码整理（2026-10-21）。矢量源文件：[architecture.svg](architecture.svg)、[architecture-flow.svg](architecture-flow.svg)。
+> 基于 `main` 分支当前代码整理（2026-11-10，含语音转写双 provider 与系统设置页重构）。矢量源文件：[architecture.svg](architecture.svg)、[architecture-flow.svg](architecture-flow.svg)。
 
 ## 1. 系统架构图
 
@@ -14,15 +14,15 @@
 
 | 层 | 组成 | 说明 |
 |---|---|---|
-| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 15 个页面：工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、设置等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER）；用户管理可为账号绑定可见菜单，侧栏与路由按「角色允许 ∩ 用户绑定」渲染 |
+| 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、系统设置（复筛模型 / 语音转写 / 知识增强 / 通知与抽样 / 运行环境 5 个子页）等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER）；用户管理可为账号绑定可见菜单，侧栏与路由按「角色允许 ∩ 用户绑定」渲染 |
 | 前端容器 | Nginx | 静态资源、SPA fallback、`/api` 与 `/uploads` 反向代理、gzip/长缓存；宿主端口 8081 |
-| 后端 API | Spring Boot 3.3 / Java 17 | 18 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
-| 稽核流水线 | `PipelineService`、`PipelineTaskScheduler`、`AudioTranscriptionService`、`DfaService`、`SemanticScreeningService`、`ReviewService` | 上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈 |
+| 后端 API | Spring Boot 3.5 / Java 17 | 19 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
+| 稽核流水线 | `PipelineService`、`PipelineTaskScheduler`、`AudioTranscriptionService`（转写 provider 运行时切换）、`DfaService`、`SemanticScreeningService`、`ReviewService` | 上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈 |
 | AI 治理 | `ScreenModelService`、`ProviderRegistry`、`AiModelCaller`、`AiQuotaService`、`AiUsageService`、`AiInvocationService`、`ModelEvaluationService`、`WordMiningService` | 供应商运行时切换、AES-GCM 密钥、重试/超时、配额、成本快照、完整调用留痕 |
 | RAG 子系统 | `RagDocumentService`、`TextChunker`、`RagIndexService`、`RagEmbeddingClient`、`RagRetrievalService`、`ScreeningPromptSupport`、`RagSettingsService`、`RagAdminService`、`RagEvaluationService`、`KnowledgeIndexService` | 文档导入、异步分块/向量化、pgvector 检索、提示词注入、索引重建、索引明细与对比评测 |
-| 数据层 | PostgreSQL 17 + pgvector | 业务表 + `knowledge_chunks(vector 1024, HNSW)` + `ai_invocations`；Flyway V1/V2/V3，Hibernate `ddl-auto: update`；`DataSeedRunner` 预置词典/语料 |
+| 数据层 | PostgreSQL 17 + pgvector | 业务表 + `knowledge_chunks(vector 1024, HNSW)` + `ai_invocations`；Flyway V1–V7，Hibernate `ddl-auto: update`；`DataSeedRunner` 预置词典/语料 |
 | 文件存储 | Docker 卷 `uploads` / `knowledge-docs` | 录音原件、双声道分轨、导入的 PDF/DOCX/TXT/MD 原文 |
-| 外部依赖 | DeepSeek（chat）、阿里云百炼 DashScope（embedding）、本机 whisper.cpp（ASR） | 全部走兼容 HTTP 接口；密钥不出后端；录音转写不出本机（whisper.cpp） |
+| 外部依赖 | DeepSeek / 阿里云百炼（chat + embedding + 录音文件识别 ASR）、本机 whisper.cpp（可选 ASR） | HTTP 接口；API Key AES-GCM 加密存库、界面只回掩码；可切本地方案使录音不出本机 |
 
 ## 4. 后端代码地图
 
@@ -33,13 +33,14 @@
 
 ### 4.2 稽核流水线
 - `PipelineTaskService` / `PipelineTaskScheduler` / `PipelineRecoveryService`：`pipeline_tasks` 持久队列、退避重试、死信、重启恢复。
-- `AudioTranscriptionService` + `TranscriptionService`：ffmpeg 探测/分轨，本机 whisper.cpp 转写，逐句分段。
+- `AudioTranscriptionService` + `TranscriptionService`：ffmpeg 探测/分轨；按运行时配置把每路音频分发到阿里云百炼或本机 whisper.cpp，逐句分段；双声道降级前先 downmix 为单声道。
 - `DfaService`：Aho-Corasick 词典匹配（字符跳变、大小写不敏感），词典变更后重建匹配器。
 - `SemanticScreeningService` + `ScreeningPromptSupport`：全文分块、RAG 召回、few-shot、DeepSeek 调用、严格 JSON 解析、置信度阈值与降级。
 - `ReviewService`：单人/双人复核、认领/指派/重开、语料回馈与词挖掘触发。
 
 ### 4.3 AI 治理
 - `ScreenModelService`：当前复筛模型选择持久化到 `app_settings`，运行时切换。
+- `AsrSettingsService` / `DashScopeAsrProvider` / `LocalWhisperProvider`（`asr/` 包）：语音转写 provider 运行时切换、密钥加密落库（环境变量仅首次启动引导）、连通性测试。
 - `ProviderRegistry` / `ProviderAdminService`：供应商清单、AES-GCM 密钥、价格快照。
 - `AiQuotaService`：每日 token 配额与每分钟调用数。
 - `AiUsageService` / `AiInvocationService`：成本聚合与完整请求/响应留痕（`ai_invocations`）。
@@ -68,8 +69,8 @@
 backend（Spring Boot）
   ├─ PostgreSQL 17 + pgvector（postgres:5432，宿主 5433）
   ├─ DeepSeek API（chat completions）
-  ├─ 阿里云百炼 DashScope（/embeddings，1024 维）
-  └─ 本机 whisper.cpp（host.docker.internal:9900）
+  ├─ 阿里云百炼 DashScope（embedding 1024 维 / 录音文件识别 ASR，可选）
+  └─ 本机 whisper.cpp（可选 ASR，host.docker.internal:9900）
 ```
 
 - Docker Compose 服务：`postgres` / `backend` / `frontend`；卷：`pg-data`、`uploads`、`knowledge-docs`。

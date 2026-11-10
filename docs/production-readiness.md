@@ -5,6 +5,11 @@
 > 依赖外部选型的 P2 项先落地适配器与接口，选型确定后只需实现适配器。
 > 进度以本文件的 checkbox 为准。
 >
+> **历史文档提示**：本文按批次记录 2026-09 ~ 2026-11 的实现与验收过程。早期章节里的「本机 MySQL」指
+> 2026-10-22 迁移前的验证环境；当前架构为 **PostgreSQL 17 + pgvector**，语音转写也已从固定本机
+> whisper.cpp 升级为「阿里云百炼 / 本地 whisper.cpp」双 provider（见 [asr-and-settings-refactor.md](asr-and-settings-refactor.md)）。
+> 当前生效的配置以系统设置页与 `.env.example` 为准。
+>
 > 本文件只保留「当前状态 / 验收清单 / 已知限制」；历次生产部署的详细记录（环境、迁移、验证、回滚点）
 > 见 [deployment-records.md](deployment-records.md)。
 
