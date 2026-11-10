@@ -8,6 +8,7 @@ import static org.mockito.Mockito.*;
 import com.echolint.domain.RagIndexStatus;
 import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.KnowledgeEntryRepository;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +45,9 @@ class RagAdminServiceTest {
                                 "/v1/embeddings",
                                 1536,
                                 30,
-                                true));
+                                true,
+                                "DATABASE",
+                                List.of("text-embedding-3-small", "text-embedding-3-large")));
         when(knowledgeEntries.count()).thenReturn(10L);
         when(knowledgeEntries.countByIndexStatus(RagIndexStatus.READY.name())).thenReturn(7L);
         when(knowledgeEntries.countByIndexStatus(RagIndexStatus.FAILED.name())).thenReturn(1L);
@@ -70,6 +73,10 @@ class RagAdminServiceTest {
         assertEquals("settings", view.source());
         assertEquals("text-embedding-3-small", view.embedding().model());
         assertTrue(view.embedding().apiKeyConfigured());
+        assertEquals("DATABASE", view.embedding().source());
+        assertEquals(
+                List.of("text-embedding-3-small", "text-embedding-3-large"),
+                view.embedding().models());
         assertEquals(4, view.retrieval().topK());
         assertEquals(10, view.index().knowledgeTotal());
         assertEquals(7, view.index().knowledgeReady());
@@ -85,13 +92,15 @@ class RagAdminServiceTest {
     void updateDelegatesToSettingsAndReturnsView() {
         RagSettingsService.Snapshot updated =
                 new RagSettingsService.Snapshot(true, 6, 0.3, 3000, 8, "settings");
-        when(settings.update(true, 6, 0.3, 3000, 8)).thenReturn(updated);
+        when(settings.update(true, 6, 0.3, 3000, 8, null, null))
+                .thenReturn(new RagSettingsService.UpdateOutcome(updated, true));
         when(settings.current()).thenReturn(updated);
 
-        RagAdminService.RagView view = service.update(true, 6, 0.3, 3000, 8);
+        RagAdminService.UpdateView view = service.update(true, 6, 0.3, 3000, 8, null, null);
 
         assertEquals(6, view.retrieval().topK());
-        verify(settings).update(true, 6, 0.3, 3000, 8);
+        assertTrue(view.embeddingChanged(), "透传 embeddingChanged");
+        verify(settings).update(true, 6, 0.3, 3000, 8, null, null);
     }
 
     @Test

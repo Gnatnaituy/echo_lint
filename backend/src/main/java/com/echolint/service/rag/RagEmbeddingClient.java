@@ -28,8 +28,8 @@ import reactor.netty.http.client.HttpClient;
 /**
  * 兼容 /embeddings 协议的 embedding 客户端（Batch 6）。
  *
- * <p>复用 {@code ai_providers} 中的供应商配置（base-url + AES-GCM 密钥 + 输入单价）， 只额外指定 embedding
- * 模型/路径/维度；因此密钥轮换、供应商停用与现有 AI 治理一致。
+ * <p>复用 {@code ai_providers} 中的供应商配置（base-url + AES-GCM 密钥 + 输入单价）， 供应商与模型由 {@link
+ * RagEmbeddingSettingsResolver} 解析（设置页可切换，DB 优先、env 兜底）； 路径/维度/超时仍由 {@link RagProperties} 决定。
  *
  * <p>行为约定：
  *
@@ -55,8 +55,9 @@ public class RagEmbeddingClient {
     private final ObjectMapper objectMapper;
     private final AiInvocationService invocations;
     private final AiQuotaService quotaService;
+    private final RagEmbeddingSettingsResolver embeddingSettings;
 
-    /** embedding 配置信息（系统设置页只读展示） */
+    /** embedding 配置信息（系统设置页只读展示；不含任何密钥） */
     public record EmbeddingInfo(
             String providerId,
             String providerLabel,
@@ -64,7 +65,9 @@ public class RagEmbeddingClient {
             String path,
             int dimensions,
             long timeoutSeconds,
-            boolean apiKeyConfigured) {}
+            boolean apiKeyConfigured,
+            String source,
+            List<String> models) {}
 
     /** 连通性测试结果 */
     public record TestResult(
@@ -83,30 +86,25 @@ public class RagEmbeddingClient {
     /** 是否具备调用条件（供应商存在、启用、密钥已配置）；不发起网络请求 */
     public boolean available() {
         try {
-            ResolvedProvider provider = requireProvider();
-            return provider.enabled()
-                    && provider.apiKeyConfigured()
-                    && !provider.baseUrl().isBlank();
+            return usableProvider(embeddingSettings.resolve());
         } catch (RuntimeException e) {
             return false;
         }
     }
 
-    /** 配置视图（不发起请求） */
+    /** 配置视图（不发起请求）；provider/model 为当前解析后的生效值 */
     public EmbeddingInfo info() {
-        ResolvedProvider provider = resolveProviderOrNull();
+        RagEmbeddingSettingsResolver.Resolved resolved = embeddingSettings.resolve();
         return new EmbeddingInfo(
-                provider == null
-                        ? properties.effectiveEmbeddingProviderId()
-                        : provider.providerKey(),
-                provider == null
-                        ? properties.effectiveEmbeddingProviderId()
-                        : provider.displayLabel(),
-                properties.effectiveEmbeddingModel(),
+                resolved.providerId(),
+                resolved.providerLabel(),
+                resolved.model(),
                 properties.effectiveEmbeddingPath(),
                 properties.effectiveDimensions(),
                 properties.effectiveEmbeddingTimeoutSeconds(),
-                provider != null && provider.apiKeyConfigured());
+                resolved.apiKeyConfigured(),
+                resolved.source(),
+                embeddingSettings.candidateModels(resolved.model()));
     }
 
     /**
@@ -139,23 +137,24 @@ public class RagEmbeddingClient {
     /** 连通性测试：真实调用一次 embedding 并校验维度 */
     public TestResult test() {
         long start = System.currentTimeMillis();
+        RagEmbeddingSettingsResolver.Resolved resolved = embeddingSettings.resolve();
         ResolvedProvider provider;
         try {
-            provider = requireProvider();
+            provider = requireProvider(resolved);
         } catch (RuntimeException e) {
             return new TestResult(
                     false,
-                    properties.effectiveEmbeddingProviderId(),
-                    properties.effectiveEmbeddingProviderId(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.providerId(),
+                    resolved.providerLabel(),
+                    resolved.model(),
                     properties.effectiveDimensions(),
                     0,
                     e.getMessage());
         }
         String testInput = "EchoLint RAG embedding connectivity test";
-        String requestJson = summaryRequest(provider, List.of(testInput));
+        String requestJson = summaryRequest(provider, resolved.model(), List.of(testInput));
         try {
-            EmbeddingBatch batch = callWithRetry(provider, List.of(testInput));
+            EmbeddingBatch batch = callWithRetry(provider, resolved.model(), List.of(testInput));
             long latency = System.currentTimeMillis() - start;
             // P2-10：连通性测试同样写 ai_invocations（stage=TEST），成本看板与审计可见
             invocations.recordEmbeddingSuccess(
@@ -163,7 +162,7 @@ public class RagEmbeddingClient {
                     AiInvocationService.STAGE_TEST,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     endpoint(provider),
                     requestJson,
                     summaryResponse(batch),
@@ -173,7 +172,7 @@ public class RagEmbeddingClient {
                     true,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     batch.dimensions(),
                     latency,
                     "embedding 调用成功，维度 "
@@ -189,7 +188,7 @@ public class RagEmbeddingClient {
                     AiInvocationService.STAGE_TEST,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     endpoint(provider),
                     requestJson,
                     truncate(e.getMessage(), 500),
@@ -198,7 +197,7 @@ public class RagEmbeddingClient {
                     false,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     properties.effectiveDimensions(),
                     latency,
                     e.getMessage());
@@ -222,19 +221,20 @@ public class RagEmbeddingClient {
     }
 
     private List<float[]> embedBatch(List<String> texts, Long recordingId, String stage) {
-        ResolvedProvider provider = requireProvider();
+        RagEmbeddingSettingsResolver.Resolved resolved = embeddingSettings.resolve();
+        ResolvedProvider provider = requireProvider(resolved);
         quotaService.checkDailyTokensOnly();
         String endpoint = endpoint(provider);
-        String requestJson = summaryRequest(provider, texts);
+        String requestJson = summaryRequest(provider, resolved.model(), texts);
         long start = System.currentTimeMillis();
         try {
-            EmbeddingBatch batch = callWithRetry(provider, texts);
+            EmbeddingBatch batch = callWithRetry(provider, resolved.model(), texts);
             invocations.recordEmbeddingSuccess(
                     recordingId,
                     stage,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     endpoint,
                     requestJson,
                     summaryResponse(batch),
@@ -247,7 +247,7 @@ public class RagEmbeddingClient {
                     stage,
                     provider.providerKey(),
                     provider.displayLabel(),
-                    properties.effectiveEmbeddingModel(),
+                    resolved.model(),
                     endpoint,
                     requestJson,
                     truncate(e.getMessage(), 500),
@@ -260,11 +260,12 @@ public class RagEmbeddingClient {
         }
     }
 
-    private EmbeddingBatch callWithRetry(ResolvedProvider provider, List<String> texts) {
+    private EmbeddingBatch callWithRetry(
+            ResolvedProvider provider, String model, List<String> texts) {
         RagHttpException last = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
-                return doCall(provider, texts);
+                return doCall(provider, model, texts);
             } catch (RagHttpException e) {
                 last = e;
                 if (!e.retryable() || attempt >= MAX_RETRIES) {
@@ -283,9 +284,9 @@ public class RagEmbeddingClient {
         throw last == null ? new RagEmbeddingException("embedding 调用失败") : last;
     }
 
-    private EmbeddingBatch doCall(ResolvedProvider provider, List<String> texts) {
+    private EmbeddingBatch doCall(ResolvedProvider provider, String model, List<String> texts) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", properties.effectiveEmbeddingModel());
+        body.put("model", model);
         body.put("input", texts);
         if (properties.sendEmbeddingDimensions()) {
             body.put("dimensions", properties.effectiveDimensions());
@@ -400,14 +401,22 @@ public class RagEmbeddingClient {
         return builder.build();
     }
 
-    private ResolvedProvider requireProvider() {
-        ResolvedProvider provider = resolveProviderOrNull();
+    private boolean usableProvider(RagEmbeddingSettingsResolver.Resolved resolved) {
+        ResolvedProvider provider = resolveProviderOrNull(resolved);
+        return provider != null
+                && provider.enabled()
+                && provider.apiKeyConfigured()
+                && provider.baseUrl() != null
+                && !provider.baseUrl().isBlank();
+    }
+
+    private ResolvedProvider requireProvider(RagEmbeddingSettingsResolver.Resolved resolved) {
+        ResolvedProvider provider = resolveProviderOrNull(resolved);
         if (provider == null) {
             throw new RagEmbeddingException(
                     "未找到 embedding 供应商："
-                            + properties.effectiveEmbeddingProviderId()
-                            + "（请在 application.yml 的 app.rag.embedding.provider-id 配置，"
-                            + "并确认该供应商已在「AI 供应商」中存在）");
+                            + resolved.providerId()
+                            + "（请在「系统设置 → 知识增强」中选择已存在的供应商/模型）");
         }
         if (!provider.enabled()) {
             throw new RagEmbeddingException("embedding 供应商已停用：" + provider.displayLabel());
@@ -426,8 +435,8 @@ public class RagEmbeddingClient {
         return provider;
     }
 
-    private ResolvedProvider resolveProviderOrNull() {
-        return providers.find(properties.effectiveEmbeddingProviderId()).orElse(null);
+    private ResolvedProvider resolveProviderOrNull(RagEmbeddingSettingsResolver.Resolved resolved) {
+        return providers.find(resolved.providerId()).orElse(null);
     }
 
     private String endpoint(ResolvedProvider provider) {
@@ -447,9 +456,9 @@ public class RagEmbeddingClient {
         return value;
     }
 
-    private String summaryRequest(ResolvedProvider provider, List<String> texts) {
+    private String summaryRequest(ResolvedProvider provider, String model, List<String> texts) {
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("model", properties.effectiveEmbeddingModel());
+        summary.put("model", model);
         summary.put("endpoint", endpoint(provider));
         if (properties.sendEmbeddingDimensions()) {
             summary.put("dimensions", properties.effectiveDimensions());

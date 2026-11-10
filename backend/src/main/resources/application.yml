@@ -206,9 +206,14 @@ app:
     # 语义 few-shot（Phase A）：从语料库按相似度取样例，不足时用最新样本补齐
     corpus-examples: ${APP_RAG_CORPUS_EXAMPLES:5}
     embedding:
-      # 复用 ai_providers 中的阿里云百炼供应商（需配置 DASHSCOPE_API_KEY）
+      # 供应商/模型可在「系统设置 → 知识增强」页切换：落库 app_settings（rag.embedding.provider /
+      # rag.embedding.model），运行时 DB 优先；下面的 provider-id/model 仅作为未保存时的默认值
+      # （env: APP_RAG_EMBEDDING_PROVIDER / APP_RAG_EMBEDDING_MODEL）。维度/路径/超时不会随模型
+      # 热改，换模型后需要重建索引。
       provider-id: ${APP_RAG_EMBEDDING_PROVIDER:aliyun}
       model: ${APP_RAG_EMBEDDING_MODEL:qwen3.7-text-embedding}
+      # 设置页候选模型（逗号分隔；可手填其它模型名）
+      models: ${APP_RAG_EMBEDDING_MODELS:qwen3.7-text-embedding,text-embedding-v4,text-embedding-v3}
       # base-url 已含 /compatible-mode/v1，这里只写 /embeddings
       path: ${APP_RAG_EMBEDDING_PATH:/embeddings}
       # 维度必须与 V3 迁移里 HNSW 表达式索引的维度一致（默认 1024）

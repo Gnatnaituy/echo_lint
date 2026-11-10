@@ -245,6 +245,18 @@ app:
 - `vectorAvailable` 检查 `vector` 扩展与 `knowledge_chunks` 表是否存在，结果缓存 30 秒；
 - 任何统计查询失败都会安全回退为 0，不影响设置页打开。
 
+#### embedding 供应商 / 模型（可在设置页切换）
+
+`GET /api/settings/rag` 的 `embedding` 段包含 `providerId / providerLabel / model / path / dimensions /
+timeoutSeconds / apiKeyConfigured / source(DATABASE|ENV) / models[]`；`PUT /api/settings/rag` 可带
+`"embedding": { "provider": "aliyun", "model": "text-embedding-v3" }`（省略=不修改，空串=回退 env 默认）：
+
+- 校验：provider 必须存在于供应商注册表、已启用且已配置 API Key；model 非空且 ≤120 字符；
+- 落库 `rag.embedding.provider` / `rag.embedding.model`，运行时 DB 优先、`APP_RAG_EMBEDDING_PROVIDER` /
+  `APP_RAG_EMBEDDING_MODEL` 兜底；`/api/settings/rag/test` 与真实 embedding 调用都使用解析后的值；
+- 响应额外返回 `embeddingChanged`（仅 PUT；provider/model 实际变化时为 true）。切换模型不会自动重建索引，
+  页面会提示「历史索引需要重建」，管理员点「重建索引」即可（维度/路径/超时仍由 yml 决定，不热改）。
+
 #### `PUT /api/settings/rag`
 
 请求（字段均可空，null = 保留原值；数值会被钳制）：

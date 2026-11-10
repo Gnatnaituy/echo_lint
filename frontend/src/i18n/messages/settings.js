@@ -76,6 +76,8 @@ export default {
     'settings.provider.deleteTitle': '删除供应商',
     'settings.provider.current': '当前',
     'settings.provider.builtIn': '内置',
+    'settings.provider.ready': '就绪',
+    'settings.provider.notReady': '未就绪',
     'settings.provider.unavailable': '供应商列表暂不可用',
     'settings.provider.modelCount': '{count} 个候选模型',
     'settings.provider.defaultModel': '默认模型',
@@ -192,14 +194,32 @@ export default {
     'settings.rag.enableNoteA':
       '启用后复筛会召回知识库片段注入 prompt，并用语义 few-shot 补充语料示例；',
     'settings.rag.enableNoteB': '关闭时不发起任何 embedding 调用，行为与旧版一致。',
-    'settings.rag.embeddingTitle': 'Embedding 配置（只读）',
+    'settings.rag.embeddingTitle': 'Embedding 配置',
+    'settings.rag.embeddingActive': '当前生效',
+    'settings.rag.embeddingHint':
+      'Embedding 复用 AI 供应商的接入地址与密钥；切换供应商 / 模型后需要重建索引',
+    'settings.rag.chooseEmbeddingProvider': 'Embedding 供应商',
+    'settings.rag.chooseEmbeddingProviderHint':
+      '点击卡片选中；停用或未配置密钥的供应商不可保存，可点右上角编辑补全',
+    'settings.rag.embeddingModel': 'Embedding 模型',
+    'settings.rag.embeddingModelPlaceholder': '选择或直接输入模型名',
+    'settings.rag.embeddingSave': '保存',
+    'settings.rag.embeddingSaved': 'Embedding 配置已保存，立即生效',
+    'settings.rag.embeddingDirtyHint': '保存后立即生效；历史索引需要重建',
+    'settings.rag.embeddingBlockedHint':
+      '未配置密钥或已停用的供应商不可保存，请点卡片右上角编辑补全',
+    'settings.rag.embeddingChangedTitle': 'Embedding 配置已变更，历史索引需要重建',
+    'settings.rag.embeddingChangedTitleDisabled': 'Embedding 配置已变更（RAG 当前关闭）',
+    'settings.rag.embeddingChangedNote':
+      '向量维度可能变化，旧索引不可复用；请重建知识库与语料索引后再启用检索。',
+    'settings.rag.embeddingChangedNoteDisabled':
+      '可在启用 RAG 后执行重建；启用时会自动回填历史索引。',
+    'settings.rag.embeddingReindex': '重建索引',
+
     'settings.rag.testConnection': '连通性测试',
-    'settings.rag.providerModel': '供应商 / 模型',
     'settings.rag.requestPath': '请求路径',
-    'settings.rag.reuseHint': '复用 AI 供应商的 Base URL 与密钥',
     'settings.rag.dimensions': '向量维度',
     'settings.rag.timeout': '超时 {seconds} 秒',
-    'settings.rag.keyNote': '密钥由后端加密存储，前端只读状态',
     'settings.rag.testOk': 'Embedding 连通正常',
     'settings.rag.testFail': 'Embedding 连通失败',
     'settings.rag.dimensionValue': '维度 {dimensions}',
@@ -273,14 +293,14 @@ export default {
     'settings.asr.title': '转写服务与配置',
     'settings.asr.subtitle': '默认本地 whisper.cpp，可切换阿里云百炼；保存后立即生效、重启保持',
     'settings.asr.active.label': '当前生效',
-    'settings.asr.active.note': '作用于录音转写流水线',
-    'settings.asr.active.notReadyNote': '当前服务未就绪，请在下方填写并保存 API Key',
     'settings.asr.key.masked': 'Key {masked}',
     'settings.asr.key.configured': 'Key 已配置',
     'settings.asr.key.notConfigured': '未配置 API Key',
     'settings.asr.key.keep': '已配置（{masked}），留空表示不修改',
     'settings.asr.key.empty': '未配置 API Key，填写后保存',
     'settings.asr.switch.title': '服务',
+    'settings.asr.switch.chooseProviderHint':
+      '未配置 API Key 的服务可先选中，在下方填写并保存后生效',
     'settings.asr.switch.current': '当前生效：{provider}',
     'settings.asr.switch.dirty': '修改后点「保存并生效」更新当前服务配置',
     'settings.asr.switch.pendingSwitch': '点「保存并生效」后将切换到 {provider}',
@@ -456,6 +476,8 @@ export default {
     'settings.provider.deleteTitle': 'Delete provider',
     'settings.provider.current': 'Active',
     'settings.provider.builtIn': 'Built-in',
+    'settings.provider.ready': 'Ready',
+    'settings.provider.notReady': 'Not ready',
     'settings.provider.unavailable': 'Provider list is unavailable',
     'settings.provider.modelCount': 'Candidates: {count}',
     'settings.provider.defaultModel': 'Default model',
@@ -590,14 +612,35 @@ export default {
       'When enabled, screening recalls knowledge base chunks into the prompt and adds semantic few-shot corpus samples;',
     'settings.rag.enableNoteB':
       'when disabled, no embedding calls are made and behavior matches the previous version.',
-    'settings.rag.embeddingTitle': 'Embedding configuration (read-only)',
+    'settings.rag.embeddingTitle': 'Embedding configuration',
+    'settings.rag.embeddingActive': 'Active',
+    'settings.rag.embeddingHint':
+      'Embeddings reuse the AI provider endpoint and key; changing provider / model requires reindexing',
+    'settings.rag.chooseEmbeddingProvider': 'Embedding provider',
+    'settings.rag.chooseEmbeddingProviderHint':
+      'Click a card to select; disabled or key-less providers cannot be saved — use the edit action to fix them',
+    'settings.rag.embeddingModel': 'Embedding model',
+    'settings.rag.embeddingModelPlaceholder': 'Select or type a model name',
+    'settings.rag.embeddingSave': 'Save',
+    'settings.rag.embeddingSaved': 'Embedding configuration saved and applied',
+    'settings.rag.embeddingDirtyHint':
+      'Takes effect immediately after saving; historical indexes need to be rebuilt',
+    'settings.rag.embeddingBlockedHint':
+      'Providers without a key or disabled ones cannot be saved — use the edit action on the card',
+    'settings.rag.embeddingChangedTitle':
+      'Embedding configuration changed — historical indexes must be rebuilt',
+    'settings.rag.embeddingChangedTitleDisabled':
+      'Embedding configuration changed (RAG is currently off)',
+    'settings.rag.embeddingChangedNote':
+      'Vector dimensions may have changed and old indexes cannot be reused; rebuild the knowledge and corpus indexes before enabling retrieval.',
+    'settings.rag.embeddingChangedNoteDisabled':
+      'Rebuild after enabling RAG; enabling it backfills historical indexes automatically.',
+    'settings.rag.embeddingReindex': 'Rebuild indexes',
+
     'settings.rag.testConnection': 'Test connection',
-    'settings.rag.providerModel': 'Provider / model',
     'settings.rag.requestPath': 'Request path',
-    'settings.rag.reuseHint': 'Reuses the AI provider Base URL and API key',
     'settings.rag.dimensions': 'Dimensions',
     'settings.rag.timeout': 'Timeout {seconds}s',
-    'settings.rag.keyNote': 'The key is stored encrypted by the backend; the UI only shows status',
     'settings.rag.testOk': 'Embedding connection OK',
     'settings.rag.testFail': 'Embedding connection failed',
     'settings.rag.dimensionValue': 'Dimensions {dimensions}',
@@ -681,15 +724,14 @@ export default {
     'settings.asr.subtitle':
       'Defaults to local whisper.cpp; switch to Alibaba Cloud Bailian. Changes apply immediately and survive restarts',
     'settings.asr.active.label': 'Active',
-    'settings.asr.active.note': 'Used by the recording transcription pipeline',
-    'settings.asr.active.notReadyNote':
-      'The active service is not ready; fill in and save an API key below',
     'settings.asr.key.masked': 'Key {masked}',
     'settings.asr.key.configured': 'Key configured',
     'settings.asr.key.notConfigured': 'No API key',
     'settings.asr.key.keep': 'Configured ({masked}); leave empty to keep it unchanged',
     'settings.asr.key.empty': 'No API key configured yet; fill it in and save',
     'settings.asr.switch.title': 'Service',
+    'settings.asr.switch.chooseProviderHint':
+      'A service without an API key can still be selected; fill it in below and save to apply',
     'settings.asr.switch.current': 'Active: {provider}',
     'settings.asr.switch.dirty':
       'Click “Save and apply” to update the active service configuration',

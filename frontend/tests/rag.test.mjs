@@ -24,6 +24,7 @@ test('RAG 设置：完整契约字段归一化', () => {
   const settings = normalizeRagSettings({
     enabled: true,
     source: 'database',
+    embeddingChanged: true,
     embedding: {
       providerId: 'openai',
       providerLabel: 'OpenAI',
@@ -31,7 +32,9 @@ test('RAG 设置：完整契约字段归一化', () => {
       path: '/v1/embeddings',
       dimensions: 1536,
       timeoutSeconds: 30,
-      apiKeyConfigured: true
+      apiKeyConfigured: true,
+      source: 'database',
+      models: ['text-embedding-3-small', 'text-embedding-3-large']
     },
     retrieval: { topK: 4, minScore: 0.25, maxContextChars: 2400, corpusExamples: 5 },
     index: {
@@ -48,11 +51,14 @@ test('RAG 设置：完整契约字段归一化', () => {
   assert.deepEqual(settings, {
     enabled: true,
     source: 'database',
+    embeddingChanged: true,
     embedding: {
       providerId: 'openai',
       providerLabel: 'OpenAI',
       model: 'text-embedding-3-small',
       path: '/v1/embeddings',
+      source: 'database',
+      models: ['text-embedding-3-small', 'text-embedding-3-large'],
       dimensions: 1536,
       timeoutSeconds: 30,
       apiKeyConfigured: true
@@ -75,11 +81,14 @@ test('RAG 设置：缺字段不臆造（null / 空串 / 空对象兜底）', () 
   assert.deepEqual(normalizeRagSettings(null), {
     enabled: null,
     source: '',
+    embeddingChanged: null,
     embedding: {
       providerId: '',
       providerLabel: '',
       model: '',
       path: '',
+      source: '',
+      models: [],
       dimensions: null,
       timeoutSeconds: null,
       apiKeyConfigured: null
@@ -106,7 +115,14 @@ test('RAG 设置：字符串数字 / 字符串布尔 / 别名兼容', () => {
     enabled: 'false',
     ragEnabled: true,
     retrieval: { top_k: '6', threshold: '0.4', contextChars: '3200', fewShotExamples: '3' },
-    embedding: { provider: 'deepseek', label: 'DeepSeek', model: 'bge-m3', dimension: '1024' },
+    embedding: {
+      provider: 'deepseek',
+      label: 'DeepSeek',
+      model: 'bge-m3',
+      dimension: '1024',
+      models: [' bge-m3 ', 'bge-large', 'bge-m3', ''],
+      source: 'DATABASE'
+    },
     index: { knowledge_ready: '9', knowledge_total: '10', vector_available: 'true' }
   })
   assert.equal(settings.enabled, false) // 顶层 enabled 优先
@@ -117,9 +133,18 @@ test('RAG 设置：字符串数字 / 字符串布尔 / 别名兼容', () => {
   assert.equal(settings.embedding.providerId, 'deepseek')
   assert.equal(settings.embedding.providerLabel, 'DeepSeek')
   assert.equal(settings.embedding.dimensions, 1024)
+  assert.deepEqual(settings.embedding.models, ['bge-m3', 'bge-large'])
+  assert.equal(settings.embedding.source, 'DATABASE')
   assert.equal(settings.index.knowledgeReady, 9)
   assert.equal(settings.index.knowledgeTotal, 10)
   assert.equal(settings.index.vectorAvailable, true)
+})
+
+test('RAG 设置：embeddingChanged（保存后是否需要重建索引）只在后端返回时给出布尔值', () => {
+  assert.equal(normalizeRagSettings({}).embeddingChanged, null)
+  assert.equal(normalizeRagSettings({ embeddingChanged: true }).embeddingChanged, true)
+  assert.equal(normalizeRagSettings({ embeddingChanged: 'false' }).embeddingChanged, false)
+  assert.equal(normalizeRagSettings({ embedding_changed: 'true' }).embeddingChanged, true)
 })
 
 /* ---------- 连通性测试 / 重索引 ---------- */

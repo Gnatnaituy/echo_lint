@@ -76,6 +76,7 @@ docker compose up -d --build
 | `DASHSCOPE_ASR_*` | `https://dashscope.aliyuncs.com` / `qwen-audio-3.1-asr-flash-filetrans` / `zh` | 百炼录音识别 base-url / 模型 / 语言提示（base-url 是 API 根域名，非 compatible-mode；带 `/api/v1` 会自动归一化） |
 | `ASR_TIMEOUT_SECONDS` | `600` | 单次转写总预算（本地 / 云端统一，30–1800） |
 | `APP_RAG_ENABLED` | `false` | RAG 总开关（需先在设置页配置 embedding 供应商） |
+| `APP_RAG_EMBEDDING_PROVIDER` / `_MODEL` / `_MODELS` | `aliyun` / `qwen3.7-text-embedding` / 3 个候选 | embedding 供应商、模型与候选列表；设置页可切换（DB 优先），换模型后需重建索引 |
 | `APP_NOTIFY_ENABLED` / `APP_STEREO_ENABLED` / `APP_REVIEW_REQUIRED_APPROVALS` | `false` / `true` / `1` | 通知、双声道、落结论所需复核人数 |
 | `APP_RETENTION_*` | 关闭 / 180、365、90 天 | 数据保留清理（AI 留痕 / 审计 / 流水线日志），uploads 不自动删除 |
 | `SPRING_DATASOURCE_*` | `localhost:5432` / `audit` | 数据库连接（compose 内为 `postgres:5432`） |

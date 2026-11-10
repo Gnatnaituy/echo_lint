@@ -31,51 +31,50 @@
         </div>
 
         <template v-else-if="view">
-          <!-- ① 当前生效状态行 -->
-          <div class="status-card">
-            <div class="status-left">
-              <div class="status-mark" :class="activeReady ? 'ok' : 'warn'">
-                <el-icon :size="19"><Microphone /></el-icon>
-              </div>
-              <div class="status-info">
-                <div class="status-line">
-                  <span class="status-hint tiny">{{ t('settings.asr.active.label') }}</span>
-                  <span class="status-provider">{{ providerLabel(activeProvider) }}</span>
-                  <span class="status-sep">·</span>
-                  <span class="status-model mono">{{ activeModel || '—' }}</span>
-                  <span class="chip" :class="activeReady ? 'ok' : 'warn'">{{ activeKeyText }}</span>
-                </div>
-                <div class="status-note tiny dim">{{ activeNote }}</div>
-              </div>
-            </div>
-            <el-button
-              :loading="testing === activeProvider"
-              :disabled="!activeProvider || (testing !== null && testing !== activeProvider)"
-              @click="runTest(activeProvider)"
-            >
-              <el-icon v-if="testing !== activeProvider" class="el-icon--left"
-                ><Connection
-              /></el-icon>
-              {{ t('settings.asr.test') }}
-            </el-button>
-          </div>
+          <!-- ① 当前生效状态行（与复筛模型 / 知识增强共用 ConfigStatusBar） -->
+          <ConfigStatusBar
+            :label="t('settings.asr.active.label')"
+            :provider="providerLabel(activeProvider)"
+            :model="activeModel"
+            :tone="activeReady ? 'ok' : 'warn'"
+            :icon="Microphone"
+          >
+            <template #chips>
+              <span class="chip" :class="activeBlock?.apiKeyConfigured === false ? 'warn' : 'ok'">
+                {{ activeKeyText }}
+              </span>
+            </template>
+            <template #actions>
+              <el-button
+                :loading="testing === activeProvider"
+                :disabled="!activeProvider || (testing !== null && testing !== activeProvider)"
+                @click="runTest(activeProvider)"
+              >
+                <el-icon v-if="testing !== activeProvider" class="el-icon--left"
+                  ><Connection
+                /></el-icon>
+                {{ t('settings.asr.test') }}
+              </el-button>
+            </template>
+          </ConfigStatusBar>
           <AsrTestResult
             :result="testResults[activeProvider]"
             :provider-label="providerLabel(activeProvider)"
           />
 
-          <!-- ② 选择服务（未就绪项灰显但仍可选中，选中后可在下方填写 Key 并保存） -->
-          <div class="select-row">
-            <span class="field-label">{{ t('settings.asr.switch.title') }}</span>
-            <SegmentedControl
-              v-model="draftProvider"
-              :options="providerOptions"
-              :aria-label="t('settings.asr.switch.title')"
-            />
+          <!-- ② 选择服务：供应商卡片网格（与复筛模型一致；未就绪可选中后填 Key） -->
+          <div class="block-head">
+            <div class="block-title">{{ t('settings.asr.switch.title') }}</div>
+            <span class="tiny dim">{{ t('settings.asr.switch.chooseProviderHint') }}</span>
           </div>
-          <div class="hint tiny" :class="selectionHintWarn ? 'warn-text' : 'dim'">
-            {{ selectionHint }}
-          </div>
+          <ProviderCardGrid
+            :cards="providerCards"
+            allow-unconfigured
+            show-ready
+            :show-model-count="false"
+            :reason-text="asrReasonText"
+            @select="selectProvider"
+          />
 
           <!-- ③ 仅显示选中 provider 的配置 -->
           <div class="config-panel">
@@ -199,22 +198,19 @@
             </template>
           </div>
 
-          <!-- ④ 一组操作：测试选中服务 / 保存并生效（切换与配置一次提交） -->
-          <div class="asr-actions">
-            <el-button
-              :loading="testing === draftProvider"
-              :disabled="testing !== null && testing !== draftProvider"
-              @click="runTest(draftProvider)"
-            >
-              <el-icon v-if="testing !== draftProvider" class="el-icon--left"
-                ><Connection
-              /></el-icon>
-              {{ t('settings.asr.test') }}
-            </el-button>
-            <el-button type="primary" :loading="saving" :disabled="!canSave" @click="saveSettings">
-              {{ t('settings.asr.save') }}
-            </el-button>
-          </div>
+          <!-- ④ 统一操作行：测试选中服务 / 保存并生效（切换与配置一次提交） -->
+          <SettingsActionBar
+            :hint="selectionHint"
+            :hint-tone="selectionHintWarn ? 'warn' : 'dim'"
+            :test-label="t('settings.asr.test')"
+            :save-label="t('settings.asr.save')"
+            :test-loading="testing === draftProvider"
+            :test-disabled="testing !== null && testing !== draftProvider"
+            :save-loading="saving"
+            :save-disabled="!canSave"
+            @test="runTest(draftProvider)"
+            @save="saveSettings"
+          />
           <AsrTestResult
             v-if="draftProvider !== activeProvider"
             :result="testResults[draftProvider]"
@@ -250,12 +246,15 @@ import {
   ASR_TIMEOUT_MIN_SECONDS,
   asrApiKey,
   asrModelCandidates,
-  asrProviderBlockedReason,
-  buildAsrUpdatePayload
+  buildAsrUpdatePayload,
+  isAsrProvider
 } from '../../utils/asr'
+import { mergeScreeningProviders } from '../../utils/providers'
 import { Connection, Microphone, WarningFilled } from '../../components/icons.js'
-import SegmentedControl from '../../components/SegmentedControl.vue'
 import AsrTestResult from './AsrTestResult.vue'
+import ConfigStatusBar from './ConfigStatusBar.vue'
+import ProviderCardGrid from './ProviderCardGrid.vue'
+import SettingsActionBar from './SettingsActionBar.vue'
 import { useSettingsContext } from './context'
 import { adminErrorMessage } from './adminErrors'
 
@@ -297,10 +296,6 @@ const activeKeyText = computed(() => {
   return t('settings.asr.key.configured')
 })
 
-const activeNote = computed(() =>
-  activeReady.value ? t('settings.asr.active.note') : t('settings.asr.active.notReadyNote')
-)
-
 /** 服务展示名走 i18n（后端 label 是服务端语言，不直接展示） */
 function providerLabel(provider) {
   if (provider === ASR_PROVIDER_LOCAL) return t('settings.asr.provider.local')
@@ -330,18 +325,45 @@ function pendingKey(provider) {
 const draftBlock = computed(() => view.value?.[draftProvider.value] || null)
 const draftPendingKey = computed(() => pendingKey(draftProvider.value))
 
-/** 选择器：未就绪项灰显（muted）但仍可选中，便于在下方填写 Key 后一次保存生效 */
-const providerOptions = computed(() =>
-  ASR_PROVIDERS.map((provider) => {
-    const reason = asrProviderBlockedReason(view.value, provider)
-    return {
-      value: provider,
-      label: providerLabel(provider),
-      muted: !!reason,
-      title: reason ? missingKeyHint(providerLabel(provider)) : ''
-    }
+/**
+ * 服务卡片：本地 / 百炼两台 provider 用统一卡片网格渲染（就绪状态、Key 掩码、当前生效标记）。
+ * providers 为空 → mergeScreeningProviders 走 view.providers 回退分支（只读卡片、不可编辑）。
+ */
+const providerCards = computed(() =>
+  mergeScreeningProviders({
+    providers: [],
+    view: {
+      providerId: activeProvider.value,
+      providers: ASR_PROVIDERS.map((provider) => {
+        const block = view.value?.[provider]
+        return {
+          id: provider,
+          label: providerLabel(provider),
+          baseUrl: block?.baseUrl || '',
+          models:
+            provider === ASR_PROVIDER_DASHSCOPE
+              ? asrModelCandidates(block?.models, block?.model)
+              : [block?.model].filter(Boolean),
+          ready: block?.ready,
+          apiKeyConfigured: block?.apiKeyConfigured,
+          apiKeyMasked: block?.apiKeyMasked,
+          enabled: true
+        }
+      })
+    },
+    selectedKey: draftProvider.value
   })
 )
+
+function selectProvider(card) {
+  if (isAsrProvider(card.key)) draftProvider.value = card.key
+}
+
+/** 未配置 Key 的服务卡片原因（选中后可在此页下方填写并保存） */
+function asrReasonText(card) {
+  if (card.disabledReason !== 'missingKey') return ''
+  return t('settings.asr.switch.missingKey', { provider: card.label || providerLabel(card.key) })
+}
 
 function missingKeyHint(provider) {
   return t('settings.asr.switch.missingKey', { provider })
@@ -506,76 +528,6 @@ onMounted(loadSettings)
 </script>
 
 <style scoped>
-/* 当前生效状态行 */
-.status-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: linear-gradient(180deg, #fbfcff 0%, #f7f9fe 100%);
-}
-.status-left {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-width: 0;
-}
-.status-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex: none;
-  border-radius: var(--r-md);
-}
-.status-mark.ok {
-  background: var(--brand-50);
-  color: var(--brand-600);
-}
-.status-mark.warn {
-  background: var(--warn-soft);
-  color: #b06a06;
-}
-.status-info {
-  min-width: 0;
-}
-.status-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.status-hint {
-  color: #64748b;
-}
-.status-provider {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ink-800);
-}
-.status-sep {
-  color: var(--ink-300);
-}
-.status-model {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--brand-600);
-  word-break: break-all;
-}
-.status-note {
-  margin-top: 4px;
-}
-@media (max-width: 720px) {
-  .status-card {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-}
-
 /* 加载失败降级 */
 .asr-fallback {
   display: flex;
@@ -592,25 +544,29 @@ onMounted(loadSettings)
   flex: 1;
 }
 
-/* 服务切换 */
-.select-row {
+.hint {
+  margin-top: 8px;
+  line-height: 1.7;
+}
+
+/* 服务选择（卡片网格标题） */
+.block-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 18px;
+  align-items: baseline;
+  gap: 10px;
   flex-wrap: wrap;
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+.block-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
 }
 .field-label {
   display: block;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-.hint {
-  margin-top: 8px;
-  line-height: 1.7;
-}
-.warn-text {
-  color: #b06a06;
 }
 
 /* 选中 provider 的配置面板 */
@@ -652,13 +608,7 @@ onMounted(loadSettings)
   width: 100%;
 }
 
-/* 操作 + 说明 */
-.asr-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
+/* 说明 */
 .asr-notes {
   margin: 16px 0 0;
   padding: 14px 0 0 18px;

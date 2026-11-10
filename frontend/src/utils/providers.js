@@ -130,6 +130,8 @@ export function mergeScreeningProviders({ providers, view, selectedKey = '' } = 
       builtIn: toBoolean(pick(data, ['builtIn', 'built_in'])) === true,
       enabled,
       keyConfigured,
+      // 运行时就绪状态（语音转写等场景由视图提供；复筛供应商视图无该字段时保持 null）
+      ready: toBoolean(pick(data, ['ready', 'available'])),
       keyMasked: toText(pick(data, ['apiKeyMasked', 'masked'])),
       current: !!normalizedKey && normalizedKey === activeKey,
       selected: !!normalizedKey && normalizedKey === selectedKeyText,

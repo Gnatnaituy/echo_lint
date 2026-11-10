@@ -170,6 +170,14 @@ public class RagProperties {
         /** 阿里云百炼文本向量模型；默认 1024 维 */
         private String model = "qwen3.7-text-embedding";
 
+        /** 设置页候选模型（可手填其它模型名）；运行时选择的模型落库到 app_settings */
+        private List<String> models =
+                new ArrayList<>(
+                        List.of(
+                                "qwen3.7-text-embedding",
+                                "text-embedding-v4",
+                                "text-embedding-v3"));
+
         /** base-url 已包含 /compatible-mode/v1，这里只需要 /embeddings */
         private String path = "/embeddings";
 

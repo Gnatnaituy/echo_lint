@@ -237,3 +237,14 @@
 | 改版 | 改为聊天气泡式对话：左/右说话人彩色头像（品牌蓝 / 紫色渐变）+ 左右分列气泡；气泡内头部显示说话人 + 时间戳（hover 变品牌色、点击跳转）；同一说话人连续发言合并（隐藏重复头像、收紧间距）；播放中当前句加光环 + 呼吸点；图例改为左右两位说话人的「名片 + 双声道对话」分隔线；命中/AI 原句标记、点击跳转、自动滚动跟随等行为不变 |
 | 兼容 | 仅作用于 `layout=dialogue`（双声道），单声道逐句列表样式不变；窄屏（≤560px）气泡放宽、头像缩小 |
 | 验证 | 前端 212 tests、lint/format/i18n/build 全绿；线上入口 JS 200、`/recordings` 200、新文案已进产物 |
+
+### 2026-11-10 21:00 三页模型配置界面对齐 + 知识增强 embedding 可切换
+
+| 项 | 值 |
+|---|---|
+| 背景 | 复筛模型页为「状态行 + 供应商卡片网格 + 模型 + 测试/保存」；语音转写用分段切换器、知识增强 embedding 只读展示，交互与视觉不一致 |
+| 前端 | 抽共享组件 `ConfigStatusBar.vue` / `ProviderCardGrid.vue` / `SettingsActionBar.vue`，复筛、转写、知识增强三页同构：统一当前生效状态行、供应商卡片（就绪/密钥掩码/停用灰显原因）、模型选择与底部「测试/保存并生效」；复筛页行为不变，转写页 provider 改卡片网格，知识增强 embedding 段支持选供应商/模型并保存，`embeddingChanged=true` 时提示「历史索引需要重建」并复用重建入口 |
+| 后端 | RAG embedding 供应商/模型可运行时配置：新增 `RagEmbeddingSettingsResolver`，落库 `rag.embedding.provider/model`（DB 优先、env 兜底），`RagSettingsService` 视图/校验与 `RagEmbeddingClient` 实际调用统一使用解析值；`GET /api/settings/rag` embedding 段新增 providerId/model/source/models[]，`PUT` 支持 `embedding:{provider,model}` 并返回 `embeddingChanged`；校验未知/停用/未配 Key 供应商与 model 长度 |
+| 验证 | 后端 735→**756 tests**、前端 212→**213 tests** 全绿；线上契约：GET embedding 新字段齐全，同值 PUT `embeddingChanged=false`，切 `text-embedding-v3` → true、切回 → true，未知供应商 400，`/settings/rag/test` 用解析值调用成功（维度 1024 / 23 tokens）；ASR 与复筛模型接口回归正常；三页深链 200、「重建索引」文案已进产物；后端 0 ERROR |
+| 备份 | `backups/deploy-r5-20261110-205900/`（上一版 jar + 前端 dist） |
+| 注意 | 切换 embedding 模型不会自动重建索引（维度/路径/超时仍由 yml 决定）；页面会提示管理员手动重建 |

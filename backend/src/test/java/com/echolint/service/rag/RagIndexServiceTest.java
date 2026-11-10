@@ -41,6 +41,7 @@ class RagIndexServiceTest {
     @Mock private CorpusEntryRepository corpusEntries;
     @Mock private RagEmbeddingClient embeddingClient;
     @Mock private RagSettingsService settings;
+    @Mock private RagEmbeddingSettingsResolver embeddingSettings;
     @Mock private ThreadPoolTaskExecutor executor;
 
     private RagProperties properties;
@@ -56,6 +57,10 @@ class RagIndexServiceTest {
         when(settings.isEnabled()).thenReturn(true);
         when(settings.current())
                 .thenReturn(new RagSettingsService.Snapshot(true, 4, 0.25, 2400, 5, "settings"));
+        when(embeddingSettings.resolve())
+                .thenReturn(
+                        new RagEmbeddingSettingsResolver.Resolved(
+                                "aliyun", "阿里云百炼", "db-embedding-model", true, "DATABASE"));
         doAnswer(
                         invocation -> {
                             Runnable task = invocation.getArgument(0);
@@ -76,6 +81,7 @@ class RagIndexServiceTest {
                         embeddingClient,
                         settings,
                         properties,
+                        embeddingSettings,
                         executor);
     }
 
@@ -118,7 +124,7 @@ class RagIndexServiceTest {
         KnowledgeChunk first = captor.getValue().get(0);
         assertEquals(1L, first.getEntryId());
         assertTrue(first.getEmbeddingText().startsWith("["));
-        assertEquals(properties.effectiveEmbeddingModel(), first.getEmbeddingModel());
+        assertEquals("db-embedding-model", first.getEmbeddingModel(), "索引元数据应记录当前解析后的模型");
         assertEquals(properties.effectiveDimensions(), first.getEmbeddingDim());
     }
 
@@ -176,7 +182,7 @@ class RagIndexServiceTest {
         service.indexCorpusNow(7L);
 
         assertNotNull(corpus.getEmbeddingText());
-        assertEquals(properties.effectiveEmbeddingModel(), corpus.getEmbeddingModel());
+        assertEquals("db-embedding-model", corpus.getEmbeddingModel());
         assertNotNull(corpus.getEmbeddingHash());
         assertNotNull(corpus.getEmbeddingUpdatedAt());
     }

@@ -54,6 +54,7 @@ public class RagIndexService {
     private final RagEmbeddingClient embeddingClient;
     private final RagSettingsService settings;
     private final RagProperties properties;
+    private final RagEmbeddingSettingsResolver embeddingSettings;
     private final ThreadPoolTaskExecutor executor;
 
     /** 防止同一条目并发索引（手动重建 + 写入触发 + 启动回填） */
@@ -66,6 +67,7 @@ public class RagIndexService {
             RagEmbeddingClient embeddingClient,
             RagSettingsService settings,
             RagProperties properties,
+            RagEmbeddingSettingsResolver embeddingSettings,
             @Qualifier("ragIndexExecutor") ThreadPoolTaskExecutor executor) {
         this.knowledgeEntries = knowledgeEntries;
         this.chunks = chunks;
@@ -73,6 +75,7 @@ public class RagIndexService {
         this.embeddingClient = embeddingClient;
         this.settings = settings;
         this.properties = properties;
+        this.embeddingSettings = embeddingSettings;
         this.executor = executor;
     }
 
@@ -311,7 +314,7 @@ public class RagIndexService {
             chunk.setContent(pieces.get(i));
             chunk.setContentHash(sha256(pieces.get(i)));
             chunk.setEmbeddingText(toPgVector(vectors.get(i)));
-            chunk.setEmbeddingModel(properties.effectiveEmbeddingModel());
+            chunk.setEmbeddingModel(embeddingSettings.resolve().model());
             chunk.setEmbeddingDim(properties.effectiveDimensions());
             chunk.setCreatedAt(now);
             chunk.setUpdatedAt(now);
@@ -404,7 +407,7 @@ public class RagIndexService {
             throw new RagEmbeddingException("语料 embedding 返回为空");
         }
         entry.setEmbeddingText(toPgVector(vectors.get(0)));
-        entry.setEmbeddingModel(properties.effectiveEmbeddingModel());
+        entry.setEmbeddingModel(embeddingSettings.resolve().model());
         entry.setEmbeddingHash(hash);
         entry.setEmbeddingUpdatedAt(LocalDateTime.now());
         corpusEntries.save(entry);

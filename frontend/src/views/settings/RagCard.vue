@@ -47,49 +47,39 @@
           />
         </div>
 
-        <!-- embedding 只读信息 -->
+        <!-- Embedding 配置：状态行 + 供应商卡片网格 + 模型 + 只读运行信息 + 保存 -->
         <div class="rag-section-head">
           <div class="block-title">{{ t('settings.rag.embeddingTitle') }}</div>
-          <el-button
-            size="small"
-            :loading="ragTesting"
-            :disabled="ragTesting"
-            @click="testRagEmbedding"
-          >
-            <el-icon v-if="!ragTesting" class="el-icon--left"><Connection /></el-icon>
-            {{ t('settings.rag.testConnection') }}
-          </el-button>
+          <span class="tiny dim">{{ t('settings.rag.embeddingHint') }}</span>
         </div>
-        <div class="rag-kv-grid">
-          <div class="rag-kv">
-            <div class="notify-label">{{ t('settings.rag.providerModel') }}</div>
-            <div class="rag-kv-value strong">{{ rag.embedding.providerLabel || '—' }}</div>
-            <div class="mono tiny dim ellipsis" :title="rag.embedding.model">
-              {{ rag.embedding.model || '—' }}
-            </div>
-          </div>
-          <div class="rag-kv">
-            <div class="notify-label">{{ t('settings.rag.requestPath') }}</div>
-            <div class="rag-kv-value mono">{{ rag.embedding.path || '—' }}</div>
-            <div class="tiny dim">{{ t('settings.rag.reuseHint') }}</div>
-          </div>
-          <div class="rag-kv">
-            <div class="notify-label">{{ t('settings.rag.dimensions') }}</div>
-            <div class="rag-kv-value num">{{ rag.embedding.dimensions ?? '—' }}</div>
-            <div class="tiny dim">
-              {{ t('settings.rag.timeout', { seconds: rag.embedding.timeoutSeconds ?? '—' }) }}
-            </div>
-          </div>
-          <div class="rag-kv">
-            <div class="notify-label">API Key</div>
-            <div class="rag-kv-value">
-              <span class="chip" :class="embeddingKeyChip(rag.embedding.apiKeyConfigured).type">
-                {{ embeddingKeyChip(rag.embedding.apiKeyConfigured).label }}
-              </span>
-            </div>
-            <div class="tiny dim">{{ t('settings.rag.keyNote') }}</div>
-          </div>
-        </div>
+
+        <ConfigStatusBar
+          :label="t('settings.rag.embeddingActive')"
+          :provider="rag.embedding.providerLabel"
+          :model="rag.embedding.model"
+          :tone="embeddingKeyChip(rag.embedding.apiKeyConfigured).type === 'ok' ? 'ok' : 'warn'"
+          :icon="Connection"
+        >
+          <template #chips>
+            <span class="chip" :class="embeddingKeyChip(rag.embedding.apiKeyConfigured).type">
+              {{ embeddingKeyChip(rag.embedding.apiKeyConfigured).label }}
+            </span>
+            <span v-if="rag.embedding.source" class="chip info">
+              {{ t('settings.rag.source', { source: ragSourceLabel(rag.embedding.source) }) }}
+            </span>
+          </template>
+          <template #actions>
+            <el-button
+              size="small"
+              :loading="ragTesting"
+              :disabled="ragTesting"
+              @click="testRagEmbedding"
+            >
+              <el-icon v-if="!ragTesting" class="el-icon--left"><Connection /></el-icon>
+              {{ t('settings.rag.testConnection') }}
+            </el-button>
+          </template>
+        </ConfigStatusBar>
 
         <div
           v-if="ragTestResult"
@@ -123,6 +113,94 @@
               }}
             </div>
           </div>
+        </div>
+
+        <!-- Embedding 供应商：与复筛模型 / 语音转写同一套卡片网格 -->
+        <div class="block-head">
+          <div class="block-title">{{ t('settings.rag.chooseEmbeddingProvider') }}</div>
+          <span class="tiny dim">{{ t('settings.rag.chooseEmbeddingProviderHint') }}</span>
+        </div>
+        <ProviderCardGrid
+          :cards="embeddingCards"
+          :loading="providersLoading"
+          :error="providersError"
+          editable
+          :reason-text="embeddingReasonText"
+          @select="selectEmbeddingProvider"
+          @edit="openEmbeddingProviderEdit"
+          @retry="loadProviders"
+        />
+
+        <!-- Embedding 模型 + 运行时只读信息（路径 / 维度 / 超时） -->
+        <div class="embedding-form">
+          <div class="eval-field embedding-field">
+            <label class="eval-label">{{ t('settings.rag.embeddingModel') }}</label>
+            <el-select
+              v-model="embeddingForm.model"
+              filterable
+              allow-create
+              default-first-option
+              :placeholder="t('settings.rag.embeddingModelPlaceholder')"
+            >
+              <el-option v-for="m in embeddingModelOptions" :key="m" :label="m" :value="m" />
+            </el-select>
+          </div>
+          <div class="embedding-spec">
+            <span class="tiny dim">
+              {{ t('settings.rag.requestPath') }}
+              <b class="mono">{{ rag.embedding.path || '—' }}</b>
+            </span>
+            <span class="tiny dim">
+              {{ t('settings.rag.dimensions') }}
+              <b class="num">{{ rag.embedding.dimensions ?? '—' }}</b>
+            </span>
+            <span class="tiny dim">
+              {{ t('settings.rag.timeout', { seconds: rag.embedding.timeoutSeconds ?? '—' }) }}
+            </span>
+          </div>
+        </div>
+
+        <SettingsActionBar
+          :hint="embeddingHint"
+          :hint-tone="embeddingSaveBlocked ? 'warn' : 'dim'"
+          :save-label="t('settings.rag.embeddingSave')"
+          :save-loading="ragEmbeddingSaving"
+          :save-disabled="!embeddingDirty || embeddingSaveBlocked"
+          @save="saveEmbedding"
+        />
+
+        <!-- embedding 变更后：提示并复用现有重建索引入口 -->
+        <div v-if="embeddingChanged" class="embedding-changed" :class="{ off: !ragForm.enabled }">
+          <el-icon :size="16"><WarningFilled /></el-icon>
+          <div class="embedding-changed-text">
+            <div class="strong">
+              {{
+                t(
+                  ragForm.enabled
+                    ? 'settings.rag.embeddingChangedTitle'
+                    : 'settings.rag.embeddingChangedTitleDisabled'
+                )
+              }}
+            </div>
+            <div class="tiny">
+              {{
+                t(
+                  ragForm.enabled
+                    ? 'settings.rag.embeddingChangedNote'
+                    : 'settings.rag.embeddingChangedNoteDisabled'
+                )
+              }}
+            </div>
+          </div>
+          <el-button
+            size="small"
+            type="warning"
+            plain
+            :loading="ragReindexing === 'all'"
+            @click="reindexForEmbeddingChange"
+          >
+            {{ t('settings.rag.embeddingReindex') }}
+          </el-button>
         </div>
 
         <!-- 检索参数 -->
@@ -445,15 +523,23 @@
       </template>
     </div>
   </section>
+
+  <!-- 供应商编辑（复筛页复用同一表单）：仅 ADMIN 渲染并按需异步加载 -->
+  <ProviderFormDialog
+    v-if="canWrite"
+    ref="embeddingFormDialog"
+    @saved="refreshEmbeddingProviders"
+  />
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../../api'
 import { useI18n } from '../../i18n'
 import { formatTime } from '../../constants'
 import { evaluationLabelMeta, formatRatioPercent } from '../../utils/evaluation'
+import { mergeScreeningProviders } from '../../utils/providers'
 import { adminErrorMessage } from './adminErrors'
 import { useSettingsContext } from './context'
 import {
@@ -464,9 +550,18 @@ import {
   Loading,
   WarningFilled
 } from '../../components/icons.js'
+import ConfigStatusBar from './ConfigStatusBar.vue'
+import ProviderCardGrid from './ProviderCardGrid.vue'
+import SettingsActionBar from './SettingsActionBar.vue'
 
 const { t } = useI18n()
-const { canWrite } = useSettingsContext()
+const { canWrite, registry } = useSettingsContext()
+const { providers, providersLoading, providersError, load: loadProviders } = registry
+
+// 供应商编辑弹窗：ADMIN 才渲染并按需加载（与复筛页复用同一表单）
+const ProviderFormDialog = defineAsyncComponent(() => import('./ProviderFormDialog.vue'))
+
+const embeddingFormDialog = ref(null)
 
 // RAG 检索增强（仅 ADMIN）：embedding 复用 AI 供应商注册表；索引重建与评测均为 ADMIN 接口
 const rag = ref(null)
@@ -482,6 +577,12 @@ const ragEvaluating = ref(false)
 const ragEvaluation = ref(null)
 const ragEvaluationError = ref('')
 const ragSampleSize = ref(10)
+
+// Embedding 供应商 / 模型编辑态（保存时 PUT embedding:{provider,model}）
+const embeddingForm = reactive({ providerId: '', model: '' })
+const ragEmbeddingSaving = ref(false)
+/** 保存后后端回 embeddingChanged=true：提示历史索引需要重建 */
+const embeddingChanged = ref(false)
 
 /** 与 application.yml 默认值一致：仅作编辑控件初值，保存时整体回写后端 */
 const RAG_DEFAULT_RETRIEVAL = { topK: 4, minScore: 0.25, maxContextChars: 2400, corpusExamples: 5 }
@@ -546,6 +647,119 @@ const ragEvalRows = computed(() => {
   }))
 })
 
+/* ---------- Embedding 供应商 / 模型（与复筛模型、语音转写同一套卡片网格） ---------- */
+
+/** 可选 Embedding 供应商：注册表数据 + 当前生效 / 选中态（与复筛页同一合并函数） */
+const embeddingCards = computed(() =>
+  mergeScreeningProviders({
+    providers: providers.value,
+    view: { providerId: rag.value?.embedding?.providerId || '', providers: [] },
+    selectedKey: embeddingForm.providerId
+  })
+)
+
+const selectedEmbeddingCard = computed(
+  () => embeddingCards.value.find((card) => card.selected) || null
+)
+
+/** 不可保存：卡片停用 / 未配 Key，或模型为空 */
+const embeddingSaveBlocked = computed(
+  () =>
+    selectedEmbeddingCard.value?.disabled === true ||
+    !embeddingForm.providerId ||
+    !embeddingForm.model.trim()
+)
+
+/** 与当前生效 embedding 相比是否有改动 */
+const embeddingDirty = computed(() => {
+  const embedding = rag.value?.embedding
+  if (!embedding) return false
+  return (
+    embeddingForm.providerId !== (embedding.providerId || '') ||
+    embeddingForm.model.trim() !== (embedding.model || '')
+  )
+})
+
+/** 模型候选：选中供应商的候选 + 后端 embedding.models + 当前手填值（允许手填新模型） */
+const embeddingModelOptions = computed(() => {
+  const models = []
+  const push = (list) => {
+    for (const model of list || []) {
+      if (model && !models.includes(model)) models.push(model)
+    }
+  }
+  push(selectedEmbeddingCard.value?.models)
+  push(rag.value?.embedding?.models)
+  if (embeddingForm.model) push([embeddingForm.model])
+  return models
+})
+
+const embeddingHint = computed(() => {
+  if (embeddingSaveBlocked.value) return t('settings.rag.embeddingBlockedHint')
+  if (embeddingDirty.value) return t('settings.rag.embeddingDirtyHint')
+  return ''
+})
+
+function embeddingReasonText(card) {
+  if (card.disabledReason === 'disabled') return t('settings.model.providerDisabled')
+  if (card.disabledReason === 'missingKey') return t('settings.model.providerMissingKey')
+  return ''
+}
+
+function selectEmbeddingProvider(card) {
+  if (card.disabled) return
+  embeddingForm.providerId = card.key
+  const current = rag.value?.embedding
+  if (current && current.providerId === card.key) {
+    embeddingForm.model = current.model
+    return
+  }
+  embeddingForm.model = card.defaultModel || card.models[0] || ''
+}
+
+function openEmbeddingProviderEdit(card) {
+  const row = providers.value.find(
+    (item) => String(item.key || '').toLowerCase() === String(card.key || '').toLowerCase()
+  )
+  if (row) embeddingFormDialog.value?.open(row)
+}
+
+/** 供应商编辑保存后：刷新注册表与 RAG 视图（providerLabel / 状态行同步） */
+async function refreshEmbeddingProviders() {
+  await Promise.all([loadProviders(), loadRag()])
+}
+
+/** 加载供应商注册表（只在尚未加载时请求，避免与复筛页重复） */
+function ensureProviders() {
+  if (!canWrite.value) return
+  if (!providers.value.length && !providersLoading.value) loadProviders()
+}
+
+/** 保存 Embedding 供应商 / 模型：PUT { embedding: { provider, model } } */
+async function saveEmbedding() {
+  if (ragEmbeddingSaving.value || !embeddingDirty.value || embeddingSaveBlocked.value) return
+  ragEmbeddingSaving.value = true
+  try {
+    const data = await api.updateRagSettings({
+      embedding: { provider: embeddingForm.providerId, model: embeddingForm.model.trim() }
+    })
+    rag.value = data
+    syncRagForm(data)
+    embeddingChanged.value = data.embeddingChanged === true
+    ElMessage.success(t('settings.rag.embeddingSaved'))
+  } catch {
+    // 请求层已统一提示
+  } finally {
+    ragEmbeddingSaving.value = false
+  }
+}
+
+/** 重建索引（变更后提示条内复用现有重建入口；成功后隐藏提示） */
+async function reindexForEmbeddingChange() {
+  const done = await runReindex('all')
+  if (done) embeddingChanged.value = false
+}
+
 /** 同步后端返回的归一化设置到编辑控件（缺失字段回退契约默认值，便于继续保存） */
 function syncRagForm(next) {
   const data = next || rag.value
@@ -556,6 +770,9 @@ function syncRagForm(next) {
   ragForm.minScore = retrieval.minScore ?? RAG_DEFAULT_RETRIEVAL.minScore
   ragForm.maxContextChars = retrieval.maxContextChars ?? RAG_DEFAULT_RETRIEVAL.maxContextChars
   ragForm.corpusExamples = retrieval.corpusExamples ?? RAG_DEFAULT_RETRIEVAL.corpusExamples
+  const embedding = data.embedding || {}
+  embeddingForm.providerId = embedding.providerId || ''
+  embeddingForm.model = embedding.model || ''
 }
 
 function ragPayload(enabled = ragForm.enabled) {
@@ -657,7 +874,7 @@ function reindexLabel(scope) {
 }
 
 async function runReindex(scope) {
-  if (ragReindexing.value !== null) return
+  if (ragReindexing.value !== null) return false
   if (scope === 'all') {
     try {
       await ElMessageBox.confirm(
@@ -670,7 +887,7 @@ async function runReindex(scope) {
         }
       )
     } catch {
-      return
+      return false
     }
   }
   ragReindexing.value = scope
@@ -692,8 +909,10 @@ async function runReindex(scope) {
             : ''
         })
     )
+    return true
   } catch {
     // 请求层已统一提示
+    return false
   } finally {
     ragReindexing.value = null
   }
@@ -748,7 +967,10 @@ function ragSourceLabel(source) {
   return text
 }
 
-onMounted(loadRag)
+onMounted(() => {
+  loadRag()
+  ensureProviders()
+})
 </script>
 
 <style scoped>
@@ -1047,5 +1269,71 @@ onMounted(loadRag)
 .hint {
   margin-top: 12px;
   line-height: 1.7;
+}
+/* Embedding 配置：卡片网格标题 / 模型 / 只读运行信息 / 变更提示 */
+.block-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+.block-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+.embedding-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.embedding-field {
+  width: 320px;
+  max-width: 100%;
+}
+.embedding-spec {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+}
+.embedding-spec b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+.embedding-changed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #f3d38a;
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  color: #8a5a06;
+}
+.embedding-changed.off {
+  border-color: var(--border);
+  background: var(--ink-50);
+  color: var(--el-text-color-secondary);
+}
+.embedding-changed-text {
+  flex: 1;
+  min-width: 200px;
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  .embedding-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .embedding-field {
+    width: 100%;
+  }
 }
 </style>

@@ -3,6 +3,7 @@ package com.echolint.service.rag;
 import com.echolint.domain.RagIndexStatus;
 import com.echolint.repository.CorpusEntryRepository;
 import com.echolint.repository.KnowledgeEntryRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,7 +12,8 @@ import org.springframework.stereotype.Service;
 /**
  * RAG 管理端视图与动作（Batch 6，Phase C）：设置读取/更新、连通性测试、重建索引、索引统计。
  *
- * <p>视图只读、不含任何密钥；embedding 供应商信息来自 {@code ai_providers} 的掩码配置。
+ * <p>视图只读、不含任何密钥；embedding 供应商/模型由 {@link RagEmbeddingSettingsResolver} 解析 （设置页可切换，DB 优先、env
+ * 兜底），密钥只回「是否已配置」。
  */
 @Slf4j
 @Service
@@ -37,7 +39,9 @@ public class RagAdminService {
             String path,
             int dimensions,
             long timeoutSeconds,
-            boolean apiKeyConfigured) {}
+            boolean apiKeyConfigured,
+            String source,
+            List<String> models) {}
 
     public record RetrievalView(
             int topK, double minScore, int maxContextChars, int corpusExamples) {}
@@ -58,6 +62,26 @@ public class RagAdminService {
             EmbeddingView embedding,
             RetrievalView retrieval,
             IndexView index) {}
+
+    /** PUT 响应：与 GET 视图一致，并追加「本次是否实际改变 embedding 配置」 */
+    public record UpdateView(
+            boolean enabled,
+            String source,
+            EmbeddingView embedding,
+            RetrievalView retrieval,
+            IndexView index,
+            boolean embeddingChanged) {
+
+        public static UpdateView of(RagView view, boolean embeddingChanged) {
+            return new UpdateView(
+                    view.enabled(),
+                    view.source(),
+                    view.embedding(),
+                    view.retrieval(),
+                    view.index(),
+                    embeddingChanged);
+        }
+    }
 
     public record ReindexResult(int queued, int skipped, String message) {}
 
@@ -82,7 +106,9 @@ public class RagAdminService {
                         info.path(),
                         info.dimensions(),
                         info.timeoutSeconds(),
-                        info.apiKeyConfigured()),
+                        info.apiKeyConfigured(),
+                        info.source(),
+                        info.models()),
                 new RetrievalView(
                         snapshot.topK(),
                         snapshot.minScore(),
@@ -99,20 +125,30 @@ public class RagAdminService {
                         vectorAvailable()));
     }
 
-    public RagView update(
+    public UpdateView update(
             Boolean enabled,
             Integer topK,
             Double minScore,
             Integer maxContextChars,
-            Integer corpusExamples) {
+            Integer corpusExamples,
+            String embeddingProvider,
+            String embeddingModel) {
         boolean wasEnabled = settings.current().enabled();
-        settings.update(enabled, topK, minScore, maxContextChars, corpusExamples);
+        RagSettingsService.UpdateOutcome outcome =
+                settings.update(
+                        enabled,
+                        topK,
+                        minScore,
+                        maxContextChars,
+                        corpusExamples,
+                        embeddingProvider,
+                        embeddingModel);
         RagView view = view();
         // 从「关闭」切到「开启」时自动回填历史知识/语料，避免管理员还要多点一次重建
         if (!wasEnabled && view.enabled() && embeddingClient.available()) {
             indexService.backfillOnStartup();
         }
-        return view;
+        return UpdateView.of(view, outcome.embeddingChanged());
     }
 
     public RagEmbeddingClient.TestResult test() {

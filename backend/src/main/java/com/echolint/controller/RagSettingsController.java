@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * RAG 检索增强设置（Batch 6，仅 ADMIN；URL 级权限见 SecurityConfig）。
  *
- * <p>embedding 供应商/模型/维度来自 yml（改动需重建索引），运行时只开放开关与检索参数； 重建索引/评测为异步或高成本操作，均写审计。
+ * <p>embedding 供应商/模型可在设置页切换（落库 app_settings，DB 优先、env 兜底），维度/路径/超时仍由 yml
+ * 决定（不随模型热改）；换模型后需重建索引。重建索引/评测为异步或高成本操作，均写审计。
  */
 @RestController
 @RequestMapping("/api/settings/rag")
@@ -27,12 +28,16 @@ public class RagSettingsController {
     private final RagEvaluationService evaluationService;
     private final AuditService auditService;
 
+    /** embedding 变更段：字段省略=不修改；空字符串=回退 env 默认值 */
+    public record EmbeddingInput(String provider, String model) {}
+
     public record UpdateRequest(
             Boolean enabled,
             Integer topK,
             Double minScore,
             Integer maxContextChars,
-            Integer corpusExamples) {}
+            Integer corpusExamples,
+            EmbeddingInput embedding) {}
 
     public record ReindexRequest(String scope) {}
 
@@ -44,14 +49,20 @@ public class RagSettingsController {
     }
 
     @PutMapping
-    public RagAdminService.RagView update(@RequestBody(required = false) UpdateRequest request) {
-        RagAdminService.RagView view =
+    public RagAdminService.UpdateView update(@RequestBody(required = false) UpdateRequest request) {
+        RagAdminService.UpdateView view =
                 adminService.update(
                         request == null ? null : request.enabled(),
                         request == null ? null : request.topK(),
                         request == null ? null : request.minScore(),
                         request == null ? null : request.maxContextChars(),
-                        request == null ? null : request.corpusExamples());
+                        request == null ? null : request.corpusExamples(),
+                        request == null || request.embedding() == null
+                                ? null
+                                : request.embedding().provider(),
+                        request == null || request.embedding() == null
+                                ? null
+                                : request.embedding().model());
         auditService.record(
                 AuditAction.RAG_SETTINGS_UPDATE,
                 "RAG_SETTINGS",
@@ -65,7 +76,12 @@ public class RagSettingsController {
                         + "，maxContextChars="
                         + view.retrieval().maxContextChars()
                         + "，corpusExamples="
-                        + view.retrieval().corpusExamples());
+                        + view.retrieval().corpusExamples()
+                        + "，embedding="
+                        + view.embedding().providerId()
+                        + " · "
+                        + view.embedding().model()
+                        + (view.embeddingChanged() ? "（已变更，需重建索引）" : ""));
         return view;
     }
 

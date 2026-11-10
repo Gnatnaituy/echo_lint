@@ -1,9 +1,12 @@
 /**
  * RAG（检索增强）设置 / 连通性测试 / 检索 / 评测结果归一化。
  *
- * 后端契约（docs/rag-contract.md Batch 6）：
+ * 后端契约（docs/rag-contract.md Batch 6 / docs/asr-and-settings-refactor.md §7）：
  * - GET  /api/settings/rag -> {enabled, source, embedding:{...}, retrieval:{...}, index:{...}}
- * - PUT  /api/settings/rag（请求 {enabled, topK, minScore, maxContextChars, corpusExamples}，响应同 GET）
+ *   embedding 段新增 providerId / providerLabel / model / path / dimensions / timeoutSeconds /
+ *   apiKeyConfigured / source / models[]（可切换 embedding 供应商与模型）
+ * - PUT  /api/settings/rag（请求 {enabled, topK, ..., embedding:{provider, model}}，响应同 GET，
+ *   并在顶层返回 embeddingChanged:true/false 表示是否需要重建索引）
  * - POST /api/settings/rag/test -> {ok, providerLabel, model, dimensions, latencyMs, message}
  * - POST /api/settings/rag/reindex {scope} -> {queued, skipped, message}
  * - POST /api/settings/rag/evaluate {sampleSize} ->
@@ -83,11 +86,15 @@ export function normalizeRagSettings(raw) {
   return {
     enabled: toBoolean(pick(data, ['enabled', 'ragEnabled'])),
     source: toText(pick(data, ['source'])),
+    // 保存后是否需要重建索引（PUT 响应新增；GET 可能缺失 → null 表示未知）
+    embeddingChanged: toBoolean(pick(data, ['embeddingChanged', 'embedding_changed'])),
     embedding: {
       providerId: toText(pick(embedding, ['providerId', 'provider', 'providerKey'])),
       providerLabel: toText(pick(embedding, ['providerLabel', 'label'])),
       model: toText(pick(embedding, ['model'])),
       path: toText(pick(embedding, ['path', 'embeddingPath'])),
+      source: toText(pick(embedding, ['source'])),
+      models: toStringList(pick(embedding, ['models', 'modelCandidates', 'candidates'])),
       dimensions: toNumber(pick(embedding, ['dimensions', 'dimension'])),
       timeoutSeconds: toNumber(pick(embedding, ['timeoutSeconds', 'timeout'])),
       apiKeyConfigured: toBoolean(pick(embedding, ['apiKeyConfigured', 'keyConfigured']))

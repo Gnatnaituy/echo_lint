@@ -4,23 +4,23 @@ import com.echolint.config.RagProperties;
 import com.echolint.entity.AppSetting;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AppSettingRepository;
+import java.util.Locale;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
-import java.util.Locale;
-import java.util.Optional;
 
 /**
  * RAG 运行时设置（Batch 6，Phase C）。
  *
- * <p>与 AI 复筛模型的切换一致：默认值来自 application.yml（{@link RagProperties}），
- * 管理员在「系统设置」页修改后写入 {@code app_settings}，重启后保持；进程内缓存快照，
- * 更新时原子替换，避免每个分块都查一次库。</p>
+ * <p>与 AI 复筛模型的切换一致：默认值来自 application.yml（{@link RagProperties}）， 管理员在「系统设置」页修改后写入 {@code
+ * app_settings}，重启后保持；进程内缓存快照， 更新时原子替换，避免每个分块都查一次库。
  *
- * <p>embedding 供应商/模型/维度仍由 yml 决定（改动需要重建 HNSW 索引，不适合运行时热切换）。</p>
+ * <p>embedding 供应商/模型可在设置页切换：解析与保存校验由 {@link RagEmbeddingSettingsResolver} 负责（DB 优先、env
+ * 兜底）。维度、路径、超时仍由 yml 决定 （不随模型热改，换模型后需要重建索引）。
  */
 @Slf4j
 @Service
@@ -36,15 +36,21 @@ public class RagSettingsService {
 
     private final AppSettingRepository settings;
     private final RagProperties properties;
+    private final RagEmbeddingSettingsResolver embeddingResolver;
 
     private volatile Snapshot snapshot;
 
-    /**
-     * 生效快照。source=defaults 表示尚未在界面保存过，全部取 yml 默认值。
-     */
-    public record Snapshot(boolean enabled, int topK, double minScore, int maxContextChars,
-                           int corpusExamples, String source) {
-    }
+    /** 生效快照。source=defaults 表示尚未在界面保存过，全部取 yml 默认值。 */
+    public record Snapshot(
+            boolean enabled,
+            int topK,
+            double minScore,
+            int maxContextChars,
+            int corpusExamples,
+            String source) {}
+
+    /** 更新结果：最新快照 + 本次是否实际改变了 embedding 的 provider/model （前端据此提示「模型变更需重建索引」）。 */
+    public record UpdateOutcome(Snapshot snapshot, boolean embeddingChanged) {}
 
     public Snapshot current() {
         Snapshot value = snapshot;
@@ -65,34 +71,106 @@ public class RagSettingsService {
     }
 
     /**
-     * 更新运行时设置（null 表示保留原值）。返回最新快照。
+     * 更新运行时设置（null 表示保留原值；空字符串 embedding provider/model 表示回退 env 默认值）。
+     * 全部校验通过后才落库（{@code @Transactional}，避免部分保存）。
      */
-    public Snapshot update(Boolean enabled, Integer topK, Double minScore,
-                           Integer maxContextChars, Integer corpusExamples) {
+    @Transactional
+    public UpdateOutcome update(
+            Boolean enabled,
+            Integer topK,
+            Double minScore,
+            Integer maxContextChars,
+            Integer corpusExamples,
+            String embeddingProvider,
+            String embeddingModel) {
         Snapshot old = current();
         boolean newEnabled = enabled == null ? old.enabled() : enabled;
         int newTopK = topK == null ? old.topK() : clampTopK(topK);
         double newMinScore = minScore == null ? old.minScore() : clampMinScore(minScore);
-        int newMaxContext = maxContextChars == null ? old.maxContextChars()
-                : clampMaxContextChars(maxContextChars);
-        int newCorpusExamples = corpusExamples == null ? old.corpusExamples()
-                : clampCorpusExamples(corpusExamples);
+        int newMaxContext =
+                maxContextChars == null
+                        ? old.maxContextChars()
+                        : clampMaxContextChars(maxContextChars);
+        int newCorpusExamples =
+                corpusExamples == null ? old.corpusExamples() : clampCorpusExamples(corpusExamples);
+
+        // 先校验 embedding 变更（未知/停用/未配 Key 的供应商直接 400，不落任何库）
+        boolean embeddingChanged = false;
+        String providerToSave = null;
+        String modelToSave = null;
+        if (embeddingProvider != null || embeddingModel != null) {
+            RagEmbeddingSettingsResolver.Resolved before = embeddingResolver.resolve();
+            String newProvider = before.providerId();
+            String newModel = before.model();
+            if (embeddingProvider != null) {
+                if (StringUtils.hasText(embeddingProvider)) {
+                    newProvider =
+                            embeddingResolver
+                                    .requireUsableProvider(embeddingProvider)
+                                    .providerKey();
+                    providerToSave = newProvider;
+                } else {
+                    // 空字符串 = 回退 env/yml 默认值（落库空白，解析时按未配置处理）
+                    newProvider = properties.effectiveEmbeddingProviderId();
+                    providerToSave = "";
+                }
+            }
+            if (embeddingModel != null) {
+                if (StringUtils.hasText(embeddingModel)) {
+                    String model = embeddingModel.trim();
+                    if (model.length() > RagEmbeddingSettingsResolver.MAX_MODEL_LENGTH) {
+                        throw new BizException(
+                                "embedding 模型名长度不能超过 "
+                                        + RagEmbeddingSettingsResolver.MAX_MODEL_LENGTH
+                                        + " 字符");
+                    }
+                    newModel = model;
+                    modelToSave = model;
+                } else {
+                    newModel = properties.effectiveEmbeddingModel();
+                    modelToSave = "";
+                }
+            }
+            embeddingChanged =
+                    !newProvider.equalsIgnoreCase(before.providerId())
+                            || !newModel.equals(before.model());
+        }
 
         save(KEY_ENABLED, Boolean.toString(newEnabled));
         save(KEY_TOP_K, Integer.toString(newTopK));
         save(KEY_MIN_SCORE, Double.toString(newMinScore));
         save(KEY_MAX_CONTEXT_CHARS, Integer.toString(newMaxContext));
         save(KEY_CORPUS_EXAMPLES, Integer.toString(newCorpusExamples));
-        snapshot = new Snapshot(newEnabled, newTopK, newMinScore, newMaxContext,
-                newCorpusExamples, "settings");
-        log.info("RAG 设置已更新：enabled={} topK={} minScore={} maxContextChars={} corpusExamples={}",
-                newEnabled, newTopK, newMinScore, newMaxContext, newCorpusExamples);
-        return snapshot;
+        if (providerToSave != null) {
+            save(RagEmbeddingSettingsResolver.KEY_PROVIDER, providerToSave);
+        }
+        if (modelToSave != null) {
+            save(RagEmbeddingSettingsResolver.KEY_MODEL, modelToSave);
+        }
+        snapshot =
+                new Snapshot(
+                        newEnabled,
+                        newTopK,
+                        newMinScore,
+                        newMaxContext,
+                        newCorpusExamples,
+                        "settings");
+        log.info(
+                "RAG 设置已更新：enabled={} topK={} minScore={} maxContextChars={} corpusExamples={}"
+                        + "{}",
+                newEnabled,
+                newTopK,
+                newMinScore,
+                newMaxContext,
+                newCorpusExamples,
+                embeddingChanged ? "；embedding 配置已变更（需重建索引）" : "");
+        return new UpdateOutcome(snapshot, embeddingChanged);
     }
 
     /** 重建索引完成时间（界面展示用） */
     public Optional<String> lastReindexAt() {
-        return settings.findById(KEY_LAST_REINDEX_AT).map(AppSetting::getSettingValue)
+        return settings.findById(KEY_LAST_REINDEX_AT)
+                .map(AppSetting::getSettingValue)
                 .filter(StringUtils::hasText);
     }
 
@@ -101,52 +179,69 @@ public class RagSettingsService {
     }
 
     private Snapshot read() {
-        boolean hasSetting = settings.findById(KEY_ENABLED).isPresent()
-                || settings.findById(KEY_TOP_K).isPresent();
+        boolean hasSetting =
+                settings.findById(KEY_ENABLED).isPresent()
+                        || settings.findById(KEY_TOP_K).isPresent();
         boolean enabled = readBoolean(KEY_ENABLED, properties.isEnabled());
         int topK = readInt(KEY_TOP_K, properties.effectiveTopK());
         double minScore = readDouble(KEY_MIN_SCORE, properties.effectiveMinScore());
         int maxContextChars = readInt(KEY_MAX_CONTEXT_CHARS, properties.effectiveMaxContextChars());
-        int corpusExamples = readInt(KEY_CORPUS_EXAMPLES,
-                properties.effectiveCorpusExamples() > 0
-                        ? properties.effectiveCorpusExamples()
-                        : Math.max(0, properties.getCorpusExamples()));
-        return new Snapshot(enabled, clampTopK(topK), clampMinScore(minScore),
-                clampMaxContextChars(maxContextChars), clampCorpusExamples(corpusExamples),
+        int corpusExamples =
+                readInt(
+                        KEY_CORPUS_EXAMPLES,
+                        properties.effectiveCorpusExamples() > 0
+                                ? properties.effectiveCorpusExamples()
+                                : Math.max(0, properties.getCorpusExamples()));
+        return new Snapshot(
+                enabled,
+                clampTopK(topK),
+                clampMinScore(minScore),
+                clampMaxContextChars(maxContextChars),
+                clampCorpusExamples(corpusExamples),
                 hasSetting ? "settings" : "defaults");
     }
 
     private boolean readBoolean(String key, boolean fallback) {
-        return settings.findById(key).map(AppSetting::getSettingValue)
+        return settings.findById(key)
+                .map(AppSetting::getSettingValue)
                 .map(v -> "true".equalsIgnoreCase(v.trim()))
                 .orElse(fallback);
     }
 
     private int readInt(String key, int fallback) {
-        return settings.findById(key).map(AppSetting::getSettingValue).map(v -> {
-            try {
-                return Integer.parseInt(v.trim());
-            } catch (NumberFormatException e) {
-                return fallback;
-            }
-        }).orElse(fallback);
+        return settings.findById(key)
+                .map(AppSetting::getSettingValue)
+                .map(
+                        v -> {
+                            try {
+                                return Integer.parseInt(v.trim());
+                            } catch (NumberFormatException e) {
+                                return fallback;
+                            }
+                        })
+                .orElse(fallback);
     }
 
     private double readDouble(String key, double fallback) {
-        return settings.findById(key).map(AppSetting::getSettingValue).map(v -> {
-            try {
-                return Double.parseDouble(v.trim());
-            } catch (NumberFormatException e) {
-                return fallback;
-            }
-        }).orElse(fallback);
+        return settings.findById(key)
+                .map(AppSetting::getSettingValue)
+                .map(
+                        v -> {
+                            try {
+                                return Double.parseDouble(v.trim());
+                            } catch (NumberFormatException e) {
+                                return fallback;
+                            }
+                        })
+                .orElse(fallback);
     }
 
     private void save(String key, String value) {
         try {
             settings.save(AppSetting.of(key, value));
         } catch (Exception e) {
-            throw new BizException("RAG 设置保存失败：" + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new BizException(
+                    "RAG 设置保存失败：" + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

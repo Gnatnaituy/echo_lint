@@ -387,3 +387,21 @@ dashscope 用 `GET {baseUrl}/api/v1/uploads?action=getPolicy&model={model}`（�
 - 前端 `npm test / lint / format:check / i18n:audit / build` 全绿；设置页仍为 ADMIN 按需加载。
 - 部署后验证：`GET /api/settings/asr` 不含 `apiKeySource`/`envHints`；两家密钥均为 DB（重启不丢）；
   `/settings/screening`、`/settings/transcription` 正常 200；密钥任何接口只回掩码。
+
+## 7. 三页模型配置界面对齐（2026-11-10）
+
+复筛模型 / 语音转写 / 知识增强（embedding）三页统一为同一套结构与共享组件：
+
+| 组件 | 作用 |
+|---|---|
+| `settings/ConfigStatusBar.vue` | 顶部「当前生效」状态行：图标（ok/warn）+ provider · model + chips 插槽（来源 / Key / 就绪）+ 右侧 actions 插槽 |
+| `settings/ProviderCardGrid.vue` | 供应商卡片网格（点选 / 编辑 / 新增 / 删除可配；停用或未配 Key 灰显并给原因；`allowUnconfigured` 支持转写「未就绪可选中后填 Key」） |
+| `settings/SettingsActionBar.vue` | 底部操作行：dirty/提示文案 + 右侧「测试 / 保存并生效」 |
+
+- **复筛模型**：状态行 → 供应商网格 → 模型下拉 → 操作行（行为不变，仅抽组件）。
+- **语音转写**：状态行（Microphone）→ 本地 whisper.cpp / 阿里云百炼两张供应商卡 → 仅选中 provider 的配置面板 →
+  操作行；一次 PUT 同时保存 activeProvider + 配置、密钥留空=不改的语义不变。
+- **知识增强**：状态行（provider·model·Key·source）→ 供应商网格（复用 `GET /api/settings/providers`）→
+  embedding 模型下拉（候选 ∪ 手填）+ 路径/维度/超时只读 → 保存；`embeddingChanged=true` 时提示
+  「历史索引需要重建」并复用「重建索引」。embedding 供应商/模型的契约见 §6.2 与
+  [rag-integration.md](rag-integration.md)（`rag.embedding.provider` / `rag.embedding.model`，DB 优先）。
