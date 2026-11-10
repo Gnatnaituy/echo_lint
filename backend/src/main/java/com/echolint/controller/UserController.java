@@ -1,20 +1,18 @@
 package com.echolint.controller;
 
+import com.echolint.dto.MenuOptionView;
 import com.echolint.dto.UserCreateRequest;
 import com.echolint.dto.UserUpdateRequest;
 import com.echolint.dto.UserView;
 import com.echolint.service.UserService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
-/**
- * 用户管理（仅 ADMIN，权限由 SecurityConfig 的 URL 规则保证）。
- */
+/** 用户管理（仅 ADMIN，权限由 SecurityConfig 的 URL 规则保证）。 */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -25,6 +23,12 @@ public class UserController {
     @GetMapping
     public List<UserView> list() {
         return userService.list();
+    }
+
+    /** 菜单目录：供用户管理的菜单绑定勾选，枚举顺序即展示顺序 */
+    @GetMapping("/menu-options")
+    public List<MenuOptionView> menuOptions() {
+        return userService.menuOptions();
     }
 
     @PostMapping

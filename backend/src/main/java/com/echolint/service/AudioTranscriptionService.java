@@ -50,10 +50,32 @@ public class AudioTranscriptionService {
                 if (dual.isPresent()) {
                     return dual.get();
                 }
-                log.warn("双声道分离不可用，降级为单路转写: {}", audioFile.getFileName());
+                // 多声道源文件：ASR 通常只取 0 声道，直接单路转写会静默丢掉另一侧对话（漏审风险）。
+                // 降级前先 ffmpeg downmix 成 mono；downmix 不可用时才退回源文件。
+                log.warn("多声道降级为单声道转写：双声道分离或任一路转写失败（{}）", audioFile.getFileName());
+                return singleDownmixed(audioFile);
             }
         }
         return single(audioFile);
+    }
+
+    /** 多声道降级单路：先下混成 mono 再转写（避免只识别 0 声道丢话）；临时文件用后即删。 */
+    private TranscriptionOutcome singleDownmixed(Path audioFile) {
+        Optional<Path> mono = audioChannelService.downmixToMono(audioFile);
+        if (mono.isEmpty()) {
+            log.warn("多声道降级为单声道转写失败（downmix 不可用），直接转写源文件（可能只覆盖 0 声道）: {}", audioFile.getFileName());
+            return single(audioFile);
+        }
+        Path monoFile = mono.get();
+        try {
+            return single(monoFile);
+        } finally {
+            try {
+                Files.deleteIfExists(monoFile);
+            } catch (Exception e) {
+                log.warn("清理下混 mono 文件失败 {}: {}", monoFile.getFileName(), e.getMessage());
+            }
+        }
     }
 
     private TranscriptionOutcome single(Path audioFile) {

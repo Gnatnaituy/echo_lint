@@ -1,41 +1,20 @@
 package com.echolint.config;
 
+import com.echolint.asr.AsrSettingsService;
 import com.echolint.service.IntegrationStatusService;
 import com.echolint.service.ScreenModelService;
-import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.StringUtils;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class AppConfig {
-
-    private final WhisperProperties whisperProperties;
-
-    @Bean
-    public WebClient whisperWebClient() {
-        HttpClient httpClient =
-                HttpClient.create()
-                        .responseTimeout(
-                                Duration.ofSeconds(whisperProperties.getRequestTimeoutSeconds()));
-        return WebClient.builder()
-                .baseUrl(whisperProperties.getBaseUrl())
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + whisperProperties.getApiKey())
-                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                .build();
-    }
 
     /**
      * 流水线执行线程池。
@@ -118,21 +97,27 @@ public class AppConfig {
     @Bean
     public ApplicationRunner startupAdvice(
             ScreenModelService screenModelService,
+            AsrSettingsService asrSettingsService,
             AppProperties appProperties,
             ScreenModelProperties screenModelProperties,
             NotifyProperties notifyProperties,
             IntegrationStatusService integrationStatusService) {
         return args -> {
-            if (whisperProperties.apiKeyConfigured()) {
-                log.info(
-                        "语音转写：{}（模型 {}，上传上限 {}MB）",
-                        whisperProperties.getBaseUrl(),
-                        whisperProperties.getModel(),
-                        appProperties.getMaxSizeBytes() / 1024 / 1024);
-            } else {
-                log.warn(
-                        "未配置转写服务密钥 —— 录音上传后将置为 FAILED。"
-                                + "请设置 WHISPER_API_KEY（自建 whisper.cpp 可填任意非空值）。");
+            // 语音转写：运行时 provider（本地 whisper.cpp / 阿里云百炼），每次转写按当前配置解析
+            try {
+                AsrSettingsService.Resolved asr = asrSettingsService.current();
+                if (asr.ready()) {
+                    log.info(
+                            "语音转写：{}（provider={}，超时 {}s，上传上限 {}MB；可在「系统设置 → 语音转写」运行时切换）",
+                            asr.type().label(),
+                            asr.type().value(),
+                            asr.config().timeoutSeconds(),
+                            appProperties.getMaxSizeBytes() / 1024 / 1024);
+                } else {
+                    log.warn("{} —— 录音上传后将置为 FAILED", asr.unreadyMessage());
+                }
+            } catch (Exception e) {
+                log.warn("语音转写配置解析失败：{}", e.getMessage());
             }
             try {
                 var active = screenModelService.active();

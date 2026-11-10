@@ -165,7 +165,7 @@ app:
       - id: aliyun
         label: 阿里云百炼
         base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
-        api-key: ${DASHSCOPE_API_KEY:}
+        api-key: ${DASHSCOPE_API_KEY:}         # 仅首次启动 bootstrap 引导值（推荐置空、在设置页录入）
         api-key-env: DASHSCOPE_API_KEY
         chat-path: /chat/completions
         default-model: ${DASHSCOPE_CHAT_MODEL:qwen-plus}
@@ -237,13 +237,43 @@ app:
       max-bytes: ${APP_RAG_DOCUMENTS_MAX_BYTES:20971520}
       extensions: ${APP_RAG_DOCUMENTS_EXTENSIONS:pdf,docx,txt,md}
 
-# 语音转写（ASR）：只支持自建/本机 whisper.cpp（见 tools/whisper-server.sh），不再依赖境外转写服务。
-# 录音不出本机、无时长费用、无并发限制；Docker 内通过 host.docker.internal 访问宿主服务。
-# 独立 whisper.* 前缀与 WHISPER_* 环境变量一一对应，避免与其它供应商变量互相遮蔽。
+# ===================== 语音转写（ASR）provider 切换 =====================
+# 双 provider：本地 whisper.cpp / 阿里云百炼（DashScope 录音文件识别），契约见
+# docs/asr-and-settings-refactor.md §2 / §6.2。运行时在「系统设置 → 语音转写」页切换，
+# 写入 app_settings（立即生效、重启保持）；本段只是「尚未在界面保存过」时的默认值。
+# 解析顺序：app_settings 优先，非敏感项（base-url/model/language-hints/timeout）再回退环境变量。
+#   未保存 asr.provider 时默认本地 whisper.cpp；DASHSCOPE_API_KEY 与 RAG embedding 共用，
+#   配置了 Key 不会自动把 ASR 切到百炼——必须在「设置页显式选择 provider 并保存」才会切换。
+# 密钥：运行时只读 app_settings（AES-GCM 加密，接口只回掩码）。下面的 api-key 环境变量仅作为
+#   首次启动的一次性引导值（DB 缺密钥时加密落库一次，见 AsrKeyBootstrapRunner），之后不再读取；
+#   推荐直接在设置页录入，无需在 .env 配置密钥类变量。
+asr:
+  # 单次转写总预算（本地 block 超时 / 云端「提交 + 轮询 + 下载」总预算），范围 30~1800 秒
+  timeout-seconds: ${ASR_TIMEOUT_SECONDS:600}
+  # 本地方案：whisper.cpp OpenAI 兼容接口（音频不出本机、无时长费用）
+  local:
+    base-url: ${WHISPER_BASE_URL:http://127.0.0.1:9900}
+    api-key: ${WHISPER_API_KEY:local}     # 仅首次启动 bootstrap 引导值（推荐置空、在设置页录入）
+    model: ${WHISPER_MODEL:whisper-1}
+    audio-path: ${WHISPER_AUDIO_PATH:/v1/audio/transcriptions}
+  # 百炼录音文件识别：base-url 是 DashScope API 根（不是 compatible-mode 地址），
+  # 也可填业务空间域名 https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com（路径不变）。
+  # api-key 与 RAG embedding 共用同一个 DASHSCOPE_API_KEY；允许留空，稍后在设置页录入（加密落库）。
+  dashscope:
+    base-url: ${DASHSCOPE_ASR_BASE_URL:https://dashscope.aliyuncs.com}
+    api-key: ${DASHSCOPE_API_KEY:}         # 仅首次启动 bootstrap 引导值（推荐置空、在设置页录入）
+    model: ${DASHSCOPE_ASR_MODEL:qwen-audio-3.1-asr-flash-filetrans}
+    language-hints: ${DASHSCOPE_ASR_LANGUAGE_HINTS:zh}   # 逗号分隔，第一项作为结果 language
+    models:                                # 设置页下拉候选（允许手填其它模型名）
+      - qwen-audio-3.1-asr-flash-filetrans
+      - qwen-audio-3.0-asr-flash-filetrans
+
+# 旧版本地 whisper.cpp 配置（兼容保留）：语音转写已由上方 asr.* 接管，
+# 本段不再作为转写超时来源，保留仅为兼容旧部署的 yml/环境变量。
 whisper:
   # 系统设置页切换的复筛模型与此无关，两者互不影响
   base-url: ${WHISPER_BASE_URL:http://127.0.0.1:9900}
   api-key: ${WHISPER_API_KEY:local}
   model: ${WHISPER_MODEL:whisper-1}
-  # 本地 whisper.cpp 处理长音频较慢，超时给宽一些
+  # 已废弃：转写超时改由 asr.timeout-seconds 统一接管（本地/云端同一预算）
   request-timeout-seconds: 600

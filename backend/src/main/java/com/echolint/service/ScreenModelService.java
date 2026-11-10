@@ -536,7 +536,12 @@ public class ScreenModelService {
         }
     }
 
-    /** 单个候选供应商（不下发 api-key，只下发是否已配置） */
+    /**
+     * 单个候选供应商（不下发 api-key，只下发是否已配置）。
+     *
+     * <p>{@code apiKeyEnv} 为兼容保留字段：密钥本就存在于数据库（启动 seed 加密落库），前端已不再用它
+     * 提示「去设置环境变量」，录入入口统一走系统设置页。字段保留不破坏既有契约。
+     */
     public record ProviderView(
             String id,
             String label,

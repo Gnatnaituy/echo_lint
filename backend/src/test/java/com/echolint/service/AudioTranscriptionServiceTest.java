@@ -2,6 +2,8 @@ package com.echolint.service;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.echolint.config.AppProperties;
@@ -120,17 +122,20 @@ class AudioTranscriptionServiceTest {
     }
 
     @Test
-    void stereoAsrFailureDegradesToSingleAndCleansSplitFiles(@TempDir Path dir) throws IOException {
+    void stereoAsrFailureDegradesToDownmixedMonoAndCleansTempFiles(@TempDir Path dir)
+            throws IOException {
         Path source = Files.writeString(dir.resolve("call.wav"), "audio");
         Path left = Files.writeString(dir.resolve("call.wav.L.wav"), "left");
         Path right = Files.writeString(dir.resolve("call.wav.R.wav"), "right");
+        Path mono = Files.writeString(dir.resolve("call.wav.mono.wav"), "mono");
         AudioChannelService channelService = mock(AudioChannelService.class);
         TranscriptionService transcriptionService = mock(TranscriptionService.class);
         AudioTranscriptionService service =
                 stereoService(source, left, right, channelService, transcriptionService);
+        when(channelService.downmixToMono(source)).thenReturn(Optional.of(mono));
 
         when(transcriptionService.transcribe(left)).thenThrow(new BizException("whisper down"));
-        when(transcriptionService.transcribe(source))
+        when(transcriptionService.transcribe(mono))
                 .thenReturn(
                         new TranscriptionService.ChannelTranscript(
                                 "hello", "en", 8, List.of(seg(null, null, 0, 1, "hello"))));
@@ -139,8 +144,66 @@ class AudioTranscriptionServiceTest {
 
         assertFalse(outcome.stereo(), "ASR 调用失败应降级单路，而不是让整条录音失败");
         assertEquals("hello", outcome.transcript());
+        // I4：多声道降级必须先 downmix 成 mono，避免云端只转 0 声道丢掉另一侧对话
+        verify(transcriptionService).transcribe(mono);
+        verify(transcriptionService, never()).transcribe(source);
         assertFalse(Files.exists(left), "降级后必须清理左声道分轨文件");
         assertFalse(Files.exists(right), "降级后必须清理右声道分轨文件");
+        assertFalse(Files.exists(mono), "降级用的 mono 临时文件必须清理");
+    }
+
+    @Test
+    void splitFailureAlsoDownmixesBeforeSingleTranscription(@TempDir Path dir) throws IOException {
+        Path source = Files.writeString(dir.resolve("call.wav"), "audio");
+        Path mono = Files.writeString(dir.resolve("call.wav.mono.wav"), "mono");
+        AudioChannelService channelService = mock(AudioChannelService.class);
+        TranscriptionService transcriptionService = mock(TranscriptionService.class);
+        AudioTranscriptionService service =
+                stereoService(
+                        source,
+                        dir.resolve("unused.L.wav"),
+                        dir.resolve("unused.R.wav"),
+                        channelService,
+                        transcriptionService);
+        // 分轨失败（无可用 split）→ 仍要 downmix 后单路转写
+        when(channelService.splitStereo(source)).thenReturn(Optional.empty());
+        when(channelService.downmixToMono(source)).thenReturn(Optional.of(mono));
+        when(transcriptionService.transcribe(mono))
+                .thenReturn(
+                        new TranscriptionService.ChannelTranscript(
+                                "mixed", "en", 9, List.of(seg(null, null, 0, 1, "mixed"))));
+
+        var outcome = service.transcribe(source);
+
+        assertEquals("mixed", outcome.transcript());
+        assertFalse(outcome.stereo());
+        verify(transcriptionService).transcribe(mono);
+        verify(transcriptionService, never()).transcribe(source);
+    }
+
+    @Test
+    void downmixUnavailableFallsBackToSourceWithWarning(@TempDir Path dir) throws IOException {
+        Path source = Files.writeString(dir.resolve("call.wav"), "audio");
+        AudioChannelService channelService = mock(AudioChannelService.class);
+        TranscriptionService transcriptionService = mock(TranscriptionService.class);
+        AudioTranscriptionService service =
+                stereoService(
+                        source,
+                        dir.resolve("unused.L.wav"),
+                        dir.resolve("unused.R.wav"),
+                        channelService,
+                        transcriptionService);
+        when(channelService.splitStereo(source)).thenReturn(Optional.empty());
+        when(channelService.downmixToMono(source)).thenReturn(Optional.empty());
+        when(transcriptionService.transcribe(source))
+                .thenReturn(
+                        new TranscriptionService.ChannelTranscript(
+                                "raw", "en", 9, List.of(seg(null, null, 0, 1, "raw"))));
+
+        var outcome = service.transcribe(source);
+
+        assertEquals("raw", outcome.transcript());
+        verify(transcriptionService).transcribe(source);
     }
 
     @Test

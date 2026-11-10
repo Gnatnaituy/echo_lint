@@ -20,6 +20,7 @@ import com.echolint.security.SessionEpochService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,6 +77,8 @@ class AuthServiceTest {
         alice.setDisplayName("Alice");
         alice.setRole(UserRole.REVIEWER);
         alice.setEnabled(true);
+        // 菜单绑定：读路径宽松（COSTS 对 REVIEWER 不可用被跳过）+ 返回按枚举顺序
+        alice.setMenuKeys("REPORTS,DASHBOARD,COSTS");
         aliceDetails = new AppUserDetails(alice);
     }
 
@@ -108,6 +111,8 @@ class AuthServiceTest {
         assertEquals("alice", result.username());
         assertEquals("Alice", result.displayName());
         assertEquals(UserRole.REVIEWER, result.role());
+        // 登录响应带上登录时刻的生效菜单（枚举顺序，角色不可用项已收窄掉）
+        assertEquals(List.of("DASHBOARD", "REPORTS"), result.menuKeys());
 
         verify(authenticationManager)
                 .authenticate(
@@ -240,6 +245,7 @@ class AuthServiceTest {
         assertEquals(1L, result.id());
         assertEquals("alice", result.username());
         assertEquals(UserRole.REVIEWER, result.role());
+        assertEquals(List.of("DASHBOARD", "REPORTS"), result.menuKeys());
     }
 
     @Test

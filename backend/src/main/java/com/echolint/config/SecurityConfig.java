@@ -161,6 +161,10 @@ public class SecurityConfig {
                                         // RAG 设置（Batch 6）：只有 ADMIN 能查看/修改 embedding 与索引状态
                                         .requestMatchers(HttpMethod.GET, "/api/settings/rag")
                                         .hasRole("ADMIN")
+                                        // 语音转写设置（双 provider 切换）：GET 也含掩码密钥配置，仅 ADMIN；
+                                        // PUT/POST 已被下方 /api/settings/** 写规则覆盖
+                                        .requestMatchers(HttpMethod.GET, "/api/settings/asr")
+                                        .hasRole("ADMIN")
                                         // AI 成本看板（Batch 3a）仅 ADMIN
                                         .requestMatchers(HttpMethod.GET, "/api/stats/ai-usage")
                                         .hasRole("ADMIN")

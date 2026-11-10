@@ -1,5 +1,6 @@
 package com.echolint;
 
+import com.echolint.asr.AsrProperties;
 import com.echolint.config.AppProperties;
 import com.echolint.config.DiarizationProperties;
 import com.echolint.config.NotifyProperties;
@@ -22,9 +23,18 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableAsync(proxyTargetClass = true)
 // 每日 09:00（Asia/Shanghai）待复核积压检查见 ReviewBacklogScheduler
 @EnableScheduling
-@EnableConfigurationProperties({AppProperties.class, WhisperProperties.class, ScreenModelProperties.class,
-        NotifyProperties.class, TenantProperties.class, SsoProperties.class, StreamingProperties.class,
-        DiarizationProperties.class, RagProperties.class})
+@EnableConfigurationProperties({
+    AppProperties.class,
+    AsrProperties.class,
+    WhisperProperties.class,
+    ScreenModelProperties.class,
+    NotifyProperties.class,
+    TenantProperties.class,
+    SsoProperties.class,
+    StreamingProperties.class,
+    DiarizationProperties.class,
+    RagProperties.class
+})
 public class EchoLintApplication {
 
     public static void main(String[] args) {

@@ -4,10 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.echolint.asr.AsrSettingsService;
 import com.echolint.config.AppProperties;
 import com.echolint.config.SecurityConfig;
+import com.echolint.controller.AsrSettingsController;
 import com.echolint.controller.OpenApiController;
 import com.echolint.controller.PipelineTaskController;
 import com.echolint.controller.RecordingController;
@@ -35,6 +39,7 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.context.annotation.Import;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -68,6 +73,7 @@ import org.springframework.web.context.WebApplicationContext;
             UserController.class,
             PipelineTaskController.class,
             SettingsController.class,
+            AsrSettingsController.class,
             OpenApiController.class
         })
 @Import({
@@ -97,6 +103,7 @@ class SecurityMatrixTest {
     @MockBean private com.echolint.service.ModelEvaluationService modelEvaluationService;
     @MockBean private com.echolint.service.NotificationService notificationService;
     @MockBean private com.echolint.service.IntegrationStatusService integrationStatusService;
+    @MockBean private AsrSettingsService asrSettingsService;
     @MockBean private com.echolint.service.ApiKeyService apiKeyService;
     @MockBean private AppUserDetailsService appUserDetailsService;
 
@@ -117,6 +124,7 @@ class SecurityMatrixTest {
         when(recordingService.query(any(), any())).thenReturn(Page.empty());
         when(recordingService.aiInvocations(1L)).thenReturn(List.of());
         when(userService.list()).thenReturn(List.of());
+        when(userService.menuOptions()).thenReturn(List.of());
         when(pipelineTaskService.query(any(), any(), any())).thenReturn(Page.empty());
         when(providerAdminService.list()).thenReturn(List.of());
     }
@@ -173,6 +181,17 @@ class SecurityMatrixTest {
     }
 
     @Test
+    void menuOptionsIsAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/users/menu-options")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/users/menu-options").session(session(UserRole.VIEWER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/users/menu-options").session(session(UserRole.REVIEWER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/users/menu-options").session(session(UserRole.ADMIN)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void taskQueueIsAdminOnly() throws Exception {
         mockMvc.perform(get("/api/tasks").session(session(UserRole.REVIEWER)))
                 .andExpect(status().isForbidden());
@@ -186,6 +205,78 @@ class SecurityMatrixTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/settings/providers").session(session(UserRole.ADMIN)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void asrSettingsIsAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/settings/asr")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/settings/asr").session(session(UserRole.VIEWER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/settings/asr").session(session(UserRole.REVIEWER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/settings/asr").session(session(UserRole.ADMIN)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void asrSettingsWritesAreAdminOnly() throws Exception {
+        when(asrSettingsService.update(any())).thenReturn(asrView());
+
+        mockMvc.perform(
+                        put("/api/settings/asr")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isUnauthorized());
+        for (UserRole role : List.of(UserRole.VIEWER, UserRole.REVIEWER)) {
+            mockMvc.perform(
+                            put("/api/settings/asr")
+                                    .session(session(role))
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{}"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(
+                            post("/api/settings/asr/test")
+                                    .session(session(role))
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(
+                        put("/api/settings/asr")
+                                .session(session(UserRole.ADMIN))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(
+                        post("/api/settings/asr/test")
+                                .session(session(UserRole.ADMIN))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isOk());
+    }
+
+    /** ASR 设置视图桩：PUT 成功后 Controller 会读视图字段写审计，字段不能为 null */
+    private AsrSettingsService.View asrView() {
+        return new AsrSettingsService.View(
+                "local",
+                600,
+                new AsrSettingsService.LocalView(
+                        "本地 whisper.cpp",
+                        true,
+                        "http://127.0.0.1:9900",
+                        "whisper-1",
+                        "/v1/audio/transcriptions",
+                        true,
+                        "****ocal"),
+                new AsrSettingsService.DashScopeView(
+                        "阿里云百炼",
+                        false,
+                        "https://dashscope.aliyuncs.com",
+                        "qwen-audio-3.1-asr-flash-filetrans",
+                        List.of(),
+                        "zh",
+                        false,
+                        null));
     }
 
     @Test
@@ -228,6 +319,7 @@ class SecurityMatrixTest {
                     new Rule("GET", "/api/settings/providers"),
                     new Rule("GET", "/api/settings/providers/**"),
                     new Rule("GET", "/api/settings/rag"),
+                    new Rule("GET", "/api/settings/asr"),
                     new Rule("GET", "/api/stats/ai-usage"),
                     new Rule("ANY", "/api/ai-invocations"),
                     new Rule("ANY", "/api/ai-invocations/**"),

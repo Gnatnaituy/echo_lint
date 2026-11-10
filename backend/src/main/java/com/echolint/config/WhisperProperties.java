@@ -6,14 +6,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 
 /**
- * 语音转写（ASR）配置：只支持自建/本机 whisper.cpp（见 tools/whisper-server.sh）。
+ * 旧版本地 whisper.cpp 转写配置（兼容保留）。
+ *
+ * <p>语音转写已改为双 provider（本地 whisper.cpp / 阿里云百炼）运行时切换，配置迁到 {@code asr.*}（见 {@code
+ * com.echolint.asr.AsrProperties}，docs/asr-and-settings-refactor.md §2）； 其中本地 provider 的 base-url /
+ * api-key / model 仍复用 {@code WHISPER_*} 环境变量。 本类不再被转写链路使用：{@link #requestTimeoutSeconds} 已由 {@code
+ * asr.timeout-seconds} 接管， 保留仅为兼容旧的 yml 配置，避免升级时报未知属性。
  *
  * <pre>
  * WHISPER_BASE_URL=http://host.docker.internal:9900
  * WHISPER_API_KEY=local        # whisper.cpp 不校验，但本服务要求非空
  * </pre>
- *
- * 独立 whisper.* 前缀与 WHISPER_* 环境变量一一对应，避免与其它供应商变量互相遮蔽。
  */
 @Getter
 @Setter

@@ -15,7 +15,8 @@ import org.springframework.util.StringUtils;
  * AI 语义复筛 / 敏感词挖掘所用的模型供应商清单。
  *
  * <p>复筛与词挖掘都是兼容 chat completions 协议的调用，因此「切换供应商」等价于 换 base-url + api-key + model
- * 三件套；语音转写（Whisper）不在其中，仍固定走 {@link WhisperProperties}（DeepSeek 等 chat 供应商不提供转写能力）。
+ * 三件套；语音转写（ASR）是独立链路，已改为双 provider 运行时切换（见 {@code
+ * com.echolint.asr.AsrSettingsService}），与本清单无关（DeepSeek 等 chat 供应商不提供转写能力）。
  *
  * <p>当前生效的供应商/模型在运行时可切换，并持久化到 app_settings 表，见 ScreenModelService。
  */

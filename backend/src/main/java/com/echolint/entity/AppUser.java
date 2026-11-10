@@ -2,20 +2,21 @@ package com.echolint.entity;
 
 import com.echolint.domain.UserRole;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 /**
  * 系统用户（表名为 app_user，避免与数据库保留字 user 冲突）。
  *
- * <p>密码只存 BCrypt 哈希；用户名统一小写、去空格，唯一。</p>
+ * <p>密码只存 BCrypt 哈希；用户名统一小写、去空格，唯一。
  */
 @Entity
-@Table(name = "app_user", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_app_user_username", columnNames = "username")
-})
+@Table(
+        name = "app_user",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_app_user_username", columnNames = "username")
+        })
 @Getter
 @Setter
 public class AppUser {
@@ -40,6 +41,15 @@ public class AppUser {
 
     @Column(nullable = false)
     private boolean enabled = true;
+
+    /**
+     * 可见菜单绑定：逗号分隔的 {@link com.echolint.domain.MenuKey} 枚举名。
+     *
+     * <p>{@code null} / 空 = 不限制（= 角色允许的全部菜单）；非空 = 在角色允许范围内收窄。 写路径保证只存角色可用的 key，读路径对脏数据宽松（未知 key
+     * 跳过）。
+     */
+    @Column(name = "menu_keys", length = 512)
+    private String menuKeys;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
