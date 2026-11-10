@@ -22,32 +22,41 @@
         </span>
       </div>
 
-      <!-- 双声道图例 -->
-      <div v-if="layout === 'dialogue' && view.dialogue" class="channel-legend">
-        <div class="legend-side left">
-          <span class="ch-badge">L</span>
-          <span class="ch-name">{{
-            view.speakers.left || t('components.transcript.channelLeft')
-          }}</span>
-          <span class="ch-hint">{{ t('components.transcript.channelLeft') }}</span>
+      <!-- 双声道对话图例：左右两位说话人 + 对话样式提示 -->
+      <div v-if="dialogueMode" class="channel-legend">
+        <div class="speaker-pill left">
+          <span class="avatar left" aria-hidden="true">L</span>
+          <span class="speaker-meta">
+            <span class="speaker-name">{{
+              view.speakers.left || t('components.transcript.channelLeft')
+            }}</span>
+            <span v-if="view.speakers.left" class="speaker-sub">{{
+              t('components.transcript.channelLeft')
+            }}</span>
+          </span>
         </div>
-        <div class="legend-line"></div>
-        <div class="legend-side right">
-          <span class="ch-badge">R</span>
-          <span class="ch-name">{{
-            view.speakers.right || t('components.transcript.channelRight')
-          }}</span>
-          <span class="ch-hint">{{ t('components.transcript.channelRight') }}</span>
+        <div class="legend-divider">{{ t('components.transcript.dialogueTitle') }}</div>
+        <div class="speaker-pill right">
+          <span class="avatar right" aria-hidden="true">R</span>
+          <span class="speaker-meta">
+            <span class="speaker-name">{{
+              view.speakers.right || t('components.transcript.channelRight')
+            }}</span>
+            <span v-if="view.speakers.right" class="speaker-sub">{{
+              t('components.transcript.channelRight')
+            }}</span>
+          </span>
         </div>
       </div>
 
       <ol
         ref="listRef"
         class="seg-list"
-        :class="{ dialogue: layout === 'dialogue' && view.dialogue }"
+        :class="{ dialogue: dialogueMode }"
+        :aria-label="dialogueMode ? t('components.transcript.dialogueTitle') : undefined"
       >
         <li
-          v-for="s in view.sentences"
+          v-for="(s, i) in view.sentences"
           :key="s.index"
           :data-idx="s.index"
           class="seg"
@@ -57,26 +66,42 @@
               active: s.index === activeIndex,
               marked: s.hasMarks,
               target: s.isTarget,
-              untimed: s.start == null
+              untimed: s.start == null,
+              cont: isContinuation(i)
             }
           ]"
           @click="onSeek(s)"
         >
+          <span v-if="dialogueMode && s.side" class="avatar" :class="`side-${s.side}`">{{
+            s.channel
+          }}</span>
           <span class="rail"></span>
 
           <div class="bubble">
-            <div v-if="layout === 'dialogue' && s.side" class="bubble-head">
-              <span class="ch-badge sm">{{ s.channel }}</span>
-              <span class="speaker">{{
-                s.speaker ||
-                (s.side === 'left'
-                  ? t('components.transcript.channelLeft')
-                  : t('components.transcript.channelRight'))
-              }}</span>
+            <!-- 双声道对话：说话人 + 时间放气泡头部；单声道保持逐句列表的原有结构 -->
+            <div v-if="dialogueMode && s.side" class="bubble-head">
+              <span v-if="s.index === activeIndex" class="playing-dot" aria-hidden="true"></span>
+              <span class="speaker">{{ speakerName(s) }}</span>
+              <button
+                class="time dlg-time"
+                :disabled="s.start == null"
+                :title="
+                  s.start == null
+                    ? t('components.transcript.untimedTitle')
+                    : t('components.transcript.seekTo', { time: formatClock(s.start) })
+                "
+                @click.stop="onSeek(s)"
+              >
+                <el-icon class="time-icon" :size="11">
+                  <component :is="s.index === activeIndex ? VideoPause : VideoPlay" />
+                </el-icon>
+                <span class="mono">{{ s.start != null ? formatClock(s.start) : '--:--' }}</span>
+              </button>
             </div>
 
             <div class="bubble-main">
               <button
+                v-if="!(dialogueMode && s.side)"
                 class="time"
                 :disabled="s.start == null"
                 :title="
@@ -94,7 +119,7 @@
 
               <div class="body">
                 <p class="text">
-                  <template v-for="(p, i) in s.parts" :key="i">
+                  <template v-for="(p, j) in s.parts" :key="j">
                     <mark v-if="p.hit" class="mark-hit">{{ p.text }}</mark>
                     <template v-else>{{ p.text }}</template>
                   </template>
@@ -154,7 +179,25 @@ const view = computed(() =>
   })
 )
 
+/** 双声道对话模式：layout=dialogue 且分段里确实带左右声道信息 */
+const dialogueMode = computed(() => props.layout === 'dialogue' && view.value.dialogue)
+
 const activeIndex = computed(() => findActiveIndex(view.value.sentences, props.currentTime))
+
+/** 同一说话人连续发言：隐藏重复头像/收紧间距，读起来更像一段对话 */
+function isContinuation(i) {
+  const list = view.value.sentences
+  const cur = list[i]
+  const prev = list[i - 1]
+  return Boolean(cur?.side && prev?.side && prev.side === cur.side)
+}
+
+function speakerName(sentence) {
+  if (sentence.speaker) return sentence.speaker
+  return sentence.side === 'left'
+    ? t('components.transcript.channelLeft')
+    : t('components.transcript.channelRight')
+}
 
 function onSeek(sentence) {
   if (sentence.start == null) return
@@ -211,65 +254,80 @@ watch(activeIndex, async (idx) => {
   flex: 1;
 }
 
-/* 声道图例 */
+/* ---------- 双声道对话图例 ---------- */
 .channel-legend {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  border-radius: var(--r-md);
-  background: linear-gradient(90deg, rgba(59, 110, 246, 0.08), rgba(100, 116, 139, 0.08));
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, #fbfcff, #f6f8fe);
   border: 1px solid var(--border);
 }
-.legend-side {
-  display: inline-flex;
+.speaker-pill {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 9px;
+  min-width: 0;
 }
-.legend-side.right {
+.speaker-pill.right {
   flex-direction: row-reverse;
+  text-align: right;
 }
-.legend-line {
-  flex: 1;
-  height: 1px;
-  background: repeating-linear-gradient(90deg, var(--ink-300) 0 4px, transparent 4px 8px);
-}
-.ch-badge {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+.avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
   display: grid;
   place-items: center;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: var(--font-mono);
+  border-radius: 50%;
   color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  transition: box-shadow 0.18s ease;
 }
-.ch-badge.sm {
-  width: 16px;
-  height: 16px;
-  font-size: 10px;
-  border-radius: 5px;
+.avatar.left {
+  background: linear-gradient(135deg, #6b8ef9, #3b6ef6);
 }
-.legend-side.left .ch-badge,
-.seg.side-left .ch-badge {
-  background: var(--brand-500);
+.avatar.right {
+  background: linear-gradient(135deg, #a78bfa, #7c5cf5);
 }
-.legend-side.right .ch-badge,
-.seg.side-right .ch-badge {
-  background: #64748b;
+.speaker-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
 }
-.ch-name {
+.speaker-name {
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-700);
 }
-.ch-hint {
-  color: var(--el-text-color-placeholder);
+.speaker-sub {
   font-size: 11px;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+.legend-divider {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-400);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.legend-divider::before,
+.legend-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ink-200), transparent);
 }
 
-/* 逐句列表 */
+/* ---------- 逐句列表 ---------- */
 .seg-list {
   list-style: none;
   margin: 0;
@@ -296,18 +354,33 @@ watch(activeIndex, async (idx) => {
   cursor: default;
 }
 
-/* 双声道：左右分栏 */
+/* ---------- 双声道对话：左右气泡 ---------- */
+.seg-list.dialogue {
+  gap: 10px;
+}
 .seg-list.dialogue .seg {
-  padding: 1px 4px;
-  background: transparent;
+  gap: 9px;
+  padding: 0;
   border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.seg-list.dialogue .seg:hover {
+  background: transparent;
 }
 .seg-list.dialogue .seg .rail {
   display: none;
 }
 .seg-list.dialogue .seg.side-right {
-  justify-content: flex-end;
+  flex-direction: row-reverse;
 }
+.seg-list.dialogue .seg.cont {
+  margin-top: -6px;
+}
+.seg-list.dialogue .seg.cont .avatar {
+  visibility: hidden;
+}
+
 .bubble {
   max-width: 84%;
   min-width: 0;
@@ -320,20 +393,39 @@ watch(activeIndex, async (idx) => {
     border-color 0.18s ease,
     background 0.18s ease;
 }
+.seg-list.dialogue .bubble {
+  max-width: 78%;
+  padding: 9px 13px 10px;
+  border-radius: 16px;
+}
 .seg-list.dialogue .seg.side-left .bubble {
-  background: linear-gradient(180deg, #f6f9ff, #fff);
-  border-color: var(--brand-200);
-  border-top-left-radius: 4px;
+  background: linear-gradient(180deg, #f8faff, #edf3ff);
+  border-color: #dde8ff;
+  border-top-left-radius: 5px;
 }
 .seg-list.dialogue .seg.side-right .bubble {
-  background: linear-gradient(180deg, #f8fafc, #fff);
-  border-color: #dbe2ec;
-  border-top-right-radius: 4px;
+  background: linear-gradient(180deg, #fbf9ff, #f2eeff);
+  border-color: #e6ddfc;
+  border-top-right-radius: 5px;
 }
-.seg-list.dialogue .seg.side-left.active .bubble,
-.seg-list.dialogue .seg.side-right.active .bubble {
-  box-shadow: 0 0 0 2px var(--brand-300);
-  border-color: var(--brand-400);
+.seg-list.dialogue .seg.cont.side-left .bubble {
+  border-top-left-radius: 16px;
+}
+.seg-list.dialogue .seg.cont.side-right .bubble {
+  border-top-right-radius: 16px;
+}
+.seg-list.dialogue .seg:hover .bubble {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+  border-color: #cdd9f6;
+}
+.seg-list.dialogue .seg.active .bubble {
+  box-shadow:
+    0 0 0 2px var(--brand-300),
+    0 6px 16px rgba(59, 110, 246, 0.12);
+  border-color: var(--brand-300);
+}
+.seg-list.dialogue .seg.active .avatar {
+  box-shadow: 0 0 0 3px rgba(59, 110, 246, 0.18);
 }
 .seg:not(.side-left):not(.side-right) .bubble {
   border: none;
@@ -348,7 +440,12 @@ watch(activeIndex, async (idx) => {
   gap: 6px;
   margin-bottom: 5px;
 }
-.seg.side-right .bubble-head {
+.seg-list.dialogue .bubble-head {
+  gap: 6px;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+.seg-list.dialogue .seg.side-right .bubble-head {
   flex-direction: row-reverse;
 }
 .speaker {
@@ -356,44 +453,45 @@ watch(activeIndex, async (idx) => {
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
+.seg-list.dialogue .speaker {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--brand-600);
+}
+.seg-list.dialogue .seg.side-right .speaker {
+  color: #6d4ede;
+}
+.playing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  flex: none;
+  animation: dlg-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dlg-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 .bubble-main {
   display: flex;
   gap: 10px;
   align-items: flex-start;
 }
-.seg.side-right .bubble-main {
-  flex-direction: row-reverse;
+.seg-list.dialogue .bubble-main {
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
 }
 
-/* 左侧竖条：命中(红) / AI 原句(橙) */
-.rail {
-  position: absolute;
-  left: 4px;
-  top: 11px;
-  bottom: 11px;
-  width: 3px;
-  border-radius: 3px;
-  background: transparent;
-}
-.seg.marked .rail {
-  background: linear-gradient(180deg, #f87171, #ef4444);
-}
-.seg.target:not(.marked) .rail {
-  background: linear-gradient(180deg, #fbbf24, #f59e0b);
-}
-.seg.marked.target .rail {
-  background: linear-gradient(180deg, #f87171, #f59e0b);
-}
-
-/* 当前播放句（逐句模式） */
-.seg.active:not(.side-left):not(.side-right) {
-  background: var(--brand-50);
-  border-color: var(--brand-200);
-}
-.seg.active .text {
-  color: var(--ink-800);
-}
-
+/* 时间按钮：单声道为描边小按钮；双声道对话内为轻量时间戳（hover 变品牌色） */
 .time {
   flex: none;
   display: inline-flex;
@@ -426,8 +524,58 @@ watch(activeIndex, async (idx) => {
   border-color: var(--brand-500);
   color: #fff;
 }
+.seg-list.dialogue .time {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-400);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.seg-list.dialogue .time:hover:not(:disabled) {
+  background: transparent;
+  color: var(--brand-500);
+}
+.seg-list.dialogue .time:disabled {
+  background: transparent;
+  color: var(--ink-300);
+}
+.seg-list.dialogue .seg.active .time {
+  background: transparent;
+  color: var(--brand-500);
+}
 .time-icon {
   opacity: 0.85;
+}
+
+/* 左侧竖条：命中(红) / AI 原句(橙) */
+.rail {
+  position: absolute;
+  left: 4px;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 3px;
+  background: transparent;
+}
+.seg.marked .rail {
+  background: linear-gradient(180deg, #f87171, #ef4444);
+}
+.seg.target:not(.marked) .rail {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+.seg.marked.target .rail {
+  background: linear-gradient(180deg, #f87171, #f59e0b);
+}
+
+/* 当前播放句（逐句模式） */
+.seg.active:not(.side-left):not(.side-right) {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+}
+.seg.active .text {
+  color: var(--ink-800);
 }
 
 .body {
@@ -441,10 +589,37 @@ watch(activeIndex, async (idx) => {
   color: var(--ink-600);
   word-break: break-word;
 }
+.seg-list.dialogue .text {
+  line-height: 1.72;
+  color: var(--ink-700);
+}
 .marks {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-top: 7px;
+}
+.seg-list.dialogue .marks {
+  margin-top: 6px;
+  gap: 5px;
+}
+.seg-list.dialogue .marks .chip {
+  height: 20px;
+  font-size: 11px;
+}
+
+/* 窄屏（复检页窄栏 / 小屏）：气泡略放宽、头像缩小 */
+@media (max-width: 560px) {
+  .seg-list.dialogue .bubble {
+    max-width: 86%;
+  }
+  .avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+  .speaker-sub {
+    display: none;
+  }
 }
 </style>
