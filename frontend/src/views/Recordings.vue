@@ -336,7 +336,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('common.actions')" width="216" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="244" align="right" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">{{
@@ -350,8 +350,31 @@
                 @click.stop="$router.push(`/review?id=${row.id}`)"
                 >{{ t('recordings.actions.goReview') }}</el-button
               >
-              <el-popover
+              <el-popconfirm
+                v-if="isAdmin && isFinalReviewStatus(row.status)"
+                :title="t('recordings.reopen.confirm')"
+                width="260"
+                @confirm="reopen(row)"
+              >
+                <template #reference>
+                  <el-button class="op-link" link type="warning" @click.stop>{{
+                    t('recordings.actions.reopen')
+                  }}</el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
                 v-if="canWrite"
+                :title="t('recordings.delete.confirm')"
+                @confirm="remove(row)"
+              >
+                <template #reference>
+                  <el-button class="op-link" link type="danger" @click.stop>{{
+                    t('recordings.actions.delete')
+                  }}</el-button>
+                </template>
+              </el-popconfirm>
+              <el-popover
+                v-if="canWrite && hasMoreActions(row)"
                 trigger="click"
                 placement="bottom-end"
                 :width="168"
@@ -375,18 +398,6 @@
                     {{ t('recordings.actions.assign') }}
                   </button>
                   <el-popconfirm
-                    v-if="isAdmin && isFinalReviewStatus(row.status)"
-                    :title="t('recordings.reopen.confirm')"
-                    width="260"
-                    @confirm="reopen(row)"
-                  >
-                    <template #reference>
-                      <button type="button" class="more-item warn" @click.stop>
-                        {{ t('recordings.actions.reopen') }}
-                      </button>
-                    </template>
-                  </el-popconfirm>
-                  <el-popconfirm
                     v-if="canWrite && reprocessInfo(row)"
                     :title="reprocessInfo(row).confirm"
                     width="260"
@@ -400,17 +411,6 @@
                         @click.stop
                       >
                         {{ reprocessInfo(row).label }}
-                      </button>
-                    </template>
-                  </el-popconfirm>
-                  <el-popconfirm
-                    v-if="canWrite"
-                    :title="t('recordings.delete.confirm')"
-                    @confirm="remove(row)"
-                  >
-                    <template #reference>
-                      <button type="button" class="more-item danger" @click.stop>
-                        {{ t('recordings.actions.delete') }}
                       </button>
                     </template>
                   </el-popconfirm>
@@ -941,6 +941,14 @@ const assignVisible = ref(false)
 const assignTarget = ref(null)
 
 /** 未认领的待复检录音可被 ADMIN / REVIEWER 认领 */
+/** 「更多」里是否还有可用操作（认领 / 指派 / 重新处理）；都不可用时不渲染更多按钮 */
+function hasMoreActions(row) {
+  if (!canWrite.value) return false
+  return Boolean(
+    canClaimRow(row) || (isAdmin.value && row.status === 'NEEDS_REVIEW') || reprocessInfo(row)
+  )
+}
+
 function canClaimRow(row) {
   return canWrite.value && row?.status === 'NEEDS_REVIEW' && !row.assignedTo
 }
