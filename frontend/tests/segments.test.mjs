@@ -5,8 +5,10 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   buildSentenceView,
+  channelKind,
   findActiveIndex,
   formatClock,
+  resolveChannelKind,
   sideOfChannel,
   splitByHits,
   splitSentences,
@@ -228,4 +230,34 @@ test('单声道：无声道信息时不进入对话布局', () => {
   assert.equal(view.dialogue, false)
   assert.equal(view.speakers.left, null)
   assert.ok(view.sentences.every((s) => s.side === null))
+})
+
+/* ---------- 声道分类（列表/详情展示用） ---------- */
+
+test('channelKind：2=双声道、1=单声道、其它=未知', () => {
+  assert.equal(channelKind(2), 'stereo')
+  assert.equal(channelKind(1), 'mono')
+  assert.equal(channelKind(0), 'unknown')
+  assert.equal(channelKind(null), 'unknown')
+  assert.equal(channelKind(undefined), 'unknown')
+  assert.equal(channelKind('2'), 'stereo')
+})
+
+test('resolveChannelKind：优先 channelCount，历史数据用分段 L/R 标记兜底', () => {
+  assert.equal(resolveChannelKind({ channelCount: 2 }, []), 'stereo')
+  assert.equal(resolveChannelKind({ channelCount: 1 }, [{ channel: 'L' }]), 'mono')
+  assert.equal(
+    resolveChannelKind({}, [
+      { channel: 'L', text: 'a' },
+      { channel: 'R', text: 'b' }
+    ]),
+    'stereo'
+  )
+  assert.equal(
+    resolveChannelKind({ channelCount: null }, [{ channel: 'left' }]),
+    'stereo',
+    '兼容 left/right 写法'
+  )
+  assert.equal(resolveChannelKind({}, []), 'unknown')
+  assert.equal(resolveChannelKind(null, null), 'unknown')
 })

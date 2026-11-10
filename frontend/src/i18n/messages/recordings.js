@@ -50,6 +50,9 @@ export default {
     'recordings.table.recording': '录音',
     'recordings.table.agentTeam': '坐席 / 团队',
     'recordings.table.callTime': '通话时间',
+    'recordings.table.channels': '声道',
+    'recordings.table.channelsStereo': '双声道',
+    'recordings.table.channelsMono': '单声道',
     'recordings.table.dfaHits': 'DFA 命中',
     'recordings.table.hitCount.one': '{count} 处',
     'recordings.table.hitCount.other': '{count} 处',
@@ -88,6 +91,9 @@ export default {
 
     // 详情抽屉
     'recordings.detail.stereo': '双声道双轨',
+    'recordings.detail.mono': '单声道',
+    'recordings.detail.stereoTip': '左右声道分别转写后按时间对齐成对话（L / R 两栏）',
+    'recordings.detail.monoTip': '单声道录音，按单路转写与展示',
     'recordings.detail.assignedTo': '指派：{name}',
     'recordings.detail.agent': '坐席：{name}',
     'recordings.detail.team': '团队：{name}',
@@ -232,6 +238,9 @@ export default {
     'recordings.table.recording': 'Recording',
     'recordings.table.agentTeam': 'Agent / Team',
     'recordings.table.callTime': 'Call time',
+    'recordings.table.channels': 'Channels',
+    'recordings.table.channelsStereo': 'Stereo',
+    'recordings.table.channelsMono': 'Mono',
     'recordings.table.dfaHits': 'DFA hits',
     'recordings.table.hitCount.one': '{count} hit',
     'recordings.table.hitCount.other': '{count} hits',
@@ -273,6 +282,10 @@ export default {
 
     // Detail drawer
     'recordings.detail.stereo': 'Stereo dual-track',
+    'recordings.detail.mono': 'Mono',
+    'recordings.detail.stereoTip':
+      'Left/right channels transcribed separately and aligned into one dialogue (L / R columns)',
+    'recordings.detail.monoTip': 'Mono recording, transcribed and shown as a single track',
     'recordings.detail.assignedTo': 'Assigned: {name}',
     'recordings.detail.agent': 'Agent: {name}',
     'recordings.detail.team': 'Team: {name}',

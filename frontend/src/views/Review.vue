@@ -157,6 +157,18 @@
                   >{{ t('review.badges.sampled') }}</span
                 >
                 <PriorityTag :priority="current.priority" />
+                <span
+                  v-if="channelKind(current.channelCount) === 'stereo'"
+                  class="chip brand"
+                  :title="t('recordings.detail.stereoTip')"
+                  >{{ t('recordings.detail.stereo') }}</span
+                >
+                <span
+                  v-else-if="channelKind(current.channelCount) === 'mono'"
+                  class="chip"
+                  :title="t('recordings.detail.monoTip')"
+                  >{{ t('recordings.detail.mono') }}</span
+                >
                 <span class="chip" :class="{ brand: current.assignedTo === auth.username }">
                   {{
                     current.assignedTo
@@ -592,6 +604,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../i18n'
 import { parseJson } from '../composables/useRecordingDetail'
+import { channelKind } from '../utils/segments.js'
 import { ElMessage } from 'element-plus'
 import { Search, Right, Close, Flag, User } from '@element-plus/icons-vue'
 import api from '../api'

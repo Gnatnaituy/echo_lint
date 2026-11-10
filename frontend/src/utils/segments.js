@@ -63,6 +63,27 @@ function normalizeSegments(segments) {
     }))
 }
 
+/** 声道数 → 展示分类：2=双声道双轨，1=单声道，缺失/非法=未知（历史数据） */
+export function channelKind(channelCount) {
+  const n = Number(channelCount)
+  if (n === 2) return 'stereo'
+  if (n === 1) return 'mono'
+  return 'unknown'
+}
+
+/**
+ * 录音声道分类：优先用后端持久化的 channelCount；
+ * 历史数据没有该字段时，用分段里的 L/R 声道标记兜底推断为双声道。
+ */
+export function resolveChannelKind(record, segments) {
+  const fromCount = channelKind(record?.channelCount)
+  if (fromCount !== 'unknown') return fromCount
+  if (Array.isArray(segments) && segments.some((s) => sideOfChannel(s?.channel) != null)) {
+    return 'stereo'
+  }
+  return 'unknown'
+}
+
 /** 声道 → 左右栏；无声道信息时返回 null（兼容 L/R、LEFT/RIGHT、1/2 写法） */
 export function sideOfChannel(channel) {
   const c = typeof channel === 'string' ? channel.trim().toUpperCase() : ''

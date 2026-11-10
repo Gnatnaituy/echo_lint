@@ -187,6 +187,18 @@
           </template>
         </el-table-column>
 
+        <el-table-column :label="t('recordings.table.channels')" width="88" align="center">
+          <template #default="{ row }">
+            <span v-if="channelKind(row.channelCount) === 'stereo'" class="chip brand">
+              {{ t('recordings.table.channelsStereo') }}
+            </span>
+            <span v-else-if="channelKind(row.channelCount) === 'mono'" class="chip">
+              {{ t('recordings.table.channelsMono') }}
+            </span>
+            <span v-else class="dim">—</span>
+          </template>
+        </el-table-column>
+
         <el-table-column
           :label="t('recordings.table.dfaHits')"
           width="108"
@@ -424,9 +436,18 @@
                   <span class="chip">{{ formatDuration(detail.durationSeconds) }}</span>
                   <span class="chip">{{ formatSize(detail.fileSize) }}</span>
                   <span v-if="detail.language" class="chip">{{ detail.language }}</span>
-                  <span v-if="detail.channelCount === 2" class="chip brand">{{
-                    t('recordings.detail.stereo')
-                  }}</span>
+                  <span
+                    v-if="detailChannelKind === 'stereo'"
+                    class="chip brand"
+                    :title="t('recordings.detail.stereoTip')"
+                    >{{ t('recordings.detail.stereo') }}</span
+                  >
+                  <span
+                    v-else-if="detailChannelKind === 'mono'"
+                    class="chip"
+                    :title="t('recordings.detail.monoTip')"
+                    >{{ t('recordings.detail.mono') }}</span
+                  >
                   <span
                     v-if="isSampled(detail)"
                     class="chip warn"
@@ -761,6 +782,7 @@ import StatusTag from '../components/StatusTag.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../i18n'
 import { dateShortcuts as buildDateShortcuts, toDateParam } from '../utils/dateRange'
+import { channelKind, resolveChannelKind } from '../utils/segments.js'
 import {
   UPLOAD_STATUS,
   UPLOAD_STATUS_LABEL,
@@ -869,6 +891,18 @@ const aiInvocations = ref([])
 const canWrite = computed(() => auth.hasRole('ADMIN', 'REVIEWER'))
 const isAdmin = computed(() => auth.hasRole('ADMIN'))
 const detailProgress = computed(() => reviewProgress(detail.value))
+/** 详情声道分类：优先用持久化的 channelCount，历史数据用分段 L/R 标记兜底 */
+const detailChannelKind = computed(() =>
+  resolveChannelKind(detail.value, parseSegments(detail.value?.segmentsJson))
+)
+function parseSegments(raw) {
+  try {
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 const assignVisible = ref(false)
 const assignTarget = ref(null)
 
