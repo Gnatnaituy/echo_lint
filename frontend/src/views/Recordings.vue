@@ -103,7 +103,7 @@
           <p class="hint-line">
             {{ t('recordings.hint.pipelinePrefix')
             }}<span class="accent">{{ t('recordings.hint.pipelineAccent') }}</span
-            >{{ t('recordings.hint.pipelineSuffix') }}
+            >{{ t('recordings.hint.pipelineSuffix', { maxMb: MAX_UPLOAD_MB }) }}
           </p>
           <p class="hint-line">
             {{ t('recordings.hint.stuckPrefix')
@@ -621,7 +621,7 @@
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                {{ t('recordings.upload.tip') }}
+                {{ t('recordings.upload.tip', { maxMb: MAX_UPLOAD_MB }) }}
               </div>
             </template>
           </el-upload>
@@ -846,6 +846,7 @@ const directionFilter = ref('')
 const uploadMaxMb = Number(import.meta.env.VITE_UPLOAD_MAX_MB)
 const MAX_UPLOAD_BYTES =
   (Number.isFinite(uploadMaxMb) && uploadMaxMb > 0 ? uploadMaxMb : 200) * 1024 * 1024
+const MAX_UPLOAD_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)
 const uploadVisible = ref(false)
 const uploading = ref(false)
 const uploadRef = ref(null)
@@ -1174,7 +1175,7 @@ function uploadProgressStatus(item) {
 
 /**
  * el-upload 文件列表变化：以 el-upload 的 uid 为稳定 key 同步队列，
- * 保留已有文件的上传状态与进度；超过 25MB 的文件直接标记失败并跳过上传。
+ * 保留已有文件的上传状态与进度；超过上传上限（默认 200MB）的文件直接标记失败并跳过上传。
  */
 function syncUploadQueue(fileList) {
   const previous = new Map(uploadQueue.value.map((item) => [item.uid, item]))
@@ -1197,7 +1198,7 @@ function syncUploadQueue(fileList) {
       size: Number(raw?.size) || 0,
       progress: 0,
       status: tooLarge ? UPLOAD_STATUS.ERROR : UPLOAD_STATUS.PENDING,
-      error: tooLarge ? t('recordings.upload.tooLarge') : ''
+      error: tooLarge ? t('recordings.upload.tooLarge', { maxMb: MAX_UPLOAD_MB }) : ''
     }
   })
 }
@@ -1213,6 +1214,47 @@ function onUploadFileRemove(_file, fileList) {
 /** 超过 20 个文件：提示而不是清空已选队列 */
 function onUploadExceed() {
   ElMessage.warning(t('recordings.upload.tooMany'))
+}
+
+/**
+ * 单文件上传：网络层失败（请求未到达服务器，如网络抖动 / 代理中断）自动重试一次；
+ * 有 HTTP 响应的错误（4xx/5xx）不重试，直接展示原因，避免重复提交。
+ */
+async function uploadOnceWithRetry(item) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      // silent：失败统一由页面汇总提示（api.upload 支持 silent 后不再逐文件弹全局错误）
+      return await api.upload(item.file, uploadForm.value, {
+        silent: true,
+        onUploadProgress: (event) => {
+          uploadQueue.value = updateQueueItem(uploadQueue.value, item.uid, {
+            progress: progressFromEvent(event)
+          })
+        }
+      })
+    } catch (error) {
+      if (attempt === 0 && !error?.response) {
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        continue
+      }
+      throw error
+    }
+  }
+}
+
+/** 上传失败原因：优先用后端返回的 message；网络层失败（无响应）给出可操作提示 */
+function describeUploadError(error) {
+  const status = error?.response?.status
+  if (status) {
+    const message = error?.response?.data?.message
+    return message
+      ? t('recordings.upload.httpError', { status }) + '：' + message
+      : t('recordings.upload.httpError', { status })
+  }
+  if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+    return t('recordings.upload.timeoutError')
+  }
+  return t('recordings.upload.networkError')
 }
 
 /** 取消剩余：正在上传的当前文件会继续完成，未开始的标记为已取消 */
@@ -1240,7 +1282,9 @@ async function submitUpload() {
       (item) => item.status === UPLOAD_STATUS.ERROR && item.size > MAX_UPLOAD_BYTES
     )
     ElMessage.warning(
-      hasOversized ? t('recordings.upload.noUploadable') : t('recordings.upload.batchDone')
+      hasOversized
+        ? t('recordings.upload.noUploadable', { maxMb: MAX_UPLOAD_MB })
+        : t('recordings.upload.batchDone')
     )
     return
   }
@@ -1264,15 +1308,7 @@ async function submitUpload() {
         error: ''
       })
       try {
-        // silent：失败统一由页面汇总提示（api.upload 支持 silent 后不再逐文件弹全局错误）
-        const result = await api.upload(current.file, uploadForm.value, {
-          silent: true,
-          onUploadProgress: (event) => {
-            uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
-              progress: progressFromEvent(event)
-            })
-          }
-        })
+        const result = await uploadOnceWithRetry(current)
         uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
           status: UPLOAD_STATUS.SUCCESS,
           progress: 100,
@@ -1282,7 +1318,7 @@ async function submitUpload() {
       } catch (e) {
         uploadQueue.value = updateQueueItem(uploadQueue.value, queued.uid, {
           status: UPLOAD_STATUS.ERROR,
-          error: e?.message || t('recordings.upload.failed')
+          error: describeUploadError(e)
         })
         failed += 1
       }

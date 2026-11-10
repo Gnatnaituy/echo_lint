@@ -38,7 +38,7 @@ export default {
     'recordings.hint.pipelinePrefix':
       '上传时可填写坐席、团队、通话时间、方向与业务线，列表与报表可按这些维度筛选；上传后自动执行 Whisper 转写 → DFA 初筛 → AI 语义复筛，初筛与复筛',
     'recordings.hint.pipelineAccent': '均判定违规',
-    'recordings.hint.pipelineSuffix': '的录音进入人工复检。单文件 ≤ 25MB。',
+    'recordings.hint.pipelineSuffix': '的录音进入人工复检。单文件 ≤ {maxMb}MB。',
     'recordings.hint.stuckPrefix':
       '若录音卡在「待处理 / 处理中」超过 2 分钟（例如上传后服务重启导致流水线丢失），可用行内',
     'recordings.hint.stuckAccent': '推进处理 / 重新处理',
@@ -147,7 +147,7 @@ export default {
     'recordings.upload.dropPrefix': '拖拽音频到此处，或 ',
     'recordings.upload.dropAccent': '点击选择',
     'recordings.upload.tip':
-      '支持多选（最多 20 个），单文件 ≤ 25MB；按选择顺序逐个上传，元数据应用到本批全部文件',
+      '支持多选（最多 20 个），单文件 ≤ {maxMb}MB；按选择顺序逐个上传，元数据应用到本批全部文件',
     'recordings.upload.agentPlaceholder': '如 张三 / 工号 A1024',
     'recordings.upload.teamPlaceholder': '如 客服一组',
     'recordings.upload.callTimePlaceholder': '选择通话时间',
@@ -169,10 +169,13 @@ export default {
     'recordings.upload.tooMany': '一次最多上传 20 个文件，请分批上传',
     'recordings.upload.canceledRemaining': '已取消剩余文件（当前文件仍会上传完成）',
     'recordings.upload.noFilesSelected': '请选择要上传的音频文件',
-    'recordings.upload.noUploadable': '没有可上传的文件：请移除超过 25MB 的文件后重试',
+    'recordings.upload.noUploadable': '没有可上传的文件：请移除超过 {maxMb}MB 的文件后重试',
     'recordings.upload.batchDone': '本批已全部处理完成，可关闭窗口或重新选择文件',
     'recordings.upload.failed': '上传失败',
-    'recordings.upload.tooLarge': '超过 25MB（Whisper 单文件上限）',
+    'recordings.upload.httpError': '服务器返回 HTTP {status}',
+    'recordings.upload.networkError': '网络错误：上传请求未到达服务器，请检查网络或代理后重试',
+    'recordings.upload.timeoutError': '上传超时，请检查网络后重试',
+    'recordings.upload.tooLarge': '超过 {maxMb}MB 单文件上限',
     'recordings.upload.unknownFile': '未知文件',
 
     // 操作反馈
@@ -216,7 +219,7 @@ export default {
     'recordings.hint.pipelinePrefix':
       'You can add agent, team, call time, direction and business line when uploading, and filter the list and reports by these dimensions. After upload the system runs Whisper transcription → DFA screening → AI semantic screening automatically. Recordings flagged by ',
     'recordings.hint.pipelineAccent': 'both screening stages',
-    'recordings.hint.pipelineSuffix': ' are sent to manual review. Max 25 MB per file.',
+    'recordings.hint.pipelineSuffix': ' are sent to manual review. Max {maxMb} MB per file.',
     'recordings.hint.stuckPrefix':
       'If a recording stays in "Pending / Processing" for over 2 minutes (for example, its pipeline was lost after a service restart), use the inline ',
     'recordings.hint.stuckAccent': 'Advance processing / Reprocess',
@@ -329,7 +332,7 @@ export default {
     'recordings.upload.dropPrefix': 'Drag audio files here, or ',
     'recordings.upload.dropAccent': 'click to select',
     'recordings.upload.tip':
-      'Multiple files supported (up to 20), max 25 MB each. Files upload one by one in selection order; metadata applies to the whole batch.',
+      'Multiple files supported (up to 20), max {maxMb} MB each. Files upload one by one in selection order; metadata applies to the whole batch.',
     'recordings.upload.agentPlaceholder': 'e.g. Alex Chen / ID A1024',
     'recordings.upload.teamPlaceholder': 'e.g. Support Team 1',
     'recordings.upload.callTimePlaceholder': 'Select call time',
@@ -355,10 +358,15 @@ export default {
     'recordings.upload.canceledRemaining':
       'Remaining files canceled (the current file will finish uploading)',
     'recordings.upload.noFilesSelected': 'Select audio files to upload',
-    'recordings.upload.noUploadable': 'No uploadable files. Remove files over 25 MB and try again.',
+    'recordings.upload.noUploadable':
+      'No uploadable files. Remove files over {maxMb} MB and try again.',
     'recordings.upload.batchDone': 'This batch is finished. Close the dialog or select new files.',
     'recordings.upload.failed': 'Upload failed',
-    'recordings.upload.tooLarge': 'Exceeds 25 MB (Whisper per-file limit)',
+    'recordings.upload.httpError': 'Server returned HTTP {status}',
+    'recordings.upload.networkError':
+      'Network error: the upload did not reach the server. Check your network or proxy and retry.',
+    'recordings.upload.timeoutError': 'Upload timed out. Check your network and retry.',
+    'recordings.upload.tooLarge': 'Exceeds {maxMb} MB per-file limit',
     'recordings.upload.unknownFile': 'Unknown file',
 
     // Action feedback
