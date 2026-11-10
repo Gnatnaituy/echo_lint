@@ -305,7 +305,7 @@ export default {
     'settings.asr.dashscope.modelHint': '可下拉选择，也可直接输入候选之外的模型名',
     'settings.asr.dashscope.baseUrl': '服务地址',
     'settings.asr.dashscope.baseUrlHint':
-      '默认 https://dashscope.aliyuncs.com；也可填业务空间域名 https://{workspace}.cn-beijing.maas.aliyuncs.com（路径不变）',
+      '默认 https://dashscope.aliyuncs.com；业务空间域名填 https://{workspace}.cn-beijing.maas.aliyuncs.com（只填域名根，不要带 /api/v1，保存时自动去掉）',
     'settings.asr.dashscope.languageHints': '语言提示',
     'settings.asr.dashscope.languageHintsHint': '逗号分隔的语言代码，如 zh 或 zh,en；默认 zh',
     'settings.asr.dashscope.timeout': '转写超时（秒）',
@@ -717,7 +717,7 @@ export default {
     'settings.asr.dashscope.modelHint': 'Pick from the list or type a model that is not listed',
     'settings.asr.dashscope.baseUrl': 'Service URL',
     'settings.asr.dashscope.baseUrlHint':
-      'Defaults to https://dashscope.aliyuncs.com; a workspace domain https://{workspace}.cn-beijing.maas.aliyuncs.com also works (same paths)',
+      'Defaults to https://dashscope.aliyuncs.com; for a workspace use https://{workspace}.cn-beijing.maas.aliyuncs.com (host root only, no /api/v1 — it is stripped on save)',
     'settings.asr.dashscope.languageHints': 'Language hints',
     'settings.asr.dashscope.languageHintsHint':
       'Comma-separated language codes such as zh or zh,en; defaults to zh',

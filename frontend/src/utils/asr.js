@@ -36,6 +36,25 @@ export const ASR_DASHSCOPE_MODELS = [
 ]
 
 /**
+ * 百炼服务地址归一化：API 根固定是域名根，容忍用户粘贴文档里的完整地址
+ * （带 /api/v1 甚至具体接口路径），统一收敛为 scheme://host，避免拼成 /api/v1/api/v1/... 返回 404。
+ * 本地 whisper.cpp 地址不处理（允许带自定义路径前缀）；后端保存时同样会归一化。
+ */
+export function normalizeAsrBaseUrl(value) {
+  const text = toText(value).trim()
+  if (!text) return text
+  try {
+    const url = new URL(text)
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return `${url.protocol}//${url.host}`
+    }
+  } catch {
+    // 非标准 URL（如手滑缺 scheme）：退化为字符串规整
+  }
+  return text.replace(/\/+$/, '').replace(/\/api\/v1$/i, '')
+}
+
+/**
  * provider 宽松解析：大小写不敏感（PUT 允许 "DASHSCOPE"）。
  * 未知 / 空值返回 ''，由调用方决定回退（不把非法值当成 local）。
  */
@@ -169,6 +188,9 @@ export function buildAsrUpdatePayload({ activeProvider, timeoutSeconds, local, d
   }
   if (dashscope && typeof dashscope === 'object' && !Array.isArray(dashscope)) {
     const dashPayload = asrConfigPayload(dashscope, DASHSCOPE_TEXT_FIELDS)
+    if (dashPayload.baseUrl !== undefined) {
+      dashPayload.baseUrl = normalizeAsrBaseUrl(dashPayload.baseUrl)
+    }
     if (Object.keys(dashPayload).length) payload.dashscope = dashPayload
   }
   return payload

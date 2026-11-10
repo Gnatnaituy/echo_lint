@@ -73,7 +73,7 @@ docker compose up -d --build
 | `APP_SECRET_KEY` | dev fallback | 密钥加密主密钥，生产必须配置且不可变更 |
 | `APP_ADMIN_USERNAME` / `APP_ADMIN_PASSWORD` | `admin` / `admin12345` | 引导管理员，生产必须覆盖 |
 | `WHISPER_BASE_URL` / `WHISPER_MODEL` | `127.0.0.1:9900` / `whisper-1` | 本地 whisper.cpp 地址（容器内用 `host.docker.internal`） |
-| `DASHSCOPE_ASR_*` | `https://dashscope.aliyuncs.com` / `qwen-audio-3.1-asr-flash-filetrans` / `zh` | 百炼录音识别 base-url / 模型 / 语言提示（base-url 是 API 根，非 compatible-mode） |
+| `DASHSCOPE_ASR_*` | `https://dashscope.aliyuncs.com` / `qwen-audio-3.1-asr-flash-filetrans` / `zh` | 百炼录音识别 base-url / 模型 / 语言提示（base-url 是 API 根域名，非 compatible-mode；带 `/api/v1` 会自动归一化） |
 | `ASR_TIMEOUT_SECONDS` | `600` | 单次转写总预算（本地 / 云端统一，30–1800） |
 | `APP_RAG_ENABLED` | `false` | RAG 总开关（需先在设置页配置 embedding 供应商） |
 | `APP_NOTIFY_ENABLED` / `APP_STEREO_ENABLED` / `APP_REVIEW_REQUIRED_APPROVALS` | `false` / `true` / `1` | 通知、双声道、落结论所需复核人数 |

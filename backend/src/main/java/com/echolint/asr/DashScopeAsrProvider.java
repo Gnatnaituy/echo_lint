@@ -577,7 +577,7 @@ public class DashScopeAsrProvider implements AsrProvider {
     /** HTTP 错误体（DashScope 原生 JSON 错误）：只回 code/message/request_id，不拼接原始响应体 */
     String describeErrorBody(String body) {
         if (!StringUtils.hasText(body)) {
-            return "响应为空";
+            return "响应为空（若为 HTTP 404，请检查服务地址：业务空间域名只填到域名根，不要带 /api/v1）";
         }
         try {
             return describeError(objectMapper.readTree(body));

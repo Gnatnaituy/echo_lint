@@ -4,6 +4,7 @@ import com.echolint.config.SecretCipher;
 import com.echolint.entity.AppSetting;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AppSettingRepository;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -280,9 +281,10 @@ public class AsrSettingsService {
 
     private AsrProvider.Config dashscopeSettings() {
         String baseUrl =
-                firstText(
-                        read(KEY_DASHSCOPE_BASE_URL).orElse(null),
-                        properties.getDashscope().getBaseUrl());
+                normalizeDashScopeBaseUrl(
+                        firstText(
+                                read(KEY_DASHSCOPE_BASE_URL).orElse(null),
+                                properties.getDashscope().getBaseUrl()));
         String model =
                 firstText(
                         read(KEY_DASHSCOPE_MODEL).orElse(null),
@@ -413,10 +415,33 @@ public class AsrSettingsService {
             return null;
         }
         return new DashScopeValues(
-                validateBaseUrl(input.baseUrl(), "百炼服务地址"),
+                normalizeDashScopeBaseUrl(validateBaseUrl(input.baseUrl(), "百炼服务地址")),
                 validateOptionalText(input.model(), "百炼模型名", MAX_MODEL_LENGTH),
                 validateOptionalText(input.languageHints(), "语言提示", MAX_LANGUAGE_HINTS_LENGTH),
                 validateApiKey(input.apiKey()));
+    }
+
+    /**
+     * 百炼 API 根固定是域名根（{@code https://{workspace}.cn-beijing.maas.aliyuncs.com}）。
+     *
+     * <p>用户容易把文档示例里的完整地址（带 {@code /api/v1} 甚至具体接口路径）粘贴进来，若原样拼接 会请求成 {@code /api/v1/api/v1/...} 返回
+     * 404（2026-11-10 线上实测问题）。这里统一收敛为 {@code scheme://authority}；非标准 URL 只做去尾斜杠与 {@code /api/v1}
+     * 后缀的字符串规整。
+     */
+    static String normalizeDashScopeBaseUrl(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return raw;
+        }
+        String value = raw.trim();
+        try {
+            URI uri = URI.create(value);
+            if (StringUtils.hasText(uri.getScheme()) && StringUtils.hasText(uri.getAuthority())) {
+                return uri.getScheme() + "://" + uri.getAuthority();
+            }
+        } catch (IllegalArgumentException e) {
+            log.debug("百炼服务地址无法按 URL 解析，改为字符串规整：{}", value);
+        }
+        return value.replaceAll("/+$", "").replaceAll("(?i)/api/v1$", "");
     }
 
     /** null=不修改；空串=落库空白（读取时回退 env 默认）；非空=校验后保存 */

@@ -29,6 +29,7 @@ import {
   buildAsrUpdatePayload,
   isAsrProvider,
   normalizeAsrProvider,
+  normalizeAsrBaseUrl,
   normalizeAsrSettings,
   normalizeAsrTest,
   normalizeAsrTimeout
@@ -289,6 +290,36 @@ test('PUT 请求体：超时收敛、空 payload 不产生嵌套空对象', () =
   assert.deepEqual(buildAsrUpdatePayload({ local: {}, dashscope: {} }), {})
   assert.deepEqual(buildAsrUpdatePayload(), {})
   assert.deepEqual(buildAsrUpdatePayload({ local: 'oops', dashscope: [] }), {})
+})
+
+test('PUT 请求体：百炼服务地址归一化为域名根（兼容粘贴完整接口地址）', () => {
+  assert.equal(
+    buildAsrUpdatePayload({
+      dashscope: { baseUrl: 'https://llm-abc.cn-beijing.maas.aliyuncs.com/api/v1' }
+    }).dashscope.baseUrl,
+    'https://llm-abc.cn-beijing.maas.aliyuncs.com'
+  )
+  assert.equal(
+    buildAsrUpdatePayload({
+      dashscope: {
+        baseUrl:
+          ' https://llm-abc.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/asr/transcription '
+      }
+    }).dashscope.baseUrl,
+    'https://llm-abc.cn-beijing.maas.aliyuncs.com'
+  )
+  assert.equal(
+    buildAsrUpdatePayload({ dashscope: { baseUrl: 'https://dashscope.aliyuncs.com/' } }).dashscope
+      .baseUrl,
+    'https://dashscope.aliyuncs.com'
+  )
+  // 本地 whisper 地址不做归一化，允许自定义路径前缀
+  assert.equal(
+    buildAsrUpdatePayload({ local: { baseUrl: 'http://gw.local:9900/whisper/' } }).local.baseUrl,
+    'http://gw.local:9900/whisper/'
+  )
+  assert.equal(normalizeAsrBaseUrl(''), '')
+  assert.equal(normalizeAsrBaseUrl('https://x.example.com/api/v1'), 'https://x.example.com')
 })
 
 test('PUT 请求体：百炼配置字段完整（含语言提示与超时）', () => {

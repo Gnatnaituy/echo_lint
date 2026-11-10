@@ -197,3 +197,13 @@
 | 接口验证 | `GET /api/settings/asr` 字段仅 `activeProvider/timeoutSeconds/local/dashscope`，两 provider 均 `ready=true`、只回掩码（`****ocal` / `****LOOY`），不含 `apiKeySource/envHints`；两家 `/test` 均 ok |
 | 端到端 | 百炼 9s demo → `COMPLIANT`、2 段、耗时 3.6s；`/settings/*` 深链 200，新入口 JS `assets/index-CcUZ47MT.js` 可访问，合并卡片与「API Key 只存数据库」文案已进入产物 |
 | 说明 | `.env` 中的密钥类变量此后可删除（不会回退到 env）；修改密钥只能在系统设置页操作（加密落库、界面只显示掩码） |
+
+### 2026-11-10 20:00–20:10 业务空间域名路径导致转写连通失败（排查与修复）
+
+| 项 | 值 |
+|---|---|
+| 现象 | 设置页「测试连接」报 `调用异常: recvAddress(..) failed with error(-104): Connection reset by peer`，随后报 `HTTP 404: 响应为空`；正式转写不受影响（仍是旧地址） |
+| 排查 | ① 后端日志确认到 `dashscope.aliyuncs.com:443` 连接被重置（瞬时网络层，重试即恢复）；② 用户把业务空间完整地址 `https://{workspace}.cn-beijing.maas.aliyuncs.com/api/v1` 填进了「服务地址」。后端会再拼 `/api/v1/uploads`，实际请求成 `/api/v1/api/v1/uploads` → 404 空响应。宿主机/容器直连该工作区域名均正常（无 key 返回 401），排除网络与域名问题 |
+| 立即修复 | 通过设置接口把 `asr.dashscope.base-url` 修正为 `https://llm-….cn-beijing.maas.aliyuncs.com`（域名根）→ 测试连接 2/2 成功（~73ms），真实转写 18s demo → 4 段、耗时 4.1s |
+| 代码加固 | 后端 `AsrSettingsService.normalizeDashScopeBaseUrl()`：保存与读取时把百炼 base-url 统一收敛为 `scheme://authority`（兼容历史库中的完整接口地址）；空响应错误提示补充「若为 HTTP 404，请检查服务地址是否为域名根、不要带 /api/v1」；前端提交前同样归一化 + 提示文案更正。新增单测：归一化 3 种输入 + 404 空响应提示 |
+| 验证 | 后端 737 tests、前端 209 tests 全绿；部署后 PUT 带 `/api/v1` → GET 返回域名根；测试连接 + 端到端转写均正常 |

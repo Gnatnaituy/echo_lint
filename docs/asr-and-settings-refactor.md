@@ -327,6 +327,8 @@ dashscope 用 `GET {baseUrl}/api/v1/uploads?action=getPolicy&model={model}`（�
 - **密钥解析只读 DB**。启动时若 DB 中该 provider 的密钥缺失、而环境变量有值（`WHISPER_API_KEY` / `DASHSCOPE_API_KEY`），
   则加密写入 DB 并记录日志（一次性 bootstrap），此后不再读环境变量。
 - 未配置密钥 → `ready=false`，切换时给「请在设置页录入 API Key」的提示（不再提示 env 变量名）。
+- `dashscope.baseUrl` 允许粘贴文档里的完整接口地址（带 `/api/v1` 甚至具体路径）：后端保存与读取时统一归一化为
+  `scheme://authority`，避免拼成 `/api/v1/api/v1/...` 返回 404（2026-11-10 线上实测问题）；业务空间域名只填到域名根。
 - `base-url / model / language-hints / timeout` 仍允许 env 作为默认值（非密钥，不敏感）。
 - AI 复筛供应商：密钥本来就在 DB（启动 seed 时加密落库），本次仅确认 `ProviderView.apiKeyEnv` 不再被前端展示；
   提供内置供应商密钥的录入入口使用既有 `PUT /api/settings/providers/{key}`。

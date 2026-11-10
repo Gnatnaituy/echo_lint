@@ -327,6 +327,32 @@ class AsrSettingsServiceTest {
     }
 
     @Test
+    void dashscopeBaseUrlIsNormalizedToHostRoot() {
+        AsrSettingsService.View view =
+                service.update(
+                        new AsrSettingsService.UpdateRequest(
+                                null,
+                                null,
+                                null,
+                                new AsrSettingsService.DashScopeInput(
+                                        "https://llm-abc.cn-beijing.maas.aliyuncs.com/api/v1/",
+                                        null,
+                                        null,
+                                        null)));
+
+        assertEquals("https://llm-abc.cn-beijing.maas.aliyuncs.com", view.dashscope().baseUrl());
+        assertEquals(
+                "https://llm-abc.cn-beijing.maas.aliyuncs.com",
+                storedValue(AsrSettingsService.KEY_DASHSCOPE_BASE_URL));
+
+        // 历史落库的完整接口地址也会在读取时归一化（避免 /api/v1/api/v1 拼接）
+        seed(
+                AsrSettingsService.KEY_DASHSCOPE_BASE_URL,
+                "https://legacy.example.com/api/v1/services/audio/asr/transcription");
+        assertEquals("https://legacy.example.com", service.view().dashscope().baseUrl());
+    }
+
+    @Test
     void blankBaseUrlResetsToEnvDefault() {
         seed(AsrSettingsService.KEY_LOCAL_BASE_URL, "http://db-host:9900");
 

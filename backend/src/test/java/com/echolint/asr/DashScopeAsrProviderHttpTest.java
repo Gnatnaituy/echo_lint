@@ -162,6 +162,22 @@ class DashScopeAsrProviderHttpTest {
         assertFalse(message.contains("SECRET_SIGNATURE_VALUE"), message);
     }
 
+    @Test
+    void policy404EmptyBodyHintsAtApiRoot() throws Exception {
+        HttpServer server = startServer();
+        json(server, "/api/v1/uploads", "", 404);
+        server.start();
+
+        BizException error =
+                assertThrows(
+                        BizException.class,
+                        () -> provider.transcribe(config(server, 30), audioFile));
+        String message = error.getMessage();
+
+        assertTrue(message.contains("HTTP 404"), message);
+        assertTrue(message.contains("域名根") || message.contains("/api/v1"), message);
+    }
+
     // ---------------------------------------------------------------- 假服务组装
 
     private HttpServer startServer() throws IOException {
