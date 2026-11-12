@@ -426,9 +426,12 @@ for idx, sc in enumerate(SCENARIOS):
 
     # ai invocation
     if ai and sc["status"] not in ("PENDING", "FAILED"):
+        # 提示词用完整转写文本：演示库的留痕要与真实调用同形，截断的 prompt
+        # 会让「AI 对话记录」看起来像展示层省略（审计时无法复原喂给模型的内容）
         req = {"model": "deepseek-flash", "messages": [
             {"role": "system", "content": "你是呼叫中心录音的合规审查助手……"},
-            {"role": "user", "content": "待审核转写文本（节选）：" + transcript[:80] + "……"}]}
+            {"role": "user", "content": "待审核转写文本：" + transcript}]}
+        req_json = js(req)
         resp = {"violation": ai["violation"], "violation_type": ai["violationType"],
                 "reason": ai["reason"], "confidence": ai["confidence"],
                 "target_sentence": ai["targetSentence"]}
@@ -439,7 +442,7 @@ for idx, sc in enumerate(SCENARIOS):
             "INSERT INTO ai_invocations (recording_id,stage,provider_id,provider_label,model,endpoint,request_json,response_json,"
             "success,error_message,latency_ms,request_chars,response_chars,degraded,created_at,input_tokens,output_tokens,cost_micros) VALUES ("
             f"{sid},'SCREEN','deepseek','DeepSeek','deepseek-flash','https://api.deepseek.com/chat/completions',"
-            f"{js(req)},{js(resp)},TRUE,NULL,{1200 + idx * 130},300,240,FALSE,"
+            f"{req_json},{js(resp)},TRUE,NULL,{1200 + idx * 130},{len(req_json)},{len(js(resp))},FALSE,"
             f"{after(upload, 5 + idx)},{in_tok},{out_tok},{cost});")
 
     # task
