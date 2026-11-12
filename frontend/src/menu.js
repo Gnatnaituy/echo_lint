@@ -14,8 +14,8 @@ export const MENU_GROUPS = [
     items: [
       { key: 'DASHBOARD', path: '/', labelKey: 'nav.dashboard' },
       { key: 'RECORDINGS', path: '/recordings', labelKey: 'nav.recordings' },
-      { key: 'REPORTS', path: '/reports', labelKey: 'nav.reports' },
       { key: 'REVIEW', path: '/review', labelKey: 'nav.review', badge: true },
+      { key: 'REPORTS', path: '/reports', labelKey: 'nav.reports' },
       // 全屏页（不渲染侧栏/页头）：不作为登录落地页的默认目标
       { key: 'SCREEN', path: '/screen', labelKey: 'nav.screen', fullscreen: true }
     ]

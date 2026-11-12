@@ -18,8 +18,8 @@ import java.util.Set;
 public enum MenuKey {
     DASHBOARD("/", false),
     RECORDINGS("/recordings", false),
-    REPORTS("/reports", false),
     REVIEW("/review", false),
+    REPORTS("/reports", false),
     SCREEN("/screen", false),
     DICTIONARY("/dictionary", false),
     CORPUS("/corpus", false),

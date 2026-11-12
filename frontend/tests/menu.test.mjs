@@ -31,8 +31,8 @@ test('菜单目录：key 顺序与后端 MenuKey 枚举一致，key / path 全�
   assert.deepEqual(MENU_KEYS, [
     'DASHBOARD',
     'RECORDINGS',
-    'REPORTS',
     'REVIEW',
+    'REPORTS',
     'SCREEN',
     'DICTIONARY',
     'CORPUS',
