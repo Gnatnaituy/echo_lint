@@ -126,7 +126,7 @@
         scrollbar-always-on
         @row-click="openDetail"
       >
-        <el-table-column :label="t('recordings.table.recording')" min-width="188">
+        <el-table-column :label="t('recordings.table.recording')" min-width="176">
           <template #default="{ row }">
             <div class="file-cell">
               <div
@@ -151,7 +151,7 @@
 
         <el-table-column
           :label="t('recordings.table.agentTeam')"
-          width="100"
+          width="88"
           class-name="col-tight"
           label-class-name="col-tight"
         >
@@ -175,7 +175,7 @@
 
         <el-table-column
           :label="t('recordings.table.direction')"
-          width="88"
+          width="64"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -193,7 +193,7 @@
 
         <el-table-column
           :label="t('recordings.table.callTime')"
-          width="180"
+          width="164"
           class-name="col-tight"
           label-class-name="col-tight"
         >
@@ -207,7 +207,7 @@
 
         <el-table-column
           :label="t('recordings.table.duration')"
-          width="92"
+          width="86"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -222,7 +222,7 @@
 
         <el-table-column
           :label="t('recordings.table.channels')"
-          width="96"
+          width="80"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -240,7 +240,7 @@
 
         <el-table-column
           :label="t('recordings.table.dfaHits')"
-          width="108"
+          width="84"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -256,7 +256,7 @@
 
         <el-table-column
           :label="t('recordings.table.aiVerdict')"
-          width="136"
+          width="100"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -283,7 +283,7 @@
         <el-table-column
           v-if="!compactColumns"
           :label="t('recordings.table.priority')"
-          width="104"
+          width="80"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -296,7 +296,7 @@
         <el-table-column
           v-if="!narrowColumns"
           :label="t('recordings.table.assignee')"
-          width="104"
+          width="76"
           align="center"
           class-name="col-tight"
           label-class-name="col-tight"
@@ -315,7 +315,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.statusReviewer')" width="152" align="center">
+        <el-table-column :label="t('recordings.table.statusReviewer')" width="120" align="center">
           <template #default="{ row }">
             <div class="status-cell">
               <div class="status-line">
@@ -341,7 +341,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('common.actions')" width="244" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="150" align="right" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button class="op-link" link type="primary" @click.stop="openDetail(row)">{{
