@@ -25,7 +25,9 @@
       <!-- 双声道对话图例：左右两位说话人 + 对话样式提示 -->
       <div v-if="dialogueMode" class="channel-legend">
         <div class="speaker-pill left">
-          <span class="avatar left" aria-hidden="true">L</span>
+          <span class="avatar left" aria-hidden="true">
+            <el-icon :size="15"><Headset /></el-icon>
+          </span>
           <span class="speaker-meta">
             <span class="speaker-name">{{
               view.speakers.left || t('components.transcript.channelLeft')
@@ -37,7 +39,9 @@
         </div>
         <div class="legend-divider">{{ t('components.transcript.dialogueTitle') }}</div>
         <div class="speaker-pill right">
-          <span class="avatar right" aria-hidden="true">R</span>
+          <span class="avatar right" aria-hidden="true">
+            <el-icon :size="15"><User /></el-icon>
+          </span>
           <span class="speaker-meta">
             <span class="speaker-name">{{
               view.speakers.right || t('components.transcript.channelRight')
@@ -72,9 +76,17 @@
           ]"
           @click="onSeek(s)"
         >
-          <span v-if="dialogueMode && s.side" class="avatar" :class="`side-${s.side}`">{{
-            s.channel
-          }}</span>
+          <span
+            v-if="dialogueMode && s.side"
+            class="avatar"
+            :class="`side-${s.side}`"
+            :title="speakerName(s)"
+            aria-hidden="true"
+          >
+            <el-icon :size="15">
+              <component :is="s.side === 'left' ? Headset : User" />
+            </el-icon>
+          </span>
           <span class="rail"></span>
 
           <div class="bubble">
@@ -145,7 +157,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { buildSentenceView, findActiveIndex, formatClock } from '../utils/segments'
-import { Mouse, VideoPause, VideoPlay } from './icons.js'
+import { Headset, Mouse, User, VideoPause, VideoPlay } from './icons.js'
 
 const { t } = useI18n()
 
@@ -274,6 +286,7 @@ watch(activeIndex, async (idx) => {
   flex-direction: row-reverse;
   text-align: right;
 }
+/* 说话人头像：默认头像图标（坐席=耳机 / 客户=人像），左右声道用配色区分 */
 .avatar {
   width: 30px;
   height: 30px;
@@ -282,16 +295,20 @@ watch(activeIndex, async (idx) => {
   place-items: center;
   border-radius: 50%;
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  line-height: 1;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
   transition: box-shadow 0.18s ease;
 }
-.avatar.left {
+.avatar :deep(.el-icon) {
+  display: block;
+}
+/* 图例与逐句头像共用左右配色：坐席=蓝、客户=紫（side-* 用于逐句气泡） */
+.avatar.left,
+.avatar.side-left {
   background: linear-gradient(135deg, #6b8ef9, #3b6ef6);
 }
-.avatar.right {
+.avatar.right,
+.avatar.side-right {
   background: linear-gradient(135deg, #a78bfa, #7c5cf5);
 }
 .speaker-meta {
@@ -616,7 +633,9 @@ watch(activeIndex, async (idx) => {
   .avatar {
     width: 26px;
     height: 26px;
-    font-size: 11px;
+  }
+  .avatar :deep(.el-icon) {
+    font-size: 13px;
   }
   .speaker-sub {
     display: none;
