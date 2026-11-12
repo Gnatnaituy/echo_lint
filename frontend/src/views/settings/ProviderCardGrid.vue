@@ -209,7 +209,8 @@ function onSelect(card) {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: #fff;
+  background: linear-gradient(180deg, #fff 0%, #fcfdff 100%);
+  box-shadow: var(--sh-xs);
   cursor: pointer;
   transition: all 0.18s ease;
   font: inherit;
@@ -217,12 +218,14 @@ function onSelect(card) {
 .provider-card:hover:not(:disabled) {
   border-color: var(--brand-300);
   transform: translateY(-1px);
-  box-shadow: var(--sh-xs);
+  box-shadow: var(--sh-sm);
 }
 .provider-card.on {
   border-color: var(--brand-500);
-  background: var(--brand-50);
-  box-shadow: 0 0 0 3px rgba(59, 110, 246, 0.1);
+  background: linear-gradient(180deg, #f4f7ff 0%, var(--brand-50) 100%);
+  box-shadow:
+    0 0 0 3px rgba(59, 110, 246, 0.1),
+    var(--sh-xs);
 }
 .provider-card.current::after {
   content: '';

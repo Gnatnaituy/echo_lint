@@ -385,7 +385,7 @@ watch(activeIndex, async (idx) => {
   max-width: 84%;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: #fff;
   padding: 8px 12px 9px;
   transition:

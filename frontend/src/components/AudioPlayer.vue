@@ -169,8 +169,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   height: 40px;
   padding: 0 14px 0 7px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
   background: linear-gradient(180deg, #ffffff, #f8fafd);
   box-shadow: var(--sh-xs);
 }

@@ -485,12 +485,13 @@ defineExpose({ pause, seekTo })
   border-radius: var(--r-lg);
   padding: 14px 16px;
   background: #fff;
+  box-shadow: var(--sh-xs);
   min-width: 0;
 }
 .ws-block-title {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--ink-700);
+  color: var(--ink-800);
   margin-bottom: 12px;
 }
 .block-head {
@@ -582,14 +583,21 @@ defineExpose({ pause, seekTo })
   padding: 14px 16px;
   border: 1px solid var(--border);
   background: #fbfcfe;
+  box-shadow: var(--sh-xs);
 }
 .verdict.bad {
   background: linear-gradient(180deg, #fff6f6, #fffdfd);
   border-color: #f7d0d0;
+  box-shadow:
+    inset 3px 0 0 #ef4444,
+    var(--sh-xs);
 }
 .verdict.ok {
   background: linear-gradient(180deg, #f5fbf7, #fdfefd);
   border-color: #cfe9d8;
+  box-shadow:
+    inset 3px 0 0 var(--ok),
+    var(--sh-xs);
 }
 .verdict-head {
   display: flex;
@@ -608,7 +616,7 @@ defineExpose({ pause, seekTo })
   color: #c92c2c;
 }
 .verdict.ok .verdict-badge {
-  color: #12823b;
+  color: var(--ok-ink);
 }
 .conf {
   display: inline-flex;
@@ -620,12 +628,13 @@ defineExpose({ pause, seekTo })
 }
 .conf b {
   font-size: 13px;
-  color: var(--ink-700);
+  color: var(--ink-800);
 }
 .conf-track {
-  height: 6px;
+  height: 7px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.07);
+  background: rgba(16, 26, 48, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(16, 26, 48, 0.05);
   margin: 11px 0 10px;
   overflow: hidden;
 }
@@ -636,9 +645,11 @@ defineExpose({ pause, seekTo })
 }
 .conf-fill.bad {
   background: linear-gradient(90deg, #f87171, #ef4444);
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.35);
 }
 .conf-fill.ok {
   background: linear-gradient(90deg, #4ade80, #16a34a);
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.3);
 }
 .verdict-reason {
   font-size: 12.5px;

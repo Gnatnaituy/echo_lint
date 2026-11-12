@@ -84,7 +84,7 @@ defineProps({
   flex-wrap: wrap;
 }
 .csb-label {
-  color: #64748b;
+  color: var(--ink-500);
 }
 .csb-provider {
   font-size: 15px;

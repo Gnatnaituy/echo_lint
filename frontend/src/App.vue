@@ -238,36 +238,29 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(900px 300px at 100% 0%, rgba(59, 110, 246, 0.05) 0%, rgba(59, 110, 246, 0) 62%),
-    var(--surface-sunken);
+  background: var(--surface-sunken);
 }
-/* 内容区：浅色渐变 + 内高光 + 柔和投影，做成浮在背景上的圆角画布，
-   与浅色侧栏形成同一套层次语言（白 → 淡蓝白 → 淡蓝灰）。 */
+/* 内容区：把「画布」从白色改成浅灰蓝，白卡才有对比可浮起来。
+   顶部保留一层极淡的品牌色光晕，避免大面积纯灰显得死板；
+   内高光仍在，但只作用于 1px 边缘，不再把整块背景漂白。 */
 .shell-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin: 14px 18px 18px 16px;
   padding: 22px 24px 34px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  border-radius: 18px;
+  border: 1px solid rgba(220, 227, 238, 0.9);
+  border-radius: var(--r-xl);
   background:
     radial-gradient(
-      1200px 380px at 8% -12%,
-      rgba(59, 110, 246, 0.09) 0%,
-      rgba(59, 110, 246, 0) 55%
+      1100px 340px at 6% -18%,
+      rgba(59, 110, 246, 0.06) 0%,
+      rgba(59, 110, 246, 0) 62%
     ),
-    radial-gradient(
-      900px 300px at 105% -5%,
-      rgba(107, 142, 249, 0.07) 0%,
-      rgba(107, 142, 249, 0) 60%
-    ),
-    linear-gradient(180deg, #ffffff 0%, #fbfcff 48%, #f3f7fd 100%);
+    linear-gradient(180deg, #f6f8fc 0%, #f1f4f9 100%);
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 14px 34px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(16, 26, 48, 0.03);
   outline: none;
 }
 

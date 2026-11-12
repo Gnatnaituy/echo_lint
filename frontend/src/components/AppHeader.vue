@@ -264,15 +264,15 @@ async function submitPassword() {
 
 <style scoped>
 .topbar {
-  height: 58px;
+  height: 56px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 22px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: saturate(1.4) blur(8px);
+  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(1.2) blur(6px);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -334,7 +334,7 @@ async function submitPassword() {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 12.5px;
   min-width: 0;
   white-space: nowrap;
 }
@@ -347,9 +347,10 @@ async function submitPassword() {
   flex: none;
 }
 .crumb-current {
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ink-700);
+  letter-spacing: -0.01em;
+  color: var(--ink-800);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -357,7 +358,7 @@ async function submitPassword() {
 .right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: none;
 }
 
@@ -367,32 +368,61 @@ async function submitPassword() {
   gap: 6px;
   height: 32px;
   padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--el-text-color-regular);
   font-size: 12.5px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.18s ease;
-  /* 顶栏空间不足时只允许彼此靠拢，绝不允许文字换行把 58px 顶栏撑破 */
+  /* 顶栏空间不足时只允许彼此靠拢，绝不允许文字换行把顶栏撑破 */
   white-space: nowrap;
   flex: none;
+  box-shadow: var(--sh-xs);
 }
 .ghost:hover {
   border-color: var(--brand-300);
   color: var(--brand-600);
   background: var(--brand-50);
 }
+/* 服务状态做成「呼吸灯」而不是整块绿色按钮：绿底面积太大，
+   会和真正的操作按钮抢注意力 */
+.ghost.status-btn {
+  border-color: var(--border);
+  background: #fff;
+  box-shadow: none;
+}
 .ghost.is-ok {
-  color: #12823b;
-  border-color: #cfe9d8;
-  background: #f4fbf6;
+  color: var(--ok-ink);
 }
 .ghost.is-bad {
   color: #c92c2c;
-  border-color: #f7c9c9;
-  background: #fdf5f5;
+  border-color: #f4c8c8;
+  background: #fdf6f6;
+}
+.ghost.is-ok .dot,
+.ghost.is-bad .dot {
+  position: relative;
+}
+.ghost.is-ok .dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: rgba(22, 163, 74, 0.22);
+  animation: status-pulse 2.4s ease-out infinite;
+}
+@keyframes status-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.7);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
 }
 .ghost:hover .ghost-refresh {
   transform: rotate(90deg);
@@ -435,28 +465,40 @@ async function submitPassword() {
   display: flex;
   align-items: center;
   gap: 9px;
-  height: 40px;
+  height: 38px;
   padding: 0 8px 0 4px;
-  border: none;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 .user:hover {
-  background: var(--ink-50);
+  background: #fff;
+  border-color: var(--border);
 }
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  letter-spacing: 0.02em;
+  background: linear-gradient(
+    140deg,
+    var(--brand-400) 0%,
+    var(--brand-500) 52%,
+    var(--brand-600) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(47, 88, 197, 0.28);
 }
 .user-meta {
   display: flex;
@@ -467,7 +509,7 @@ async function submitPassword() {
 .user-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink-700);
+  color: var(--ink-800);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;

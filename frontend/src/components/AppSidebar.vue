@@ -143,7 +143,7 @@ const badgeCount = computed(() => props.badgeCount)
   background: var(--surface-sidebar);
   color: var(--ink-600);
   border-right: 1px solid var(--border);
-  box-shadow: 8px 0 24px rgba(15, 23, 42, 0.035);
+  box-shadow: 1px 0 0 rgba(16, 26, 48, 0.02);
   transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   z-index: 2;
@@ -192,10 +192,10 @@ const badgeCount = computed(() => props.badgeCount)
   display: flex;
   align-items: center;
   gap: 11px;
-  height: 60px;
+  height: 58px;
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 255, 0.72));
+  background: linear-gradient(180deg, #fff 0%, rgba(251, 252, 255, 0.82) 100%);
 }
 .brand::after {
   content: '';
@@ -204,15 +204,15 @@ const badgeCount = computed(() => props.badgeCount)
   right: 14px;
   bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(59, 110, 246, 0.35), rgba(59, 110, 246, 0));
+  background: linear-gradient(90deg, rgba(59, 110, 246, 0.28), rgba(59, 110, 246, 0));
   pointer-events: none;
 }
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: 11px;
-  box-shadow: 0 6px 14px rgba(59, 110, 246, 0.28);
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(59, 110, 246, 0.24);
 }
 .brand-text {
   min-width: 0;
@@ -221,13 +221,13 @@ const badgeCount = computed(() => props.badgeCount)
   color: var(--ink-900);
   font-size: 15px;
   font-weight: 650;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .brand-sub {
-  font-size: 10.5px;
-  color: #8493ab;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  color: var(--ink-500);
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -258,11 +258,11 @@ const badgeCount = computed(() => props.badgeCount)
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 15px 10px 7px;
-  font-size: 10.5px;
+  padding: 16px 10px 7px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.13em;
-  color: #8b99af;
+  letter-spacing: 0.14em;
+  color: var(--ink-500);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -270,19 +270,19 @@ const badgeCount = computed(() => props.badgeCount)
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, #e2e9f4, rgba(226, 233, 244, 0));
+  background: linear-gradient(90deg, var(--ink-200), rgba(225, 231, 240, 0));
 }
 .nav-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 40px;
+  height: 38px;
   margin: 2px 0;
-  padding: 0 12px;
+  padding: 0 11px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  color: #4a5872;
+  border-radius: 8px;
+  color: var(--ink-600);
   font-size: 13.5px;
   font-weight: 500;
   transition:
@@ -293,41 +293,31 @@ const badgeCount = computed(() => props.badgeCount)
   white-space: nowrap;
 }
 .nav-item:hover {
-  background: #eef3ff;
-  border-color: #e3ebff;
-  color: var(--brand-700);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--border);
+  color: var(--ink-800);
 }
 .nav-icon {
   flex: none;
-  color: #8592a8;
+  color: var(--ink-400);
   transition: color 0.16s ease;
 }
 .nav-item:hover .nav-icon {
-  color: var(--brand-500);
+  color: var(--ink-600);
 }
+/* 选中项：实心深品牌底（而非浅蓝渐变）——整页唯一的深色块，
+   视线能立刻定位当前页；白字在 brand-600/700 上实测 6.3–8.5:1，满足 WCAG AA */
 .nav-item.active {
-  background: linear-gradient(100deg, #e9f0ff 0%, #f5f8ff 100%);
-  border-color: #d8e4ff;
-  color: var(--brand-700);
+  background: linear-gradient(180deg, var(--brand-600) 0%, var(--brand-700) 100%);
+  border-color: var(--brand-700);
+  color: #fff;
   font-weight: 600;
   box-shadow:
-    0 2px 6px rgba(59, 110, 246, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 1px 2px rgba(38, 71, 158, 0.28),
+    0 4px 12px rgba(47, 88, 197, 0.24);
 }
 .nav-item.active .nav-icon {
-  color: var(--brand-600);
-}
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 18px;
-  width: 3px;
-  border-radius: 2px 3px 3px 2px;
-  background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 0 6px rgba(59, 110, 246, 0.3);
+  color: rgba(255, 255, 255, 0.92);
 }
 .nav-label {
   flex: 1;
@@ -347,6 +337,12 @@ const badgeCount = computed(() => props.badgeCount)
   place-items: center;
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.32);
 }
+/* 选中项上的角标：红底贴着蓝底会发浑，改成白色描边式 */
+.nav-item.active .nav-badge {
+  background: #fff;
+  color: #c92c2c;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+}
 .nav-badge.dotOnly {
   position: absolute;
   top: 6px;
@@ -361,19 +357,19 @@ const badgeCount = computed(() => props.badgeCount)
 .sidebar-foot {
   padding: 12px 14px 14px;
   border-top: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(239, 244, 252, 0.9));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(238, 242, 249, 0.85));
 }
 .collapse-btn {
   width: 100%;
   height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   background: #fff;
-  color: #6b7a91;
+  color: var(--ink-500);
   cursor: pointer;
   display: grid;
   place-items: center;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--sh-xs);
   transition:
     background 0.16s ease,
     color 0.16s ease,
@@ -381,7 +377,7 @@ const badgeCount = computed(() => props.badgeCount)
 }
 .collapse-btn:hover {
   background: var(--brand-50);
-  border-color: #cddcff;
+  border-color: var(--brand-200);
   color: var(--brand-600);
 }
 </style>

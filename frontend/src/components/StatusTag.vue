@@ -28,9 +28,12 @@ const dotColor = computed(() => DOT_COLORS[meta.value?.type] || '#94a3b8')
 <style scoped>
 .status-tag {
   gap: 5px;
+  /* 浅色 tag 的底色在白卡上边界发虚，补一圈极淡同色描边定形 */
+  box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.1);
 }
 .status-tag .dot {
   width: 5px;
   height: 5px;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.14);
 }
 </style>

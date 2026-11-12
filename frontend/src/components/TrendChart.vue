@@ -15,7 +15,8 @@
       <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" class="svg">
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#3b6ef6" stop-opacity="0.26" />
+            <stop offset="0%" stop-color="#3b6ef6" stop-opacity="0.28" />
+            <stop offset="55%" stop-color="#3b6ef6" stop-opacity="0.1" />
             <stop offset="100%" stop-color="#3b6ef6" stop-opacity="0" />
           </linearGradient>
         </defs>
@@ -177,7 +178,8 @@ const tooltipStyle = computed(() => {
 }
 .peak b {
   /* 允许深色大屏通过 CSS 变量覆盖，避免深底上数字不可见 */
-  color: var(--trend-peak-ink, var(--ink-700));
+  color: var(--trend-peak-ink, var(--ink-800));
+  font-size: 13px;
   margin-left: 2px;
 }
 
@@ -192,15 +194,16 @@ const tooltipStyle = computed(() => {
   overflow: visible;
 }
 .grid {
-  stroke: #eef1f6;
+  stroke: #edf1f7;
   stroke-width: 1;
 }
 .line {
   fill: none;
   stroke: var(--brand-500);
-  stroke-width: 2.2;
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 3px 6px rgba(59, 110, 246, 0.22));
 }
 .guide {
   stroke: var(--brand-300);
@@ -209,19 +212,19 @@ const tooltipStyle = computed(() => {
 }
 .hover-dot {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #fff;
   border: 2.5px solid var(--brand-500);
   transform: translate(-50%, -50%);
-  box-shadow: 0 2px 8px rgba(59, 110, 246, 0.35);
+  box-shadow: 0 2px 10px rgba(59, 110, 246, 0.4);
   pointer-events: none;
 }
 .tooltip {
   position: absolute;
   top: 0;
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(14, 22, 40, 0.95);
   color: #fff;
   border-radius: 8px;
   padding: 7px 10px;
@@ -243,7 +246,9 @@ const tooltipStyle = computed(() => {
 
 .xaxis {
   display: flex;
-  margin-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .x-label {
   flex: 1;

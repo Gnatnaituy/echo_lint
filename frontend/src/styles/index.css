@@ -3,7 +3,7 @@
    ========================================================================== */
 
 :root {
-  /* 品牌色 */
+  /* 品牌色：主色略收，避免整页被高饱和蓝「打亮」而显得廉价 */
   --brand-50: #eef3ff;
   --brand-100: #dbe6ff;
   --brand-200: #bccffe;
@@ -12,24 +12,27 @@
   --brand-500: #3b6ef6;
   --brand-600: #2f58c5;
   --brand-700: #26479e;
+  --brand-ring: rgba(59, 110, 246, 0.14);
 
-  /* 中性色（slate） */
-  --ink-900: #0b1220;
-  --ink-800: #151d2e;
-  --ink-700: #1f2937;
-  --ink-600: #334155;
-  --ink-500: #64748b;
-  --ink-400: #94a3b8;
-  --ink-300: #cbd5e1;
-  --ink-200: #e2e8f0;
-  --ink-100: #f1f5f9;
-  --ink-50: #f8fafc;
+  /* 中性色（slate）：主文本再深半档，弱文本抬一档，拉开层级 */
+  --ink-900: #0a1222;
+  --ink-800: #14203a;
+  --ink-700: #1e2b45;
+  --ink-600: #33415a;
+  --ink-500: #5c6b83;
+  --ink-400: #8d9bb1;
+  --ink-300: #c6d0de;
+  --ink-200: #e1e7f0;
+  --ink-100: #eef2f8;
+  --ink-50: #f7f9fc;
 
-  /* 语义色 */
+  /* 语义色：底色 / 文字色成对维护。文字色用于浅色语义底，实算 ok 5.6:1、warn 5.1:1（WCAG AA ≥4.5:1） */
   --ok: #16a34a;
   --ok-soft: #e8f6ed;
+  --ok-ink: #0f6f33;
   --warn: #f59e0b;
   --warn-soft: #fef5e7;
+  --warn-ink: #9a5a08;
   --danger: #ef4444;
   --danger-soft: #fdecec;
   --info: #64748b;
@@ -37,29 +40,29 @@
 
   /* 表面 */
   --surface: #ffffff;
-  --surface-sunken: #f4f6fb;
+  --surface-sunken: #f3f5f9;
   /* 浅色侧栏：顶部白色高光 → 底部淡蓝灰，叠加品牌色柔光，形成层次 */
   --surface-sidebar:
-    radial-gradient(120% 70% at 0% 0%, rgba(59, 110, 246, 0.1) 0%, rgba(59, 110, 246, 0) 58%),
-    linear-gradient(180deg, #ffffff 0%, #f9fbff 52%, #f1f5fc 100%);
-  --border: #e8ecf3;
-  --border-strong: #dbe2ec;
+    radial-gradient(120% 70% at 0% 0%, rgba(59, 110, 246, 0.09) 0%, rgba(59, 110, 246, 0) 58%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafd 52%, #eef2f9 100%);
+  --border: #e4e9f1;
+  --border-strong: #d3dbe7;
 
-  /* 圆角 */
+  /* 圆角：整体收半档，卡片更利落，与小尺寸控件保持同一几何语言 */
   --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  --r-xl: 16px;
 
   /* 间距节奏：卡片、表格与页面共用，保证左右基线一致 */
   --panel-pad-x: 18px;
   --panel-pad-y: 16px;
   --table-pad-x: 18px;
 
-  /* 阴影 */
-  --sh-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --sh-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
-  --sh-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  /* 阴影：近距硬边 + 远距柔光，白卡才真正「浮」在画布上 */
+  --sh-xs: 0 1px 2px rgba(16, 26, 48, 0.05);
+  --sh-sm: 0 1px 2px rgba(16, 26, 48, 0.05), 0 3px 8px rgba(16, 26, 48, 0.04);
+  --sh-md: 0 2px 4px rgba(16, 26, 48, 0.06), 0 12px 28px rgba(16, 26, 48, 0.08);
   --sh-brand: 0 6px 18px rgba(59, 110, 246, 0.24);
 
   /* 排版 */
@@ -102,26 +105,26 @@
   --el-color-danger-dark-2: #bf3636;
 
   --el-color-error: #ef4444;
-  --el-color-info: #64748b;
-  --el-color-info-light-3: #939eae;
-  --el-color-info-light-5: #b2bac5;
-  --el-color-info-light-7: #d1d5dc;
-  --el-color-info-light-8: #e0e3e8;
-  --el-color-info-light-9: #f0f1f3;
-  --el-color-info-dark-2: #505d6f;
+  --el-color-info: #5c6b83;
+  --el-color-info-light-3: #8d9bb1;
+  --el-color-info-light-5: #aeb9c9;
+  --el-color-info-light-7: #cfd7e2;
+  --el-color-info-light-8: #dee4ec;
+  --el-color-info-light-9: #eef2f8;
+  --el-color-info-dark-2: #475569;
 
-  --el-text-color-primary: #1f2937;
-  --el-text-color-regular: #475569;
-  --el-text-color-secondary: #64748b;
-  --el-text-color-placeholder: #94a3b8;
+  --el-text-color-primary: #1e2b45;
+  --el-text-color-regular: #44536b;
+  --el-text-color-secondary: #5c6b83;
+  --el-text-color-placeholder: #8d9bb1;
 
-  --el-border-color: #e8ecf3;
-  --el-border-color-light: #eef1f6;
-  --el-border-color-lighter: #f1f5f9;
-  --el-fill-color-light: #f8fafc;
+  --el-border-color: #e4e9f1;
+  --el-border-color-light: #ebeff6;
+  --el-border-color-lighter: #eef2f8;
+  --el-fill-color-light: #f7f9fc;
   --el-fill-color-lighter: #fbfcfe;
   --el-fill-color-blank: #ffffff;
-  --el-bg-color-page: #f4f6fb;
+  --el-bg-color-page: #f3f5f9;
 
   --el-border-radius-base: 8px;
   --el-border-radius-small: 6px;
@@ -154,6 +157,10 @@ body {
   background: var(--surface-sunken);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(59, 110, 246, 0.18);
 }
 
 a {
@@ -236,13 +243,13 @@ a {
 }
 
 .dim {
-  /* 说明/次要信息用比 placeholder 深一档的灰：白底对比度 4.76:1，满足 WCAG AA 普通文本 */
-  color: #64748b;
+  /* 说明/次要信息：白底对比度 5.4:1（≥4.5:1，满足 WCAG AA 普通文本） */
+  color: var(--ink-500);
 }
 
 /* 卡片内说明文字：同上，保证小字在白色卡片上仍可读 */
 .hint.dim {
-  color: #64748b;
+  color: var(--ink-500);
 }
 
 .tiny {
@@ -260,9 +267,10 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
-  color: var(--ink-700);
+  letter-spacing: -0.005em;
+  color: var(--ink-800);
   /* 标题永远单行：窄屏下宁可让右侧按钮换到第二行，也不要出现「报表与导 / 出」 */
   white-space: nowrap;
 }
@@ -274,19 +282,18 @@ a {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 14px;
+  height: 15px;
   border-radius: 2px;
-  background: linear-gradient(180deg, var(--brand-500), var(--brand-400));
+  background: linear-gradient(180deg, var(--brand-500), var(--brand-300));
 }
 
-/* 卡片容器 */
+/* 卡片容器：细边 + 双层阴影（近距硬边定轮廓，远距柔光做层次），
+   白卡因此真正浮在灰色画布之上，而不是与背景糊成一片。 */
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.035),
-    0 10px 26px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--sh-sm);
   transition:
     box-shadow 0.25s ease,
     border-color 0.25s ease;
@@ -297,8 +304,11 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 15px var(--panel-pad-x);
+  padding: 14px var(--panel-pad-x);
   border-bottom: 1px solid var(--border);
+  /* 表头区极浅的纵向渐隐：让卡片顶部有一层柔和的「帽檐」，分割线更自然 */
+  background: linear-gradient(180deg, #fff 0%, #fcfdff 100%);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   /* 窄屏放不下时让右侧操作整体换行，而不是把标题挤断 */
   flex-wrap: wrap;
   row-gap: 8px;
@@ -328,22 +338,27 @@ a {
 .chip.brand {
   background: var(--brand-50);
   color: var(--brand-600);
+  border-color: rgba(59, 110, 246, 0.14);
 }
 .chip.ok {
   background: var(--ok-soft);
-  color: var(--ok);
+  color: var(--ok-ink);
+  border-color: rgba(22, 163, 74, 0.16);
 }
 .chip.warn {
   background: var(--warn-soft);
-  color: #b06a06;
+  color: var(--warn-ink);
+  border-color: rgba(245, 158, 11, 0.2);
 }
 .chip.danger {
   background: var(--danger-soft);
   color: #c92c2c;
+  border-color: rgba(239, 68, 68, 0.16);
 }
 .chip.info {
   background: var(--info-soft);
   color: var(--info);
+  border-color: rgba(100, 116, 139, 0.14);
 }
 
 /* 状态圆点 */
@@ -386,13 +401,26 @@ a {
 .el-button {
   font-weight: 500;
   border-radius: var(--r-sm);
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+/* 次要按钮：白底细边 + 极轻投影，hover 时边框与文字同时提亮，
+   避免默认按钮在灰色画布上「消失」 */
+.el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(
+    .el-button--danger
+  ):not(.el-button--info):not(.is-link):not(.is-text):not(.is-disabled) {
+  border-color: var(--border-strong);
+  box-shadow: var(--sh-xs);
 }
 .el-button--primary:not(.is-link):not(.is-text) {
   /* 主按钮加一层极浅的纵向渐变，比纯色更有质感；禁用/加载态保持纯色 */
   background-image: linear-gradient(180deg, #4d79f7 0%, #3b6ef6 100%);
   box-shadow:
-    0 1px 2px rgba(37, 74, 180, 0.16),
-    0 3px 10px rgba(59, 110, 246, 0.18);
+    0 1px 2px rgba(37, 74, 180, 0.18),
+    0 4px 12px rgba(59, 110, 246, 0.2);
   transition:
     background-image 0.18s ease,
     box-shadow 0.18s ease,
@@ -401,8 +429,8 @@ a {
 .el-button--primary:not(.is-link):not(.is-text):not(.is-disabled):not(.is-loading):hover {
   background-image: linear-gradient(180deg, #5b85f8 0%, #4677f7 100%);
   box-shadow:
-    0 2px 4px rgba(37, 74, 180, 0.18),
-    0 6px 16px rgba(59, 110, 246, 0.22);
+    0 2px 4px rgba(37, 74, 180, 0.2),
+    0 8px 20px rgba(59, 110, 246, 0.26);
 }
 .el-button--primary.is-disabled:not(.is-link):not(.is-text),
 .el-button--primary.is-loading:not(.is-link):not(.is-text) {
@@ -416,20 +444,27 @@ a {
 .el-textarea__inner,
 .el-select__wrapper {
   border-radius: var(--r-sm);
-  box-shadow: 0 0 0 1px var(--border) inset;
+  box-shadow: 0 0 0 1px var(--border-strong) inset;
   background: #fff;
+  transition: box-shadow 0.18s ease;
+}
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--ink-300) inset;
 }
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--brand-500) inset;
+  box-shadow:
+    0 0 0 1px var(--brand-500) inset,
+    0 0 0 3px var(--brand-ring);
 }
 
 .el-table {
-  --el-table-header-bg-color: #f7f9fd;
-  --el-table-header-text-color: #56657c;
-  --el-table-border-color: #eef1f6;
-  --el-table-row-hover-bg-color: #f7faff;
+  --el-table-header-bg-color: #f6f8fc;
+  --el-table-header-text-color: #4f5e76;
+  --el-table-border-color: #edf1f6;
+  --el-table-row-hover-bg-color: #f6f9ff;
   font-size: 13px;
 }
 .el-table th.el-table__cell {
@@ -438,6 +473,8 @@ a {
   letter-spacing: 0.02em;
   padding: 11px 0;
   background: var(--el-table-header-bg-color);
+  /* 表头与数据区之间一条更明确的线：即便在密集宽表里也能一眼找到列名 */
+  border-bottom: 1px solid var(--border-strong);
 }
 .el-table td.el-table__cell {
   padding: 12px 0;
@@ -544,7 +581,7 @@ a {
   margin-bottom: 0;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
-  color: var(--ink-700);
+  color: var(--ink-800);
   font-weight: 600;
 }
 .el-drawer__body {
@@ -552,20 +589,24 @@ a {
 }
 .el-drawer {
   border-radius: var(--r-xl) 0 0 var(--r-xl);
+  box-shadow: -18px 0 48px rgba(16, 26, 48, 0.14);
 }
 
 .el-dialog {
   border-radius: var(--r-lg);
   overflow: hidden;
+  box-shadow: var(--sh-md);
 }
 .el-dialog__header {
   margin-right: 0;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #fff, #fcfdff);
 }
 .el-dialog__title {
   font-size: 15px;
   font-weight: 600;
+  color: var(--ink-800);
 }
 .el-dialog__body {
   padding: 20px;
@@ -577,7 +618,7 @@ a {
 .el-dialog__footer {
   padding: 14px 20px;
   border-top: 1px solid var(--border);
-  background: #fbfcfe;
+  background: #fafcfe;
 }
 
 .el-pagination {
@@ -587,6 +628,9 @@ a {
 .el-pagination button,
 .el-pager li {
   border-radius: 6px;
+}
+.el-pager li.is-active {
+  font-weight: 600;
 }
 
 .el-radio-button__inner {
@@ -609,7 +653,7 @@ a {
 }
 
 .el-descriptions__label.el-descriptions__cell.is-bordered-label {
-  background: #f8fafc;
+  background: #f6f8fc;
   color: var(--el-text-color-secondary);
   font-weight: 500;
 }
@@ -625,6 +669,19 @@ a {
 .el-alert {
   border-radius: var(--r-md);
   padding: 12px 14px;
+  border: 1px solid transparent;
+}
+.el-alert--error.is-light {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.el-alert--warning.is-light {
+  border-color: rgba(245, 158, 11, 0.24);
+}
+.el-alert--success.is-light {
+  border-color: rgba(22, 163, 74, 0.2);
+}
+.el-alert--info.is-light {
+  border-color: rgba(100, 116, 139, 0.16);
 }
 
 .el-empty__description p {
@@ -664,6 +721,14 @@ a {
 .el-form-item__label {
   color: var(--el-text-color-regular);
   font-weight: 500;
+}
+
+.el-dropdown__popper.el-popper,
+.el-select__popper.el-popper,
+.el-picker__popper.el-popper {
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-md);
+  border-color: var(--border);
 }
 
 /* ==========================  顶栏账号下拉菜单  ========================== */

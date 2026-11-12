@@ -64,7 +64,7 @@ function select(opt) {
   align-items: center;
   gap: 1px;
   padding: 2px;
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--ink-100);
   max-width: 100%;
   flex-wrap: wrap;
@@ -76,7 +76,7 @@ function select(opt) {
   height: 26px;
   padding: 0 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
   font-family: inherit;

@@ -81,6 +81,6 @@ defineEmits(['test', 'save'])
   color: #b06a06;
 }
 .dim {
-  color: #64748b;
+  color: var(--ink-500);
 }
 </style>
