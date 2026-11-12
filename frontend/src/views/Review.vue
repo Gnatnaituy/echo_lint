@@ -1147,7 +1147,7 @@ watch(
 .seg {
   display: inline-flex;
   background: var(--ink-100);
-  border-radius: 10px;
+  border-radius: 9px;
   padding: 2px;
   gap: 3px;
 }
@@ -1158,7 +1158,7 @@ watch(
   height: 28px;
   padding: 0 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
   font-size: 13px;
@@ -1270,14 +1270,29 @@ watch(
   cursor: pointer;
   transition:
     background 0.15s ease,
-    border-color 0.15s ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .queue-item:hover {
   background: var(--ink-50);
+  border-color: var(--border);
 }
+/* 选中项：浅品牌底 + 左侧 3px 色条，比纯描边更容易在长队列里锁定当前行 */
 .queue-item.on {
-  background: var(--brand-50);
+  position: relative;
+  background: linear-gradient(90deg, #f0f5ff 0%, #f7faff 100%);
   border-color: var(--brand-200);
+  box-shadow: var(--sh-xs);
+}
+.queue-item.on::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--brand-500);
 }
 .queue-index {
   flex: none;
@@ -1392,6 +1407,8 @@ watch(
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 16px;
+  background: #fff;
+  box-shadow: var(--sh-xs);
 }
 .verdict-choice {
   display: grid;
@@ -1400,9 +1417,13 @@ watch(
   margin-bottom: 13px;
 }
 .choice {
-  height: 40px;
+  min-height: 42px;
+  padding: 6px 10px;
+  line-height: 1.35;
+  /* 两列在窄侧栏里各约 137px：文案必须单行，否则英文会折成两行把按钮撑高 */
+  white-space: nowrap;
   border-radius: var(--r-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--el-text-color-regular);
   font-size: 13px;
@@ -1413,20 +1434,28 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 6px;
+  box-shadow: var(--sh-xs);
   transition: all 0.16s ease;
 }
 .choice:hover {
   border-color: var(--brand-300);
+  color: var(--brand-600);
 }
 .choice.on.bad {
   background: var(--danger-soft);
   border-color: #f0a9a9;
   color: #c92c2c;
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 68, 68, 0.18),
+    0 2px 8px rgba(239, 68, 68, 0.12);
 }
 .choice.on.ok {
   background: var(--ok-soft);
   border-color: #a9d9bc;
-  color: #12823b;
+  color: var(--ok-ink);
+  box-shadow:
+    inset 0 0 0 1px rgba(22, 163, 74, 0.18),
+    0 2px 8px rgba(22, 163, 74, 0.1);
 }
 
 .types {
@@ -1446,7 +1475,7 @@ watch(
   height: 26px;
   padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--el-text-color-regular);
   font-size: 12px;
@@ -1462,6 +1491,7 @@ watch(
   background: var(--brand-500);
   border-color: var(--brand-500);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 110, 246, 0.28);
 }
 .submit {
   width: 100%;
@@ -1524,7 +1554,10 @@ watch(
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .empty-icon {
   color: var(--ink-300);
@@ -1620,7 +1653,7 @@ watch(
 }
 .queue-assignee.me {
   background: var(--ok-soft);
-  color: #12823b;
+  color: var(--ok-ink);
 }
 .queue-assignee.unassigned {
   padding: 0;

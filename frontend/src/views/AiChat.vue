@@ -550,8 +550,12 @@ onMounted(() => {
   width: 110px;
 }
 .hint {
-  padding: 6px 18px 14px;
+  padding: 10px 18px 12px;
   line-height: 1.7;
+  color: var(--ink-500);
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 :deep(.row-clickable) {
@@ -615,7 +619,10 @@ onMounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px 14px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 .drawer-head {

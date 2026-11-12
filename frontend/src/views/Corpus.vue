@@ -134,7 +134,7 @@
             <span class="num dim">{{ formatTimeShort(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.actions')" width="78" align="right" fixed="right">
+        <el-table-column :label="t('common.actions')" width="96" align="right" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
               <el-popconfirm
@@ -403,10 +403,11 @@ onMounted(() => {
   width: 38px;
   height: 38px;
   flex: none;
-  border-radius: 11px;
+  border-radius: var(--r-md);
   display: grid;
   place-items: center;
-  background: var(--brand-50);
+  background: linear-gradient(180deg, #eaf1ff, var(--brand-50));
+  border: 1px solid rgba(59, 110, 246, 0.14);
   color: var(--brand-600);
 }
 .loop-text {
@@ -501,14 +502,17 @@ onMounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px 14px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 /* 弹窗分段 */
 .seg {
   display: inline-flex;
   background: var(--ink-100);
-  border-radius: 10px;
+  border-radius: 9px;
   padding: 3px;
   gap: 3px;
 }
@@ -516,7 +520,7 @@ onMounted(() => {
   height: 30px;
   padding: 0 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
   font-size: 13px;
@@ -539,7 +543,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--el-text-color-regular);
   font-size: 12.5px;
@@ -555,6 +559,7 @@ onMounted(() => {
   background: var(--brand-500);
   border-color: var(--brand-500);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 110, 246, 0.26);
 }
 .empty-title {
   font-weight: 600;

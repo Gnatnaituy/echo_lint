@@ -130,7 +130,7 @@ async function onTabKeydown(event, tab) {
   height: 30px;
   padding: 0 13px;
   border: none;
-  border-radius: 10px;
+  border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
   font-family: inherit;

@@ -340,8 +340,12 @@ onMounted(load)
   margin-left: 0;
 }
 .hint {
-  margin-top: 10px;
-  color: var(--el-text-color-secondary);
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--ink-50);
+  border: 1px dashed var(--border-strong);
+  color: var(--ink-500);
   line-height: 1.7;
 }
 

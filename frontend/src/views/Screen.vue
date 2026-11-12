@@ -328,12 +328,14 @@ onUnmounted(() => {
   width: clamp(40px, 3vw, 54px);
   height: clamp(40px, 3vw, 54px);
   flex: none;
-  border-radius: 14px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #3b6ef6, #7aa2ff);
-  box-shadow: 0 10px 30px rgba(59, 110, 246, 0.45);
+  background: linear-gradient(135deg, #4d79f7 0%, #3b6ef6 52%, #2b50b4 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 30px rgba(59, 110, 246, 0.45);
 }
 .screen-title {
   font-size: clamp(19px, 1.7vw, 32px);
@@ -450,7 +452,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 11px 14px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: rgba(220, 38, 38, 0.16);
   border: 1px solid rgba(248, 113, 113, 0.4);
   color: #fecaca;
@@ -466,12 +468,18 @@ onUnmounted(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(12px, 1.1vw, 20px);
 }
+/* 深色大屏的卡片：细边 + 顶部高光线 + 品牌色柔光，避免大面积深底发闷 */
 .kpi {
   position: relative;
   padding: clamp(14px, 1.2vw, 24px);
-  border-radius: 16px;
-  border: 1px solid rgba(122, 162, 255, 0.2);
-  background: linear-gradient(180deg, rgba(30, 41, 74, 0.82) 0%, rgba(15, 23, 42, 0.72) 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(122, 162, 255, 0.22);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(59, 110, 246, 0.16) 0%, rgba(15, 23, 42, 0) 62%),
+    linear-gradient(180deg, rgba(30, 41, 74, 0.86) 0%, rgba(15, 23, 42, 0.74) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 30px rgba(3, 7, 18, 0.35);
   overflow: hidden;
 }
 .kpi::before {
@@ -479,7 +487,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  background: #3b6ef6;
+  background: linear-gradient(180deg, #7aa2ff, #3b6ef6);
 }
 .kpi.warn::before {
   background: #f59e0b;
@@ -498,6 +506,7 @@ onUnmounted(() => {
   line-height: 1.1;
   color: #fff;
   letter-spacing: -0.01em;
+  text-shadow: 0 2px 18px rgba(122, 162, 255, 0.35);
 }
 .kpi.warn .kpi-value {
   color: #fbbf24;
@@ -516,9 +525,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: clamp(14px, 1.1vw, 22px);
-  border-radius: 16px;
-  border: 1px solid rgba(122, 162, 255, 0.18);
-  background: linear-gradient(180deg, rgba(23, 33, 60, 0.78) 0%, rgba(11, 18, 34, 0.7) 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(122, 162, 255, 0.2);
+  background: linear-gradient(180deg, rgba(23, 33, 60, 0.82) 0%, rgba(11, 18, 34, 0.72) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 28px rgba(3, 7, 18, 0.3);
   min-width: 0;
   min-height: 0;
 }

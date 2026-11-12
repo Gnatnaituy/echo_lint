@@ -632,8 +632,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 18px 14px;
+  padding: 10px 18px 12px;
   line-height: 1.7;
+  color: var(--ink-500);
+  font-size: 11.5px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 .user-cell {
@@ -644,8 +649,8 @@ onMounted(() => {
   min-width: 0;
 }
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   flex: none;
   border-radius: 50%;
   display: grid;
@@ -653,7 +658,15 @@ onMounted(() => {
   color: #fff;
   font-size: 12.5px;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(
+    140deg,
+    var(--brand-400) 0%,
+    var(--brand-500) 52%,
+    var(--brand-600) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(47, 88, 197, 0.24);
 }
 .avatar.off {
   background: var(--ink-300);
@@ -699,9 +712,10 @@ onMounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 10px 18px 12px;
   border-top: 1px solid var(--border);
-  background: #fcfdff;
+  background: #fbfcfe;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 /* 最后一行不做底边线，避免与分页栏上边框叠成双线 */
 .panel :deep(.el-table__body tr:last-child td.el-table__cell) {

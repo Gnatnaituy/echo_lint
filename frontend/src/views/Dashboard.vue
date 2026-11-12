@@ -131,7 +131,7 @@
               <span v-else class="dim">—</span>
             </template>
           </el-table-column>
-          <el-table-column :label="t('common.status')" width="142" align="center">
+          <el-table-column :label="t('common.status')" width="158" align="center">
             <template #default="{ row }"><StatusTag :status="row.status" /></template>
           </el-table-column>
           <el-table-column :label="t('dashboard.recent.uploadTime')" width="176">
@@ -339,14 +339,14 @@ onMounted(load)
 .dist {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 14px;
   padding-top: 4px;
 }
 .dist-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 .dist-label {
   display: inline-flex;
@@ -358,7 +358,7 @@ onMounted(load)
 .dist-value {
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink-700);
+  color: var(--ink-800);
 }
 .dist-pct {
   margin-left: 6px;
@@ -367,15 +367,17 @@ onMounted(load)
   color: var(--el-text-color-placeholder);
 }
 .dist-track {
-  height: 7px;
+  height: 8px;
   border-radius: 999px;
   background: var(--ink-100);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1);
   overflow: hidden;
 }
 .dist-fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 1px 2px rgba(16, 26, 48, 0.12);
 }
 
 /* 表格内的文件列 */
@@ -445,12 +447,16 @@ onMounted(load)
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 13px 15px;
-  background: #fbfcfe;
-  transition: all 0.18s ease;
+  background: linear-gradient(180deg, #fcfdff 0%, #f7f9fd 100%);
+  box-shadow: var(--sh-xs);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 .kb-item:hover {
-  border-color: var(--brand-300);
-  background: var(--brand-50);
+  border-color: var(--brand-200);
+  box-shadow: var(--sh-sm);
   transform: translateY(-1px);
 }
 .kb-label {
@@ -458,14 +464,15 @@ onMounted(load)
   color: var(--el-text-color-secondary);
 }
 .kb-value {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 700;
-  color: var(--ink-800);
-  margin-top: 2px;
+  color: var(--ink-900);
+  margin-top: 3px;
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 .kb-value.alert {
-  color: #b06a06;
+  color: var(--warn-ink);
 }
 .kb-sub {
   font-size: 11px;
@@ -477,7 +484,8 @@ onMounted(load)
   margin-top: 14px;
   padding: 11px 13px;
   border-radius: var(--r-md);
-  background: var(--brand-50);
+  background: linear-gradient(180deg, #f4f7ff 0%, var(--brand-50) 100%);
+  border: 1px solid rgba(59, 110, 246, 0.1);
   color: var(--brand-700);
   font-size: 12px;
   line-height: 1.7;

@@ -106,7 +106,7 @@ const description = computed(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.65;
-  color: #64748b;
+  color: var(--ink-500);
 }
 
 /* 二级导航：灰底胶囊轨道 + 选中白色胶囊（与 Knowledge.vue 的 view-tabs 同一套视觉语言） */
@@ -129,7 +129,7 @@ const description = computed(() => {
   height: 30px;
   padding: 0 13px;
   border: none;
-  border-radius: 10px;
+  border-radius: 7px;
   background: transparent;
   color: var(--el-text-color-regular);
   font-family: inherit;

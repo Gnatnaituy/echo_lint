@@ -133,9 +133,9 @@ onMounted(() => {
   overflow-x: hidden;
   overflow-y: auto;
   background:
-    radial-gradient(1000px 520px at 8% -12%, #dbe6ff 0%, rgba(244, 246, 251, 0) 62%),
-    radial-gradient(760px 460px at 102% -4%, #e6edfd 0%, rgba(244, 246, 251, 0) 58%),
-    linear-gradient(180deg, #f7f9fd 0%, #eef2f9 100%);
+    radial-gradient(1000px 520px at 8% -12%, #e2eaff 0%, rgba(243, 245, 249, 0) 62%),
+    radial-gradient(760px 460px at 102% -4%, #e8eefc 0%, rgba(243, 245, 249, 0) 58%),
+    linear-gradient(180deg, #f6f8fc 0%, #ecf0f7 100%);
 }
 
 /* 背景光斑，避免纯色过于扁平 */
@@ -164,14 +164,15 @@ onMounted(() => {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 408px;
-  padding: 32px 32px 24px;
+  max-width: 404px;
+  padding: 30px 30px 22px;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 18px;
   box-shadow:
-    0 22px 56px rgba(15, 23, 42, 0.1),
-    0 2px 8px rgba(15, 23, 42, 0.04);
+    0 1px 2px rgba(16, 26, 48, 0.05),
+    0 8px 24px rgba(16, 26, 48, 0.07),
+    0 28px 64px rgba(16, 26, 48, 0.09);
   animation: card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes card-in {

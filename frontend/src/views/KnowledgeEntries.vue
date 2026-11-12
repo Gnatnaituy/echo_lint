@@ -1097,6 +1097,7 @@ onUnmounted(() => {
 .hint {
   padding: 0 18px 14px;
   line-height: 1.7;
+  color: var(--ink-500);
 }
 .min-w-0 {
   min-width: 0;
@@ -1132,7 +1133,10 @@ onUnmounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px 14px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .empty-icon {
   color: var(--ink-300);

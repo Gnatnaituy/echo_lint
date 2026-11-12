@@ -257,7 +257,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dictionary.table.enabled')" width="94" align="center">
+        <el-table-column :label="t('dictionary.table.enabled')" width="112" align="center">
           <template #default="{ row }">
             <el-switch v-if="canWrite" :model-value="row.enabled" @change="(v) => toggle(row, v)" />
             <span v-else class="chip" :class="row.enabled ? 'ok' : 'info'">
@@ -913,11 +913,16 @@ onMounted(() => {
 .tips {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
+/* 每条规则做成一张浅底提示卡：四条并列时靠留白分隔会糊成一段长文字 */
 .tip {
   display: flex;
   gap: 9px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--ink-50);
+  border: 1px solid var(--border);
   font-size: 12.5px;
   line-height: 1.75;
   color: var(--el-text-color-regular);
@@ -1031,7 +1036,10 @@ onMounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px 14px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 .norm-hint {
@@ -1047,7 +1055,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--el-text-color-regular);
   font-size: 12.5px;
@@ -1055,10 +1063,15 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.16s ease;
 }
+.type-chip:hover {
+  border-color: var(--brand-300);
+  color: var(--brand-600);
+}
 .type-chip.on {
   background: var(--brand-500);
   border-color: var(--brand-500);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 110, 246, 0.26);
 }
 .empty-title {
   font-weight: 600;
@@ -1070,7 +1083,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 8px;
   padding: 4px 0 2px;
-  color: var(--el-text-color-secondary);
+  color: var(--ink-500);
   font-size: 12.5px;
   line-height: 1.7;
 }

@@ -405,8 +405,13 @@ onMounted(load)
   gap: 10px;
 }
 .hint {
-  padding: 0 18px 14px;
+  padding: 10px 18px 12px;
   line-height: 1.7;
+  color: var(--ink-500);
+  font-size: 11.5px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .min-w-0 {
   min-width: 0;
@@ -429,7 +434,10 @@ onMounted(load)
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 18px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .empty-icon {
   color: var(--ink-300);

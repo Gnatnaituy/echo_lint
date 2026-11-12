@@ -149,7 +149,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('recordings.table.agentTeam')" width="100">
+        <el-table-column
+          :label="t('recordings.table.agentTeam')"
+          width="100"
+          class-name="col-tight"
+          label-class-name="col-tight"
+        >
           <template #default="{ row }">
             <div class="agent-cell">
               <div class="agent-line">
@@ -1572,7 +1577,7 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 16px 18px 12px;
+  padding: 14px 18px 12px;
 }
 .filters {
   display: flex;
@@ -1594,18 +1599,21 @@ onUnmounted(() => {
   min-height: 32px;
 }
 .search {
-  width: 224px;
+  width: 240px;
 }
 .read-only-chip {
   flex: none;
 }
-/* 元数据筛选行 */
+/* 元数据筛选行：与上方状态筛选之间用一条极浅的分隔线区隔，
+   让「状态 / 归属 / 搜索」与「通话属性」形成两层清晰的筛选层级 */
 .meta-filters {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 0 18px 12px;
+  padding: 12px 18px;
+  border-top: 1px dashed var(--border);
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 60%);
 }
 .meta-filters :deep(.el-input__wrapper),
 .meta-filters :deep(.el-select__wrapper) {
@@ -1622,10 +1630,13 @@ onUnmounted(() => {
   font-size: 12.5px;
 }
 .hint {
-  padding: 2px 18px 16px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
+  padding: 11px 18px 14px;
+  color: var(--ink-500);
+  font-size: 11.5px;
   line-height: 1.75;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .hint-line {
   margin: 0;
@@ -1815,7 +1826,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   flex: none;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   background: var(--brand-50);
@@ -1877,7 +1888,10 @@ onUnmounted(() => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding: 14px 18px 16px;
+  padding: 10px 18px 12px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
 /* 抽屉 */
