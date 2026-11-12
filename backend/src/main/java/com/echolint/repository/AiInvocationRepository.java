@@ -56,6 +56,10 @@ public interface AiInvocationRepository
     /**
      * 「AI 对话记录」列表分页（投影查询）：动态筛选用「null 则不生效」的 JPQL 条件表达， 与 {@code AiInvocationQueryService}
      * 的筛选语义保持一致（stage 大写、provider 小写等由调用方归一化）。
+     *
+     * <p>时间条件<b>不</b>写成 {@code (:fromTime is null or ...)}：PostgreSQL 无法从「参数只出现在 IS NULL 左侧」
+     * 推断空值参数的类型，绑定 null 时直接报 {@code could not determine data type of parameter $N} 导致列表 500。
+     * 调用方按 {@code TimeRanges.MIN/MAX} 传入哨兵边界，这里用无条件区间比较（与 RecordingSpecifications 同约定）。
      */
     @Query(
             "select i.id as id, i.recordingId as recordingId, i.stage as stage, i.providerId as"
@@ -68,8 +72,7 @@ public interface AiInvocationRepository
                 + " null or lower(i.providerId) = :providerId) and (:modelPattern is null or"
                 + " lower(i.model) like :modelPattern) and (:success is null or i.success ="
                 + " :success) and (:recordingId is null or i.recordingId = :recordingId) and"
-                + " (:fromTime is null or i.createdAt >= :fromTime) and (:toTime is null or"
-                + " i.createdAt < :toTime)")
+                + " i.createdAt >= :fromTime and i.createdAt < :toTime")
     Page<SummaryProjection> findSummaries(
             @Param("stage") String stage,
             @Param("providerId") String providerId,

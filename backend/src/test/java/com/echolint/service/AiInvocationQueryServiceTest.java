@@ -13,6 +13,8 @@ import com.echolint.dto.AiInvocationSummary;
 import com.echolint.entity.AiInvocation;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AiInvocationRepository;
+import com.echolint.util.TimeRanges;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -81,6 +83,46 @@ class AiInvocationQueryServiceTest {
         assertEquals("SCREEN", summary.stage());
         assertEquals(1200, summary.inputTokens());
         assertEquals(1250L, summary.costMicros());
+    }
+
+    @Test
+    void queryUsesSentinelBoundsWhenDatesAreAbsent() {
+        // 回归：日期为空时不能把 null 传给 SQL。PostgreSQL 无法推断只出现在
+        // 「IS NULL」左侧的日期参数类型，会抛 could not determine data type of parameter
+        // 导致「AI 对话记录」列表 500。空范围应走 TimeRanges.MIN/MAX 哨兵。
+        when(repository.findSummaries(
+                        any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+                .thenReturn(Page.empty(PageRequest.of(0, 15)));
+
+        service.query(new AiInvocationFilter(null, null, null, null, null, null, null),
+                PageRequest.of(0, 15));
+
+        verify(repository).findSummaries(
+                null, null, null, null, null,
+                TimeRanges.MIN,
+                TimeRanges.MAX,
+                PageRequest.of(0, 15));
+    }
+
+    @Test
+    void queryConvertsInclusiveDateRangeToHalfOpenBounds() {
+        when(repository.findSummaries(
+                        any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+                .thenReturn(Page.empty(PageRequest.of(0, 15)));
+
+        service.query(
+                new AiInvocationFilter(
+                        null, null, null, null, null,
+                        LocalDate.of(2026, 10, 1),
+                        LocalDate.of(2026, 10, 31)),
+                PageRequest.of(0, 15));
+
+        // to 含当天 → 右开区间取次日 00:00，避免漏掉 10-31 当天的调用
+        verify(repository).findSummaries(
+                null, null, null, null, null,
+                LocalDateTime.of(2026, 10, 1, 0, 0),
+                LocalDateTime.of(2026, 11, 1, 0, 0),
+                PageRequest.of(0, 15));
     }
 
     private AiInvocationRepository.SummaryProjection projection(long id) {

@@ -8,6 +8,7 @@ import com.echolint.entity.AiInvocation;
 import com.echolint.exception.BizException;
 import com.echolint.repository.AiInvocationRepository;
 import com.echolint.repository.AiInvocationRepository.SummaryProjection;
+import com.echolint.util.TimeRanges;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -50,11 +51,15 @@ public class AiInvocationQueryService {
                         : null;
         Boolean success = filter == null ? null : filter.success();
         Long recordingId = filter == null ? null : filter.recordingId();
+        // 未指定日期时用 TimeRanges.MIN/MAX 哨兵而非 null：PostgreSQL 无法推断
+        // 「只出现在 IS NULL 左侧」的空日期参数类型（列表页会 500）。
         LocalDateTime fromTime =
-                filter == null || filter.from() == null ? null : filter.from().atStartOfDay();
+                filter == null || filter.from() == null
+                        ? TimeRanges.MIN
+                        : filter.from().atStartOfDay();
         LocalDateTime toTime =
                 filter == null || filter.to() == null
-                        ? null
+                        ? TimeRanges.MAX
                         : filter.to().plusDays(1).atStartOfDay();
         return repository
                 .findSummaries(
