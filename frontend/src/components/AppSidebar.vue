@@ -1,5 +1,6 @@
 <template>
   <aside
+    id="app-sidebar"
     class="sidebar"
     :class="{ collapsed, overlay, open: overlay && open }"
     :aria-hidden="overlay && !open ? 'true' : undefined"
@@ -165,11 +166,14 @@ const badgeCount = computed(() => props.badgeCount)
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
   transition:
     transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0.22s;
+    visibility 0s 0.22s;
 }
 .sidebar.overlay.open {
   transform: translateX(0);
   visibility: visible;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
 }
 .sidebar.overlay.collapsed {
   width: 248px;

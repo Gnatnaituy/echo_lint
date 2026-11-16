@@ -779,6 +779,22 @@ a {
   .el-table__body-wrapper {
     overflow-x: auto;
   }
+  /* 手机端固定操作列常占 150–232px，会把首列压成半截。让操作列跟随表格
+     自然滚动离场，首屏优先展示文件名 / 标题等主内容；横向滚动仍可到达操作。
+     同时撤掉「固定列」的竖分隔线与渐隐投影 —— 列已随内容滚动，再画一条
+     全表唯一的竖线会误导成列分组。 */
+  .el-table .el-table-fixed-column--right {
+    right: auto !important;
+    border-left-color: transparent;
+  }
+  .el-table--scrollable-x .el-table-fixed-column--right::before {
+    display: none;
+  }
+  /* 触屏链接按钮至少 32px 高，避免表格中的「详情 / 编辑 / 删除」只有 19–22px 高。 */
+  .el-table .el-button.is-link {
+    min-height: 32px;
+    padding: 0 4px;
+  }
   .panel {
     border-radius: var(--r-md);
   }

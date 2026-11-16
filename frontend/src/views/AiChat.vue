@@ -119,7 +119,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('aiChat.recording')" width="110">
+        <el-table-column v-if="!narrowColumns" :label="t('aiChat.recording')" width="110">
           <template #default="{ row }">
             <el-button
               v-if="row.recordingId"
@@ -243,7 +243,7 @@
         <span>{{ detailError }}</span>
       </div>
       <template v-else-if="detail">
-        <el-descriptions :column="compactColumns ? 1 : 2" border size="small" class="detail-desc">
+        <el-descriptions :column="drawerNarrow ? 1 : 2" border size="small" class="detail-desc">
           <el-descriptions-item :label="t('aiChat.time')">{{
             formatTime(detail.createdAt)
           }}</el-descriptions-item>
@@ -332,7 +332,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
@@ -384,10 +384,25 @@ const stageOptions = computed(() => {
 })
 
 const rows = ref([])
-/* 窄屏收起「耗时」「请求/回复」（详情抽屉里仍可查），保证固定操作列不压住成本/Tokens */
+/* 按容器宽度逐级收起次要列（详情抽屉里仍可查），避免固定操作列压住成本 / Tokens */
 const tableRef = ref(null)
 const tableWidth = useElementWidth(tableRef)
-const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 1060)
+const compactColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 1260)
+const narrowColumns = computed(() => tableWidth.value > 0 && tableWidth.value < 1020)
+
+/* 详情抽屉的列数只跟抽屉自身宽度有关：抽屉固定 680px，窄屏由全局样式收到 92vw/720px 上限。
+ * 若复用 compactColumns，抽屉会跟着表格宽度在两列/一列之间跳（表格窄 ≠ 抽屉窄）。 */
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
+const drawerWidth = computed(() => {
+  const vw = viewportWidth.value
+  if (!vw) return 680
+  return vw <= 900 ? Math.min(vw * 0.92, 720) : 680
+})
+/* 568px 以下两列 label + 值各只剩 ~130px，挤成竖排；此时改单列 */
+const drawerNarrow = computed(() => drawerWidth.value < 568)
+function onResize() {
+  viewportWidth.value = window.innerWidth
+}
 const total = ref(0)
 const page = ref(0)
 const pageSize = 15
@@ -496,6 +511,10 @@ function openRecording(row) {
 onMounted(() => {
   loadFacets()
   load()
+  window.addEventListener('resize', onResize)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
 })
 </script>
 

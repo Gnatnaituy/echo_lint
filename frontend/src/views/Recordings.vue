@@ -117,9 +117,10 @@
       </div>
     </section>
 
-    <!-- 列表 -->
+    <!-- 列表：窄屏使用信息卡，避免 11 列表格在手机上只剩文件名和一列操作 -->
     <section ref="tableWrap" class="panel">
       <el-table
+        v-if="!mobileCards"
         v-loading="loading"
         :data="rows"
         :row-class-name="() => 'row-clickable'"
@@ -206,6 +207,7 @@
         </el-table-column>
 
         <el-table-column
+          v-if="!hideSparseColumns"
           :label="t('recordings.table.duration')"
           width="86"
           align="center"
@@ -221,6 +223,7 @@
         </el-table-column>
 
         <el-table-column
+          v-if="!hideSparseColumns"
           :label="t('recordings.table.channels')"
           width="80"
           align="center"
@@ -281,7 +284,7 @@
         </el-table-column>
 
         <el-table-column
-          v-if="!compactColumns"
+          v-if="!hidePriority"
           :label="t('recordings.table.priority')"
           width="80"
           align="center"
@@ -294,7 +297,7 @@
         </el-table-column>
 
         <el-table-column
-          v-if="!narrowColumns"
+          v-if="!hideAssignee"
           :label="t('recordings.table.assignee')"
           width="76"
           align="center"
@@ -434,6 +437,158 @@
         </template>
       </el-table>
 
+      <div v-if="mobileCards" v-loading="loading" class="mobile-rec-list">
+        <article v-for="row in rows" :key="row.id" class="mobile-rec-card">
+          <!-- 不给 aria-label：按钮上的 aria-label 会让后代文本从可访问性树里消失，
+               而卡片内容（状态 / 命中 / AI 结论 / 优先级）正是读屏唯一的信息来源 -->
+          <button type="button" class="mobile-rec-main" @click="openDetail(row)">
+            <span
+              class="file-icon"
+              :class="{ sampled: isSampled(row) }"
+              :title="isSampled(row) ? t('recordings.sampled.tooltip') : undefined"
+            >
+              <el-icon><Microphone /></el-icon>
+              <span v-if="isSampled(row)" class="sample-dot" aria-hidden="true"></span>
+            </span>
+
+            <span class="mobile-rec-content">
+              <span class="mobile-rec-heading">
+                <span class="mobile-rec-name" :title="row.fileName">{{ row.fileName }}</span>
+                <StatusTag class="mobile-rec-status" :status="row.status" />
+              </span>
+
+              <span class="mobile-rec-sub">
+                <span class="mono">#{{ row.id }}</span>
+                <span aria-hidden="true">·</span>
+                <span class="num">{{ formatTimeShort(row.uploadTime) }}</span>
+                <template v-if="row.assignedTo">
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {{
+                      row.assignedTo === auth.username ? t('recordings.table.me') : row.assignedTo
+                    }}
+                  </span>
+                </template>
+              </span>
+
+              <span class="mobile-rec-facts">
+                <span v-if="row.agentName || row.teamName">
+                  {{ [row.agentName, row.teamName].filter(Boolean).join(' / ') }}
+                </span>
+                <span
+                  v-if="row.direction && DIRECTION_META[row.direction]"
+                  class="chip dir-chip"
+                  :class="DIRECTION_META[row.direction].type"
+                >
+                  {{ DIRECTION_META[row.direction].label }}
+                </span>
+                <span v-if="row.callTime" class="num" :title="formatTime(row.callTime)">
+                  {{ formatTimeShort(row.callTime) }}
+                </span>
+                <span v-if="row.durationSeconds != null" class="num">
+                  {{ formatDuration(row.durationSeconds) }}
+                </span>
+              </span>
+
+              <span class="mobile-rec-tags">
+                <span v-if="channelKind(row.channelCount) === 'stereo'" class="chip brand">
+                  {{ t('recordings.table.channelsStereo') }}
+                </span>
+                <span v-else-if="channelKind(row.channelCount) === 'mono'" class="chip">
+                  {{ t('recordings.table.channelsMono') }}
+                </span>
+                <span v-if="row.hitCount" class="chip danger hit-chip">
+                  <el-icon :size="10"><WarningFilled /></el-icon>
+                  {{ countLabel('recordings.table.hitCount', row.hitCount) }}
+                </span>
+                <span v-if="row.aiViolationTypeLabel" class="chip warn">{{
+                  row.aiViolationTypeLabel
+                }}</span>
+                <span v-else-if="row.aiViolation === true" class="chip danger">{{
+                  t('recordings.aiVerdict.violation')
+                }}</span>
+                <span v-else-if="row.aiViolation === false" class="chip ok">{{
+                  t('recordings.aiVerdict.compliant')
+                }}</span>
+                <!-- 与表格一致：有命中但仍在处理中时，结论尚未产出，不能读作「无结论」 -->
+                <span
+                  v-else-if="row.hitCount && PROCESSING_STATUSES.includes(row.status)"
+                  class="chip info"
+                  >{{ t('recordings.aiVerdict.screening') }}</span
+                >
+                <PriorityTag :priority="row.priority" />
+              </span>
+
+              <span v-if="row.reviewer" class="mobile-rec-reviewer">
+                <span
+                  class="chip"
+                  :class="row.reviewResult === 'CONFIRMED_VIOLATION' ? 'danger' : 'ok'"
+                  >{{
+                    row.reviewResult === 'CONFIRMED_VIOLATION'
+                      ? STATUS_META.VIOLATION_CONFIRMED.label
+                      : STATUS_META.FALSE_POSITIVE.label
+                  }}</span
+                >
+                {{ t('recordings.table.reviewedBy', { name: row.reviewer }) }}
+              </span>
+            </span>
+
+            <el-icon class="mobile-rec-arrow" :size="14"><ArrowRight /></el-icon>
+          </button>
+
+          <!-- 卡片底部补齐操作列里的待处理动作：窄屏下表格被信息卡取代，
+               认领 / 重新处理 / 去复检不能随之消失。删除放在详情抽屉里，
+               避免每张卡片都多出一条常驻操作栏。 -->
+          <div
+            v-if="row.status === 'NEEDS_REVIEW' || canClaimRow(row) || reprocessInfo(row)"
+            class="mobile-rec-footer"
+          >
+            <el-tooltip
+              v-if="isStale(row)"
+              :content="t('recordings.table.staleHint')"
+              placement="top"
+            >
+              <el-icon class="mobile-rec-stale" :size="13"><WarningFilled /></el-icon>
+            </el-tooltip>
+            <button
+              v-if="canClaimRow(row)"
+              type="button"
+              class="mobile-rec-action"
+              @click="claim(row)"
+            >
+              {{ t('recordings.actions.claim') }}
+            </button>
+            <el-popconfirm
+              v-if="reprocessInfo(row)"
+              :title="reprocessInfo(row).confirm"
+              width="260"
+              @confirm="reprocess(row)"
+            >
+              <template #reference>
+                <button type="button" class="mobile-rec-action">
+                  {{ reprocessInfo(row).label }}
+                </button>
+              </template>
+            </el-popconfirm>
+            <button
+              v-if="row.status === 'NEEDS_REVIEW'"
+              type="button"
+              class="mobile-rec-action primary"
+              @click="router.push(`/review?id=${row.id}`)"
+            >
+              {{ t('recordings.actions.goReview') }}
+              <el-icon :size="12"><ArrowRight /></el-icon>
+            </button>
+          </div>
+        </article>
+
+        <div v-if="!rows.length && !loading" class="empty-block mobile-rec-empty">
+          <el-icon :size="34" class="empty-icon"><Microphone /></el-icon>
+          <div class="empty-title">{{ t('recordings.empty.title') }}</div>
+          <div class="tiny dim">{{ t('recordings.empty.hint') }}</div>
+        </div>
+      </div>
+
       <div class="pager">
         <el-pagination
           layout="total, prev, pager, next"
@@ -568,6 +723,20 @@
                   <el-button :type="reprocessInfo(detail).tone" size="small">
                     {{ reprocessInfo(detail).label }}
                   </el-button>
+                </template>
+              </el-popconfirm>
+              <!-- 删除在所有宽度都必须可达：窄屏信息卡取代表格后，
+                   操作列里的删除按钮没有其他入口，这里补上同一条路径 -->
+              <el-popconfirm
+                v-if="canWrite"
+                :title="t('recordings.delete.confirm')"
+                width="260"
+                @confirm="remove(detail)"
+              >
+                <template #reference>
+                  <el-button type="danger" size="small">{{
+                    t('recordings.actions.delete')
+                  }}</el-button>
                 </template>
               </el-popconfirm>
               <el-button
@@ -820,6 +989,7 @@ import PriorityTag from '../components/PriorityTag.vue'
 import StatusTag from '../components/StatusTag.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../i18n'
+import { useElementWidth } from '../utils/elementWidth'
 import { dateShortcuts as buildDateShortcuts, toDateParam } from '../utils/dateRange'
 import { channelKind, resolveChannelKind } from '../utils/segments.js'
 import {
@@ -848,7 +1018,7 @@ import {
   PROCESSING_STATUSES,
   STATUS_META
 } from '../constants'
-import { ArrowDown, Microphone, WarningFilled } from '../components/icons.js'
+import { ArrowDown, ArrowRight, Microphone, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
 
@@ -873,27 +1043,28 @@ const assignedFilter = ref('')
 const overview = computed(() => overviewState.data)
 
 /* ---------- 列表列宽自适应 ----------
- * 录音列表共 9 列，内容区窄于阈值时收起「优先级」列（该信息仍可在详情抽屉查看），
- * 让表格在 1280/1024 笔记本宽度下尽量不横向滚动，避免固定操作列压住相邻列文字。
- * 用 ResizeObserver 而不是窗口断点：侧栏折叠/展开会改变内容宽度但不改变窗口宽度。 */
+ * 录音列表列多、内容宽。按表格容器（而非窗口）逐级收起次要列，确保 1280/1440
+ * 笔记本宽度不横向滚动；更窄时改用信息卡，避免固定操作列压住主内容。
+ * 收起的信息仍可在详情抽屉查看。容器宽度用共享的 useElementWidth 观察，
+ * 侧栏折叠/展开会改变内容宽度但不改变窗口宽度。 */
 const tableWrap = ref(null)
-const compactColumns = ref(false)
-const narrowColumns = ref(false)
-/* 表宽阈值：<1024 收起「优先级」，<900 再收起「指派」（两者都能在详情抽屉查看） */
-const COMPACT_TABLE_WIDTH = 1024
-const NARROW_TABLE_WIDTH = 900
-let tableObserver = null
-
-function observeTableWidth() {
-  if (typeof ResizeObserver === 'undefined' || !tableWrap.value) return
-  tableObserver = new ResizeObserver(([entry]) => {
-    const width = entry?.contentRect?.width || 0
-    if (width <= 0) return
-    compactColumns.value = width < COMPACT_TABLE_WIDTH
-    narrowColumns.value = width < NARROW_TABLE_WIDTH
-  })
-  tableObserver.observe(tableWrap.value)
-}
+const tableWidth = useElementWidth(tableWrap)
+/* 阈值按「当前可见列的宽度合计」推导（录音 176 / 坐席 88 / 方向 64 / 通话 164 /
+ * 命中 84 / 结论 100 / 状态 120 / 操作 150）：
+ * 全列 1268 → <1320 收「优先级」、<1260 收「指派」(余 1112)
+ * → <1120 收「时长 / 声道」(余 946) → <950 改信息卡。 */
+const COMPACT_TABLE_WIDTH = 1320
+const NARROW_TABLE_WIDTH = 1260
+const SPARSE_TABLE_WIDTH = 1120
+const MOBILE_CARD_TABLE_WIDTH = 950
+const hidePriority = computed(() => tableWidth.value > 0 && tableWidth.value < COMPACT_TABLE_WIDTH)
+const hideAssignee = computed(() => tableWidth.value > 0 && tableWidth.value < NARROW_TABLE_WIDTH)
+const hideSparseColumns = computed(
+  () => tableWidth.value > 0 && tableWidth.value < SPARSE_TABLE_WIDTH
+)
+const mobileCards = computed(
+  () => tableWidth.value > 0 && tableWidth.value < MOBILE_CARD_TABLE_WIDTH
+)
 
 // 元数据筛选（与后端 GET /recordings 的 agentName/teamName/direction/from/to 参数一一对应）
 const callDateRange = ref([])
@@ -1540,7 +1711,6 @@ function onVisibilityChange() {
 }
 
 onMounted(async () => {
-  observeTableWidth()
   // 支持从工作台/其他页面带条件跳转
   const qs = String(route.query.statuses || '')
   if (qs) statusFilter.value = qs.split(',')[0] === 'FAILED' ? 'FAILED' : qs.split(',')[0]
@@ -1561,8 +1731,6 @@ onUnmounted(() => {
   if (timer) clearInterval(timer)
   timer = null
   document.removeEventListener('visibilitychange', onVisibilityChange)
-  tableObserver?.disconnect()
-  tableObserver = null
 })
 </script>
 
@@ -1874,6 +2042,186 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 窄屏录音卡：保留文件名、状态、命中、AI 结论和操作入口，
+   去掉桌面表格里依赖横向空间才能阅读的次要列。 */
+.mobile-rec-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 10px;
+  padding: 14px;
+  min-height: 160px;
+}
+.mobile-rec-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-xs);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.mobile-rec-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  min-height: 44px;
+  padding: 13px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mobile-rec-main:hover {
+  background: var(--brand-50);
+}
+.mobile-rec-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.mobile-rec-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mobile-rec-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-800);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-rec-status {
+  flex: none;
+}
+.mobile-rec-sub,
+.mobile-rec-facts,
+.mobile-rec-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 7px;
+}
+.mobile-rec-sub {
+  color: var(--ink-500);
+  font-size: 11.5px;
+}
+.mobile-rec-facts {
+  color: var(--ink-600);
+  font-size: 11.5px;
+}
+/* 分隔点只加在纯文本项之间：chip 自带左右留白，再补一个点会读成「呼入 · 时间」黏连 */
+.mobile-rec-facts > span:not(.chip):not(:last-child)::after {
+  content: '·';
+  margin-left: 7px;
+  color: var(--ink-300);
+}
+.mobile-rec-tags {
+  gap: 5px;
+}
+.mobile-rec-tags .chip,
+.mobile-rec-tags .prio {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+.mobile-rec-arrow {
+  flex: none;
+  margin-top: 8px;
+  color: var(--ink-300);
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+.mobile-rec-main:hover .mobile-rec-arrow {
+  color: var(--brand-500);
+  transform: translateX(2px);
+}
+.mobile-rec-reviewer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: var(--ink-500);
+  font-size: 11.5px;
+}
+.mobile-rec-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 12px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--ink-50);
+}
+.mobile-rec-stale {
+  margin-right: auto;
+  color: var(--warn);
+}
+.mobile-rec-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-600);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mobile-rec-action:hover {
+  border-color: var(--brand-300);
+  background: var(--brand-50);
+  color: var(--brand-600);
+}
+.mobile-rec-action.primary {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-600);
+}
+.mobile-rec-action.primary:hover {
+  border-color: var(--brand-300);
+  color: var(--brand-700);
+}
+.mobile-rec-empty {
+  grid-column: 1 / -1;
+}
+@media (hover: hover) {
+  .mobile-rec-card:hover {
+    border-color: var(--brand-200);
+    box-shadow: var(--sh-sm);
+    transform: translateY(-1px);
+  }
+}
+@media (max-width: 600px) {
+  .mobile-rec-list {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+  }
+  .mobile-rec-status {
+    height: 21px;
+    padding: 0 6px;
+  }
 }
 
 .empty-icon {

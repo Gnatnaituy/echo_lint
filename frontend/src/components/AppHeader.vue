@@ -6,6 +6,8 @@
         type="button"
         class="menu-btn"
         :aria-label="t('a11y.openMenu')"
+        :aria-expanded="menuOpen ? 'true' : 'false'"
+        aria-controls="app-sidebar"
         :title="t('a11y.openMenu')"
         @click="$emit('toggleMenu')"
       >
@@ -160,7 +162,8 @@ import { ArrowDown, ArrowRight, Bell, Expand, Lock, Refresh, SwitchButton } from
 defineProps({
   title: { type: String, default: '' },
   pending: { type: Number, default: 0 },
-  healthy: { type: Boolean, default: true }
+  healthy: { type: Boolean, default: true },
+  menuOpen: { type: Boolean, default: false }
 })
 defineEmits(['refresh', 'toggleMenu'])
 

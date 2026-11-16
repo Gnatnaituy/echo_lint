@@ -35,6 +35,7 @@
           :title="routeTitle"
           :pending="pendingReview"
           :healthy="healthy"
+          :menu-open="isNarrow && drawerOpen"
           @refresh="refreshStatus"
           @toggle-menu="toggleDrawer"
         />
@@ -142,8 +143,14 @@ async function openDrawer() {
   if (!isNarrow.value) return
   drawerOpen.value = true
   await nextTick()
-  // 打开后把焦点移入侧栏第一个导航项，键盘用户可直接继续操作
-  sidebarRef.value?.$el?.querySelector?.('.nav-item')?.focus?.()
+  // 点击事件结束后浏览器还会把焦点留在汉堡按钮上，等下一帧再移入抽屉，
+  // 否则键盘用户打开侧栏后仍停留在触发按钮，Tab 顺序会越过整组导航。
+  requestAnimationFrame(() => {
+    const firstNav =
+      sidebarRef.value?.$el?.querySelector?.('.nav-item') ||
+      document.querySelector('#app-sidebar .nav-item')
+    firstNav?.focus?.({ preventScroll: true })
+  })
 }
 
 function closeDrawer() {
