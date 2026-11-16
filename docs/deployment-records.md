@@ -273,3 +273,16 @@
 | 背景 | 侧栏/登录页原用通用耳机图标（Headset），缺少品牌辨识度 |
 | 改动 | 新品牌标识：圆角方块品牌渐变 + 白色声波（Echo）+ 薄荷绿对勾（Lint，代表合规稽核）；新增共享组件 `components/BrandMark.vue` 统一侧栏/登录页，`favicon.svg` 同步替换（16px 下仍可辨识） |
 | 验证 | 线上真实浏览器截图确认登录页 42px、侧栏 34px 显示清晰；favicon 200；前端 213 tests / lint / format / build 全绿 |
+
+### 2026-11-16 19:02 窄屏录音列表信息卡 + 抽屉无障碍修复
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `9847d24` + 未提交工作区变更（6 个前端文件，+433/−36） |
+| 部署时间 | 2026-11-16 19:02–19:04（Asia/Shanghai）；仅重新构建前端镜像，容器整体重启约 30s |
+| 服务器 | `root@<server-ip>`，部署目录 `/opt/echolint`（无 git，dist 直传） |
+| 变更范围 | 前端 dist（入口 `index-3I36SBmY.js`，样式 `index-BMwCHW--.css`）；后端 jar / compose / nginx.conf 均未改动 |
+| 回滚点 | dist 快照 `backups/frontend-dist-20261116-190241`；镜像 `echolint-frontend:rollback-20261116-190244` |
+| 改动摘要 | 录音列表按容器宽度四级响应（收优先级 → 收指派 → 收时长/声道 → 换信息卡）；卡片补齐认领 / 重新处理 / 去复检入口与复筛中、复检人信息；详情抽屉新增删除（窄屏唯一可达路径）；修正方向 chip 样式与 `aria-label` 吞语义；`AppHeader` 补 `aria-expanded`/`aria-controls`；抽屉焦点迁移改到下一帧；AiChat 详情列数改按抽屉宽度而非表格宽度 |
+| 验证 | 本地 213 tests / eslint / prettier / i18n / build 全绿；线上 `index-3I36SBmY.js` 200、`/recordings` 200、443 vhost 返回新构建；三容器 healthy，后端日志无 ERROR |
+| 注意 | 后端与 postgres 随 compose 一并重启（依赖链），部署前会话不受影响（未改会话纪元）；卡片布局未经真实浏览器人工验收，仅代码与构建验证 |
