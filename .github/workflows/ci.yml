@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Spotless ratchet 需要与 origin/main 比对，必须拉全量历史
           fetch-depth: 0
@@ -48,7 +48,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -73,7 +73,7 @@ jobs:
     name: Docker image build smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Build backend image
         uses: docker/build-push-action@v6
@@ -97,7 +97,7 @@ jobs:
     name: Compose config & env parity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # 守卫：application.yml 的每个 ${ENV} 都必须在 compose 显式注入或 .env.example 中记录，
       # 否则该变量在 compose 部署下会静默失效（见审计 P1-1）。
       - name: Check env parity
