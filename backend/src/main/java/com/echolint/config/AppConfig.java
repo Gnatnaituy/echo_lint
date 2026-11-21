@@ -3,11 +3,13 @@ package com.echolint.config;
 import com.echolint.asr.AsrSettingsService;
 import com.echolint.service.IntegrationStatusService;
 import com.echolint.service.ScreenModelService;
+import io.micrometer.context.ContextSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.StringUtils;
 
@@ -17,6 +19,19 @@ import org.springframework.util.StringUtils;
 public class AppConfig {
 
     /**
+     * 跨线程 Observation 上下文传播装饰器（OTel tracing）。
+     *
+     * <p>提交任务时在提交线程快照当前 Observation 上下文（含 trace），执行线程恢复后再运行—— 没有它，{@code @Scheduled} 调度线程派发到
+     * pipeline/mining/notify/ragIndex 线程池的 任务会丢 trace（流水线任务在 Jaeger 里变成无父 span 的孤立 trace）。 快照经
+     * {@code ContextRegistry} 里注册的 {@code ThreadLocalAccessor} 读写， micrometer-tracing 在场时由 Boot
+     * 自动注册，无 trace 时快照为空、零开销。
+     */
+    @Bean
+    public TaskDecorator observationPropagatingTaskDecorator() {
+        return runnable -> ContextSnapshot.captureAll().wrap(runnable);
+    }
+
+    /**
      * 流水线执行线程池。
      *
      * <p>拒绝策略用 {@link java.util.concurrent.ThreadPoolExecutor.AbortPolicy}：队列满时抛 {@link
@@ -24,12 +39,14 @@ public class AppConfig {
      * PENDING，等下一个调度周期重试。此前用 CallerRunsPolicy 会让 调度线程亲自跑整条流水线（甚至数十秒~数分钟），阻塞后续任务派发。
      */
     @Bean(name = "pipelineExecutor")
-    public ThreadPoolTaskExecutor pipelineExecutor(AppProperties appProperties) {
+    public ThreadPoolTaskExecutor pipelineExecutor(
+            AppProperties appProperties, TaskDecorator taskDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(appProperties.getPipelinePoolSize());
         executor.setMaxPoolSize(Math.max(appProperties.getPipelinePoolSize() * 2, 4));
         executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("pipeline-");
+        executor.setTaskDecorator(taskDecorator);
         executor.setRejectedExecutionHandler(
                 new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
@@ -43,12 +60,13 @@ public class AppConfig {
      * WARN，绝不阻塞复核提交 （词挖掘是尽力而为的旁路能力，遗漏的候选词可下次复核再挖掘）。
      */
     @Bean(name = "miningExecutor")
-    public ThreadPoolTaskExecutor miningExecutor() {
+    public ThreadPoolTaskExecutor miningExecutor(TaskDecorator taskDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(20);
         executor.setThreadNamePrefix("mining-");
+        executor.setTaskDecorator(taskDecorator);
         executor.setRejectedExecutionHandler(
                 (task, pool) -> log.warn("词挖掘队列已满（{}），丢弃本次异步挖掘任务", pool.getQueue().size()));
         executor.initialize();
@@ -61,12 +79,13 @@ public class AppConfig {
      * <p>通知是尽力而为的旁路能力：独立小池子避免慢接收端占用流水线线程； 队列满时直接丢弃并 warn，绝不阻塞复核/流水线主流程。
      */
     @Bean(name = "notificationExecutor")
-    public ThreadPoolTaskExecutor notificationExecutor() {
+    public ThreadPoolTaskExecutor notificationExecutor(TaskDecorator taskDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("notify-");
+        executor.setTaskDecorator(taskDecorator);
         executor.setRejectedExecutionHandler((task, pool) -> log.warn("通知队列已满，丢弃本次 Webhook 通知"));
         executor.initialize();
         return executor;
@@ -81,13 +100,15 @@ public class AppConfig {
      * 而不停留在 PENDING。
      */
     @Bean(name = "ragIndexExecutor")
-    public ThreadPoolTaskExecutor ragIndexExecutor(RagProperties ragProperties) {
+    public ThreadPoolTaskExecutor ragIndexExecutor(
+            RagProperties ragProperties, TaskDecorator taskDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         int poolSize = ragProperties.effectiveIndexPoolSize();
         executor.setCorePoolSize(poolSize);
         executor.setMaxPoolSize(poolSize);
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("rag-index-");
+        executor.setTaskDecorator(taskDecorator);
         executor.setRejectedExecutionHandler(
                 new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
         executor.initialize();

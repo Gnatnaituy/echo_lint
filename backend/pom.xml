@@ -68,6 +68,21 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!--
+          分布式追踪（OTel + Jaeger）：micrometer-tracing 桥接 OTel SDK，Spring 自动埋点
+          MVC 入站 / @Scheduled / 注入式 WebClient.Builder 出站，并把 traceId/spanId 写入
+          日志 MDC（Boot 默认日志 pattern 自动携带）。Span 经 OTLP 推送到 Jaeger
+          （compose 内 http://jaeger:4317），见 application.yml 的 management.tracing /
+          management.otlp.tracing。版本由 spring-boot-starter-parent BOM 管理。
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
         <!-- OpenAPI 文档 + Swagger UI（/v3/api-docs、/swagger-ui/index.html） -->
         <dependency>
             <groupId>org.springdoc</groupId>

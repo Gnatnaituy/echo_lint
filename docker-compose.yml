@@ -35,6 +35,25 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Jaeger v2（OTel Collector 封装）：接收 backend 推送的 OTLP span（:4317 gRPC / :4318 HTTP），
+  # UI 只绑回环 http://localhost:16686。内存存储，重启即清——定位为诊断工具，不承诺持久留存；
+  # backend 不 depends_on 本服务：Jaeger 不可用时仅丢 span，OTLP exporter 重试，不影响业务。
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    container_name: echolint-jaeger
+    restart: unless-stopped
+    ports:
+      # 16686 UI / 4317 gRPC / 4318 OTLP HTTP 均只绑回环（4317/4318 供本机 mvn spring-boot:run
+      # 直推 span；backend 容器内走 compose 网络直连 jaeger:4318，不经宿主端口）
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   backend:
     build: ./backend
     image: echolint-backend
@@ -113,6 +132,10 @@ services:
       #   并用防火墙只放行 Docker 网桥网段；容器侧依赖上面的 extra_hosts: host-gateway。
       WHISPER_BASE_URL: ${WHISPER_BASE_URL:-http://host.docker.internal:9900}
       WHISPER_API_KEY: ${WHISPER_API_KEY:-local}
+      # 分布式追踪：span 经 OTLP 推送到 compose 网络内的 jaeger 服务（不走宿主端口）
+      OTEL_TRACING_ENDPOINT: ${OTEL_TRACING_ENDPOINT:-http://jaeger:4318/v1/traces}
+      # 采样率：1.0 全采样；流量大时可在 .env 调低
+      OTEL_TRACING_SAMPLING_PROBABILITY: ${OTEL_TRACING_SAMPLING_PROBABILITY:-1.0}
       TZ: Asia/Shanghai
     volumes:
       - uploads:/app/data/uploads

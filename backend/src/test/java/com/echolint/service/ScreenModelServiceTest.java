@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /** AI 复筛模型切换：默认值解析、落库优先级、切换校验（未知/停用）、密钥缺失提示、 数据库供应商优先 + yml 兜底（Batch 3a）。 */
 @ExtendWith(MockitoExtension.class)
@@ -68,7 +69,13 @@ class ScreenModelServiceTest {
                 new ProviderRegistry(providerRepository, properties, cipher, objectMapper);
         service =
                 new ScreenModelService(
-                        properties, settingRepository, objectMapper, registry, invocations);
+                        properties,
+                        settingRepository,
+                        objectMapper,
+                        registry,
+                        invocations,
+                        // 测试环境不接 Observation/tracing，传纯 builder 即可
+                        WebClient.builder());
     }
 
     private ScreenModelProperties properties() {

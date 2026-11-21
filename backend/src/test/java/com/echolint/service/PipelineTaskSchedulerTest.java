@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import com.echolint.domain.TaskStatus;
 import com.echolint.entity.PipelineTask;
 import com.echolint.exception.BizException;
+import io.micrometer.observation.ObservationRegistry;
+import io.opentelemetry.api.OpenTelemetry;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +45,14 @@ class PipelineTaskSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new PipelineTaskScheduler(taskService, pipelineService, Runnable::run);
+        // 测试不接 OTel SDK：noop 下 traceparent 为空 → 无续接 span，行为与旧版一致
+        scheduler =
+                new PipelineTaskScheduler(
+                        taskService,
+                        pipelineService,
+                        Runnable::run,
+                        OpenTelemetry.noop(),
+                        ObservationRegistry.NOOP);
     }
 
     private PipelineTask task() {
@@ -136,7 +145,13 @@ class PipelineTaskSchedulerTest {
                 command -> {
                     throw new RejectedExecutionException("queue full");
                 };
-        scheduler = new PipelineTaskScheduler(taskService, pipelineService, rejecting);
+        scheduler =
+                new PipelineTaskScheduler(
+                        taskService,
+                        pipelineService,
+                        rejecting,
+                        OpenTelemetry.noop(),
+                        ObservationRegistry.NOOP);
         when(taskService.findDueTasks()).thenReturn(List.of(task()));
         when(taskService.claim(TASK_ID)).thenReturn(true);
 
@@ -159,7 +174,13 @@ class PipelineTaskSchedulerTest {
                     }
                     command.run();
                 };
-        scheduler = new PipelineTaskScheduler(taskService, pipelineService, flaky);
+        scheduler =
+                new PipelineTaskScheduler(
+                        taskService,
+                        pipelineService,
+                        flaky,
+                        OpenTelemetry.noop(),
+                        ObservationRegistry.NOOP);
         when(taskService.findDueTasks()).thenReturn(List.of(task(), second));
         when(taskService.claim(100L)).thenReturn(true);
         when(taskService.claim(200L)).thenReturn(true);

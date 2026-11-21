@@ -3,6 +3,8 @@ package com.echolint.service;
 import com.echolint.exception.BizException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,17 +38,29 @@ public class AiModelCaller {
     private static final long DEFAULT_TIMEOUT_SECONDS = 60;
 
     private final ObjectMapper objectMapper;
+
+    /**
+     * OTel span 注册表：每次 chat 调用（含每次重试）各开一个 span， 在 Jaeger 里可看到 429/5xx 重试链路与退避间隔。测试环境注入 {@code
+     * ObservationRegistry.NOOP}。
+     */
+    private final ObservationRegistry observationRegistry;
+
     private final long firstRetryDelayMs;
     private final long secondRetryDelayMs;
 
     @Autowired
-    public AiModelCaller(ObjectMapper objectMapper) {
-        this(objectMapper, FIRST_RETRY_DELAY_MS, SECOND_RETRY_DELAY_MS);
+    public AiModelCaller(ObjectMapper objectMapper, ObservationRegistry observationRegistry) {
+        this(objectMapper, observationRegistry, FIRST_RETRY_DELAY_MS, SECOND_RETRY_DELAY_MS);
     }
 
     /** 测试用：缩短退避，避免单测等待 */
-    AiModelCaller(ObjectMapper objectMapper, long firstRetryDelayMs, long secondRetryDelayMs) {
+    AiModelCaller(
+            ObjectMapper objectMapper,
+            ObservationRegistry observationRegistry,
+            long firstRetryDelayMs,
+            long secondRetryDelayMs) {
         this.objectMapper = objectMapper;
+        this.observationRegistry = observationRegistry;
         this.firstRetryDelayMs = Math.max(0, firstRetryDelayMs);
         this.secondRetryDelayMs = Math.max(0, secondRetryDelayMs);
     }
@@ -107,7 +121,23 @@ public class AiModelCaller {
         }
     }
 
+    /**
+     * 单次 chat 调用各开一个 OTel span（span 名低基数，action/provider/model 进属性）； 重试由 {@link #call}
+     * 外层循环驱动，每次重试各自成 span，Jaeger 时间线上可见退避间隔。
+     */
     private JsonNode doCall(
+            ScreenModelService.ActiveModel model,
+            String requestJson,
+            String action,
+            long timeoutSeconds) {
+        return Observation.createNotStarted("echolint.ai.chat", observationRegistry)
+                .lowCardinalityKeyValue("ai.action", action)
+                .lowCardinalityKeyValue("ai.provider", model.providerId())
+                .lowCardinalityKeyValue("ai.model", model.model())
+                .observe(() -> doCallInternal(model, requestJson, action, timeoutSeconds));
+    }
+
+    private JsonNode doCallInternal(
             ScreenModelService.ActiveModel model,
             String requestJson,
             String action,

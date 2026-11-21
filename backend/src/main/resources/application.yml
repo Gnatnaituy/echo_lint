@@ -53,6 +53,19 @@ management:
       exposure:
         # prometheus 应用层放行，部署层必须限制为内网/回环访问，切勿直接暴露公网
         include: health,info,prometheus
+  # =============== 分布式追踪（OTel bridge → OTLP → Jaeger）===============
+  # micrometer-tracing-bridge-otel 自动埋点：MVC 入站 / @Scheduled / 注入式
+  # WebClient.Builder 出站，并把 traceId/spanId 写入日志 MDC（默认 pattern 自动携带）。
+  # 采样率：本地/小流量 1.0 全采样；生产流量大时调低（如 0.1）。
+  tracing:
+    sampling:
+      probability: ${OTEL_TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      # OTLP HTTP exporter（默认协议 HTTP+protobuf），endpoint 含 /v1/traces 路径。
+      # 默认指向本机 compose 映射的 Jaeger；compose 内 backend.environment 显式
+      # 覆盖为 http://jaeger:4318/v1/traces（走 compose 网络不走宿主端口）。
+      endpoint: ${OTEL_TRACING_ENDPOINT:http://127.0.0.1:4318/v1/traces}
 
 app:
   # AI 供应商 API Key 的 AES-GCM 主密钥（Batch 3a）。

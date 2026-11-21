@@ -57,6 +57,13 @@ public class RagEmbeddingClient {
     private final AiQuotaService quotaService;
     private final RagEmbeddingSettingsResolver embeddingSettings;
 
+    /**
+     * 注入 Boot 自动配置的 prototype WebClient.Builder（micrometer-tracing 在场时自带 Observation
+     * filter，embedding 出站调用会接续当前 trace）。{@code buildClient} 每次用 {@code clone()} 派生新 builder：clone
+     * 只读复制、线程安全 （ragIndexExecutor 与请求线程并发建索引），且保留 observation filter。
+     */
+    private final WebClient.Builder webClientBuilder;
+
     /** embedding 配置信息（系统设置页只读展示；不含任何密钥） */
     public record EmbeddingInfo(
             String providerId,
@@ -391,7 +398,8 @@ public class RagEmbeddingClient {
                         .responseTimeout(
                                 Duration.ofSeconds(properties.effectiveEmbeddingTimeoutSeconds()));
         WebClient.Builder builder =
-                WebClient.builder()
+                webClientBuilder
+                        .clone()
                         .baseUrl(trimTrailingSlash(provider.baseUrl()))
                         .clientConnector(new ReactorClientHttpConnector(httpClient))
                         .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);

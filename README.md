@@ -63,6 +63,7 @@ cp .env.example .env      # 生产至少改 POSTGRES_PASSWORD / APP_ADMIN_PASSWO
 docker compose up -d --build
 
 # 前端 http://localhost:8081   后端 http://localhost:8082/actuator/health
+# 追踪 UI（Jaeger）http://localhost:16686（span 经 OTLP 自动推送，Compose 重启即清）
 # 默认管理员 admin / admin12345（生产必须用 APP_ADMIN_PASSWORD 覆盖）
 ```
 
@@ -138,7 +139,7 @@ VITE_API_TARGET=http://localhost:8082 npm run dev
 
 CI（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：后端 700+ 单测 + Spotless；前端 lint / format / build / 单测 / i18n 审计 / `npm audit`；两个镜像构建冒烟；compose 语法与 `application.yml` ↔ `.env` 变量一致性校验。依赖升级由 Dependabot 每周开 PR。
 
-可观测性：`/actuator/health`、`/actuator/prometheus`（含 `echolint_pipeline_tasks`、`echolint_recordings_backlog`、`echolint_ai_invocations_today`、`echolint_ai_cost_micros_today` 业务指标）。
+可观测性：`/actuator/health`、`/actuator/prometheus`（含 `echolint_pipeline_tasks`、`echolint_recordings_backlog`、`echolint_ai_invocations_today`、`echolint_ai_cost_micros_today` 业务指标）；分布式追踪为 **Micrometer Tracing + OTel bridge → OTLP → Jaeger**（compose 内置 `jaeger` 服务，UI `http://localhost:16686`）：MVC / `@Scheduled` / WebClient（whisper、百炼 ASR、DeepSeek chat、embedding）自动埋点，流水线转写 / DFA / AI 复筛三阶段与 AI 重试各成 span，`TaskDecorator` 跨线程池传播上下文，traceId 自动进日志；上传请求与 5 秒后的调度执行经 `pipeline_tasks.traceparent`（W3C 续接，Flyway V8）端到端连成同一条 trace；采样率与 endpoint 见 `.env.example` 的 `OTEL_TRACING_*`。
 
 ## 注意事项
 

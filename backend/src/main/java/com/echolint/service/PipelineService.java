@@ -11,10 +11,13 @@ import com.echolint.repository.RecordingRepository;
 import com.echolint.service.rag.RagRetrievalService;
 import com.echolint.service.rag.RagSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +50,22 @@ public class PipelineService {
     private final com.echolint.config.AppProperties appProperties;
     private final com.echolint.config.ScreenModelProperties screenModelProperties;
     private final ObjectMapper objectMapper;
+
+    /**
+     * OTel span 注册表：转写 / DFA / AI 复筛三个耗时阶段各开一个 span， 在 Jaeger 里能看到单条录音的时间线（音频下载与 AI 调用是外部 HTTP
+     * span，由注入式 WebClient 自动埋点）。测试环境注入 {@code ObservationRegistry.NOOP}。
+     */
+    private final ObservationRegistry observationRegistry;
+
+    /**
+     * 阶段级 Observation：span 名低基数（固定三个），recordingId 是高基数属性 （只进 span attribute / tag，不参与指标聚合）。异常自动记入
+     * span，无需额外处理。
+     */
+    private <T> T observe(String stage, Long recordingId, Supplier<T> body) {
+        return Observation.createNotStarted(stage, observationRegistry)
+                .highCardinalityKeyValue("recording.id", String.valueOf(recordingId))
+                .observe(body);
+    }
 
     /**
      * 已有结论、不允许流水线再覆盖的状态： COMPLIANT（DFA/AI 自动归档）、NEEDS_REVIEW（已进入人工队列）、 VIOLATION_CONFIRMED /
@@ -91,7 +110,11 @@ public class PipelineService {
         try {
             // 1. 转写（双声道自动分轨：左右声道分别转写后按时间对齐）
             updateStatus(recording, RecordingStatus.TRANSCRIBING);
-            var outcome = audioTranscriptionService.transcribe(resolvePath(recording));
+            var outcome =
+                    observe(
+                            "echolint.pipeline.transcribe",
+                            recordingId,
+                            () -> audioTranscriptionService.transcribe(resolvePath(recording)));
             recording.setTranscript(outcome.transcript());
             recording.setSegmentsJson(outcome.segmentsJson());
             recording.setChannelCount(outcome.channelCount());
@@ -115,7 +138,11 @@ public class PipelineService {
 
             // 2. DFA 初筛
             updateStatus(recording, RecordingStatus.DFA_CHECKING);
-            List<DfaHit> hits = dfaService.match(outcome.transcript());
+            List<DfaHit> hits =
+                    observe(
+                            "echolint.pipeline.dfa",
+                            recordingId,
+                            () -> dfaService.match(outcome.transcript()));
             recording.setHitCount(hits.size());
             recording.setDfaHitsJson(objectMapper.writeValueAsString(hits));
 
@@ -177,12 +204,16 @@ public class PipelineService {
                 var examples =
                         ragRetrievalService.corpusExamples(outcome.transcript(), fewShotCount);
                 var screening =
-                        semanticScreeningService.screenWithTrace(
+                        observe(
+                                "echolint.pipeline.ai-screen",
                                 recordingId,
-                                outcome.transcript(),
-                                outcome.segmentsJson(),
-                                hits,
-                                examples);
+                                () ->
+                                        semanticScreeningService.screenWithTrace(
+                                                recordingId,
+                                                outcome.transcript(),
+                                                outcome.segmentsJson(),
+                                                hits,
+                                                examples));
                 ai = screening.result();
                 ragTrace = screening.trace();
                 if (ragTrace != null && ragTrace.enabled()) {

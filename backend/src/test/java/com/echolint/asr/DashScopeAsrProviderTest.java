@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * 百炼结果 JSON → {@link TranscriptionService.ChannelTranscript} 的映射（纯逻辑，不联网）： 毫秒 → 秒、duration
@@ -21,7 +22,9 @@ import org.junit.jupiter.api.Test;
 class DashScopeAsrProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final DashScopeAsrProvider provider = new DashScopeAsrProvider(objectMapper);
+    // 测试环境不接 Observation/tracing，传纯 builder 即可（生产由 Boot 注入带 filter 的 prototype）
+    private final DashScopeAsrProvider provider =
+            new DashScopeAsrProvider(objectMapper, WebClient.builder());
 
     private JsonNode json(String raw) {
         try {

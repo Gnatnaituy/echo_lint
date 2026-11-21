@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * embedding 客户端使用解析后的供应商/模型（设置页可切换）：配置视图、可用性与 解析结果错误时的提示均以 {@link RagEmbeddingSettingsResolver}
@@ -49,7 +50,9 @@ class RagEmbeddingClientTest {
                         new ObjectMapper(),
                         invocations,
                         quotaService,
-                        embeddingSettings);
+                        embeddingSettings,
+                        // 测试环境不接 Observation/tracing，传纯 builder 即可
+                        WebClient.builder());
     }
 
     @Test

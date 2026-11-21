@@ -25,6 +25,7 @@ import com.echolint.service.AudioTranscriptionService.TranscriptionOutcome;
 import com.echolint.service.rag.RagRetrievalService;
 import com.echolint.service.rag.RagSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.ObservationRegistry;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -80,7 +81,9 @@ class PipelineServiceTest {
                         ragSettingsService,
                         appProperties,
                         screenProperties,
-                        objectMapper);
+                        objectMapper,
+                        // 测试不接 OTel span
+                        ObservationRegistry.NOOP);
     }
 
     private Recording stubRecording() {

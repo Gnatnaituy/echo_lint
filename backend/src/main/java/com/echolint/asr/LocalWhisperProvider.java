@@ -47,6 +47,13 @@ public class LocalWhisperProvider implements AsrProvider {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * 注入 Boot 自动配置的 prototype WebClient.Builder（micrometer-tracing 在场时自带 Observation
+     * filter，出站调用会接续当前 trace）。每次调用 {@link #buildClient} 用 {@code clone()} 派生新 builder：clone
+     * 只读复制、线程安全，且保留 observation filter。
+     */
+    private final WebClient.Builder webClientBuilder;
+
     @Override
     public AsrProviderType type() {
         return AsrProviderType.LOCAL;
@@ -146,7 +153,8 @@ public class LocalWhisperProvider implements AsrProvider {
     private WebClient buildClient(Config config, Duration timeout) {
         HttpClient httpClient = HttpClient.create().responseTimeout(timeout);
         WebClient.Builder builder =
-                WebClient.builder()
+                webClientBuilder
+                        .clone()
                         .baseUrl(trimTrailingSlash(config.baseUrl()))
                         .clientConnector(new ReactorClientHttpConnector(httpClient))
                         // 长录音 verbose_json 远超 WebClient 默认 256KB 缓冲上限（B1）

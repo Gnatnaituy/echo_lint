@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * DashScope 五步链路 + WebClient 响应缓冲上限的本地假服务测试（B1）。
@@ -37,7 +38,9 @@ class DashScopeAsrProviderHttpTest {
     private static final int LARGE_SENTENCES = 3000;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final DashScopeAsrProvider provider = new DashScopeAsrProvider(objectMapper);
+    // 测试环境不接 Observation/tracing，传纯 builder 即可（生产由 Boot 注入带 filter 的 prototype）
+    private final DashScopeAsrProvider provider =
+            new DashScopeAsrProvider(objectMapper, WebClient.builder());
     private final List<HttpServer> servers = new ArrayList<>();
 
     @TempDir Path tempDir;

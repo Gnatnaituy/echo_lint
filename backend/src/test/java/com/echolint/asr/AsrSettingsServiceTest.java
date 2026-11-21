@@ -26,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /** 语音转写设置：密钥只读数据库（§6.2）、视图字段契约、PUT 空 apiKey 保持原值、 未就绪拒绝切换、默认 provider、解密失败降级、超时钳制。 */
 @ExtendWith(MockitoExtension.class)
@@ -76,9 +77,10 @@ class AsrSettingsServiceTest {
                 settings,
                 properties,
                 cipher,
+                // 测试环境不接 Observation/tracing，传纯 builder 即可
                 List.of(
-                        new LocalWhisperProvider(objectMapper),
-                        new DashScopeAsrProvider(objectMapper)));
+                        new LocalWhisperProvider(objectMapper, WebClient.builder()),
+                        new DashScopeAsrProvider(objectMapper, WebClient.builder())));
     }
 
     private void seed(String key, String value) {

@@ -77,6 +77,13 @@ public class DashScopeAsrProvider implements AsrProvider {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * 注入 Boot 自动配置的 prototype WebClient.Builder（micrometer-tracing 在场时自带 Observation
+     * filter，出站调用会接续当前 trace）。{@code buildClient} 每次用 {@code clone()} 派生新 builder：clone
+     * 只读复制、线程安全，且保留 observation filter。
+     */
+    private final WebClient.Builder webClientBuilder;
+
     @Override
     public AsrProviderType type() {
         return AsrProviderType.DASHSCOPE;
@@ -664,7 +671,8 @@ public class DashScopeAsrProvider implements AsrProvider {
 
     private WebClient buildClient(Duration timeout) {
         HttpClient httpClient = HttpClient.create().responseTimeout(timeout);
-        return WebClient.builder()
+        return webClientBuilder
+                .clone()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 // 长录音结果 JSON 远超 WebClient 默认 256KB 缓冲上限（B1）
                 .exchangeStrategies(

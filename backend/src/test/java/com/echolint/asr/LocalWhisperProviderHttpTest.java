@@ -23,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * 本地 whisper.cpp 假服务测试：验证 verbose_json 超过 WebClient 默认 256KB 缓冲时仍能解析（B1）， 以及 / 探活对 401/403
@@ -33,7 +34,9 @@ class LocalWhisperProviderHttpTest {
     private static final int LARGE_SEGMENTS = 3000;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final LocalWhisperProvider provider = new LocalWhisperProvider(objectMapper);
+    // 测试环境不接 Observation/tracing，传纯 builder 即可（生产由 Boot 注入带 filter 的 prototype）
+    private final LocalWhisperProvider provider =
+            new LocalWhisperProvider(objectMapper, WebClient.builder());
     private final List<HttpServer> servers = new ArrayList<>();
 
     @TempDir Path tempDir;

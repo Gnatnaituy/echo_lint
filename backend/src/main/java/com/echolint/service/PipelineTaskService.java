@@ -9,6 +9,7 @@ import com.echolint.entity.Recording;
 import com.echolint.exception.BizException;
 import com.echolint.repository.PipelineTaskRepository;
 import com.echolint.repository.RecordingRepository;
+import com.echolint.util.TraceContinuation;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -107,6 +108,9 @@ public class PipelineTaskService {
         task.setAttempts(0);
         task.setMaxAttempts(PipelineTask.DEFAULT_MAX_ATTEMPTS);
         task.setNextAttemptAt(LocalDateTime.now());
+        // trace 续接：捕获上传/重新处理请求的 W3C traceparent，执行时恢复为 remote parent
+        // （异步线程或 tracing 未启用时为 null，执行侧按无续接处理）
+        task.setTraceparent(TraceContinuation.currentTraceparent());
         PipelineTask saved = taskRepository.save(task);
         log.info("录音 {} 已入队任务 {}", recordingId, saved.getId());
         return saved;

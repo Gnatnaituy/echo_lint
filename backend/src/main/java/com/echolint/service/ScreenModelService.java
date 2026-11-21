@@ -51,6 +51,13 @@ public class ScreenModelService {
     private final ProviderRegistry providers;
     private final AiInvocationService invocations;
 
+    /**
+     * 注入 Boot 自动配置的 prototype WebClient.Builder（micrometer-tracing 在场时自带 Observation filter，AI
+     * 复筛/词挖掘的出站调用会接续当前 trace）。 {@code buildClient} 每次用 {@code clone()} 派生新 builder：clone 只读复制、
+     * 线程安全（复筛请求线程 / 流水线线程并发解析模型），且保留 observation filter。
+     */
+    private final WebClient.Builder webClientBuilder;
+
     // ------------------------------------------------------------------ 解析
 
     /**
@@ -199,7 +206,8 @@ public class ScreenModelService {
                 HttpClient.create()
                         .responseTimeout(Duration.ofSeconds(props.getRequestTimeoutSeconds()));
         WebClient.Builder builder =
-                WebClient.builder()
+                webClientBuilder
+                        .clone()
                         .baseUrl(ProviderRegistry.trimTrailingSlash(provider.baseUrl()))
                         .clientConnector(new ReactorClientHttpConnector(httpClient))
                         .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
