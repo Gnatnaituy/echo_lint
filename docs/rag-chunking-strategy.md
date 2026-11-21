@@ -334,8 +334,6 @@ app.rag.chunk.semantic:
 4. 额外记录“证据块是否被召回”（chunk hit rate）与索引耗时/token 成本；
 5. 以“召回不下降、成本可接受”为通过标准，再考虑默认开启。
 
-评测结果建议单独记录到 `docs/rag-chunking-eval.md`（后续）。
-
 ## 8. 配置参考
 
 ```yaml
