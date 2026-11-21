@@ -286,3 +286,16 @@
 | 改动摘要 | 录音列表按容器宽度四级响应（收优先级 → 收指派 → 收时长/声道 → 换信息卡）；卡片补齐认领 / 重新处理 / 去复检入口与复筛中、复检人信息；详情抽屉新增删除（窄屏唯一可达路径）；修正方向 chip 样式与 `aria-label` 吞语义；`AppHeader` 补 `aria-expanded`/`aria-controls`；抽屉焦点迁移改到下一帧；AiChat 详情列数改按抽屉宽度而非表格宽度 |
 | 验证 | 本地 213 tests / eslint / prettier / i18n / build 全绿；线上 `index-3I36SBmY.js` 200、`/recordings` 200、443 vhost 返回新构建；三容器 healthy，后端日志无 ERROR |
 | 注意 | 后端与 postgres 随 compose 一并重启（依赖链），部署前会话不受影响（未改会话纪元）；卡片布局未经真实浏览器人工验收，仅代码与构建验证 |
+
+### 2026-11-21 20:49 Jaeger 嵌入平台（B+A 完整版）上线
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `d1b1c41`（feat(web): embed Jaeger UI in platform with trace deep links；backend 767 / frontend 213 测试全绿后构建） |
+| 部署时间 | 2026-11-21 20:43–20:52（Asia/Shanghai）；backend/frontend 镜像重建 + jaeger 新容器；**postgres 未重启**（compose 只重建有变更的服务） |
+| 变更范围 | backend `app.jar`（OTel bridge、`PipelineTaskView.traceId`、`MenuKey.TRACING`）；frontend `dist` + `nginx.conf`（`/jaeger/` 同域反代 + `auth_request` 登录网关 + CSP 豁免）；`docker-compose.yml`（新增 jaeger 服务、backend 补 `OTEL_TRACING_ENDPOINT`/`OTEL_TRACING_SAMPLING_PROBABILITY`、`MaxMetaspaceSize` 128m→160m）；新增 `jaeger.yml` |
+| 内存限额 | 四容器全 capped：postgres 448m / backend 512m / frontend 64m / **jaeger 256m（新增，OOM 自动重启即清，诊断工具定位）**；总 cap 1280m，宿主 2C/1.6G + 2G swap |
+| 镜像来源 | jaeger 经 daocloud 拉取：`docker.m.daocloud.io/jaegertracing/jaeger:2.23.0`（Docker Hub 在服务器不可达） |
+| 回滚点 | `backups/deploy-jaeger-20261121-204322/`（旧 jar / dist / nginx.conf / compose 快照）+ 镜像 `echolint-backend:rollback-20261121-204322`、`echolint-frontend:rollback-20261121-204322`；回滚需同时移除 compose 中 jaeger 服务 |
+| 验证 | 匿名 `/jaeger/` 401（网关生效）；管理员登录 200 后点开「链路追踪」菜单，`/tracing` iframe 内 Jaeger 搜索界面水合正常（真实浏览器）；Flyway V8 `pipeline_tasks.traceparent` 落列；OTLP 端到端（探测请求 span 入库，services 含 `echolint`）；frontend 容器内可达 `jaeger:16686`、运行中配置含 auth_request；四容器 healthy，stats：backend 326Mi/512m、jaeger 39Mi/256m、JVM 零 export 失败/OOM |
+| 注意 | ① 服务器 `.env` 的 `APP_ADMIN_PASSWORD` 原为首次引导的随机串，与数据库实际口令（后经 UI 修改）不一致——已按管理员确认对齐并补验：`admin/admin12345` 登录 200、登录态 `/jaeger/`→200、`/jaeger/api/v3/*`→200（网关正路径全通）；② backend JVM 其余参数不动（-Xmx256m/SerialGC 系小内存既有调优）；③ jaeger UI 公网入口 = 平台域名 `/jaeger/`，SSH 隧道 16686 降级为备用直访 |
