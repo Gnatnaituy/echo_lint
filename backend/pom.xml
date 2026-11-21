@@ -22,7 +22,7 @@
 
         <!-- 第三方依赖版本：集中管理，便于按期升级（审计 P2-34）。 -->
         <!-- Spring Boot 3.5.x 是当前仍有 OSS 支持的 3.x 版本线（4.x 为大版本迁移，暂不跟进）。 -->
-        <springdoc.version>2.8.17</springdoc.version>
+        <springdoc.version>3.2.0</springdoc.version>
         <!-- PDFBox 保持 2.x 线（3.x 有 API 破坏性变更，迁移需改源码）。 -->
         <pdfbox.version>2.0.37</pdfbox.version>
         <poi.version>5.5.1</poi.version>
