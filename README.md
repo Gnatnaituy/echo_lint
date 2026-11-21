@@ -51,7 +51,7 @@ PENDING → TRANSCRIBING → DFA_CHECKING → AI_CHECKING → NEEDS_REVIEW → V
 
 | 层 | 技术 |
 |---|---|
-| 后端 | Spring Boot 3.5 / Java 17，Spring Data JPA，WebClient，Flyway，PostgreSQL 17 + pgvector |
+| 后端 | Spring Boot 3.5 / Java 21，Spring Data JPA，WebClient，Flyway，PostgreSQL 17 + pgvector |
 | AI | 复筛 / 词挖掘：DeepSeek / 阿里云百炼（OpenAI 兼容协议）；语音转写：阿里云百炼 `qwen-audio-3.1-asr-flash-filetrans` 或本机 [whisper.cpp](https://github.com/ggml-org/whisper.cpp) |
 | 前端 | Vue 3 + Vite 7 + Element Plus + vue-router + axios；零依赖轻量 i18n（中 / 英） |
 | 部署 | docker compose（PostgreSQL/pgvector + 后端 + Nginx 前端）；生产编排见 [deploy/DEPLOY.md](deploy/DEPLOY.md) |

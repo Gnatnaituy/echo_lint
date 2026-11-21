@@ -16,7 +16,7 @@
 |---|---|---|
 | 接入层 | 浏览器 / 管理端（Vue 3 SPA） | 工作台、录音管理、人工复检、敏感词库、语料库、知识库（含「索引明细」Tab，仅 ADMIN）、报表、成本、任务、AI 对话记录、审计、系统设置（复筛模型 / 语音转写 / 知识增强 / 通知与抽样 / 运行环境 5 个子页）等；Session Cookie + 角色（ADMIN/REVIEWER/VIEWER）；用户管理可为账号绑定可见菜单，侧栏与路由按「角色允许 ∩ 用户绑定」渲染 |
 | 前端容器 | Nginx | 静态资源、SPA fallback、`/api` 与 `/uploads` 反向代理、gzip/长缓存；宿主端口 8081 |
-| 后端 API | Spring Boot 3.5 / Java 17 | 19 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
+| 后端 API | Spring Boot 3.5 / Java 21 | 19 个 Controller；同步 REST + 线程池异步流水线；Actuator/Prometheus/OpenAPI |
 | 稽核流水线 | `PipelineService`、`PipelineTaskScheduler`、`AudioTranscriptionService`（转写 provider 运行时切换）、`DfaService`、`SemanticScreeningService`、`ReviewService` | 上传 → 任务队列 → 转写 → DFA → AI 语义复筛 → 人工复检 → 语料/词典回馈 |
 | AI 治理 | `ScreenModelService`、`ProviderRegistry`、`AiModelCaller`、`AiQuotaService`、`AiUsageService`、`AiInvocationService`、`ModelEvaluationService`、`WordMiningService` | 供应商运行时切换、AES-GCM 密钥、重试/超时、配额、成本快照、完整调用留痕 |
 | RAG 子系统 | `RagDocumentService`、`TextChunker`、`RagIndexService`、`RagEmbeddingClient`、`RagRetrievalService`、`ScreeningPromptSupport`、`RagSettingsService`、`RagAdminService`、`RagEvaluationService`、`KnowledgeIndexService` | 文档导入、异步分块/向量化、pgvector 检索、提示词注入、索引重建、索引明细与对比评测 |
