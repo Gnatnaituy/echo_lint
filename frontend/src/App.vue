@@ -247,27 +247,13 @@ onUnmounted(() => {
   flex-direction: column;
   background: var(--surface-sunken);
 }
-/* 内容区：把「画布」从白色改成浅灰蓝，白卡才有对比可浮起来。
-   顶部保留一层极淡的品牌色光晕，避免大面积纯灰显得死板；
-   内高光仍在，但只作用于 1px 边缘，不再把整块背景漂白。 */
+/* 内容区：不再套独立「背景板」（边框 / 圆角 / 渐变底色 / 外边距），
+   直接铺在浅灰蓝画布上；页边距与数据大屏同档收紧，把空间让给内容。 */
 .shell-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  margin: 14px 18px 18px 16px;
-  padding: 22px 24px 34px;
-  border: 1px solid rgba(220, 227, 238, 0.9);
-  border-radius: var(--r-xl);
-  background:
-    radial-gradient(
-      1100px 340px at 6% -18%,
-      rgba(59, 110, 246, 0.06) 0%,
-      rgba(59, 110, 246, 0) 62%
-    ),
-    linear-gradient(180deg, #f6f8fc 0%, #f1f4f9 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 1px 2px rgba(16, 26, 48, 0.03);
+  padding: 14px 16px 24px;
   outline: none;
 }
 
@@ -303,9 +289,7 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .shell-content {
-    margin: 10px 10px 12px;
-    padding: 14px 12px 24px;
-    border-radius: 14px;
+    padding: 10px 12px 20px;
   }
 }
 </style>

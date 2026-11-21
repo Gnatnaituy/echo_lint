@@ -296,7 +296,9 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   overflow: auto;
-  padding: clamp(14px, 1.4vw, 26px) clamp(16px, 1.8vw, 34px) clamp(14px, 1.4vw, 26px);
+  /* 页边距收紧一档：把空间让给内容区（KPI 行 / 图表更宽），
+     大屏挂墙时仍保留最小呼吸边 8/10px */
+  padding: clamp(8px, 0.9vw, 14px) clamp(10px, 1.1vw, 18px) clamp(8px, 0.9vw, 14px);
   background:
     radial-gradient(1100px 520px at 8% -8%, rgba(59, 110, 246, 0.28) 0%, rgba(7, 12, 26, 0) 62%),
     radial-gradient(900px 420px at 100% 0%, rgba(22, 163, 74, 0.12) 0%, rgba(7, 12, 26, 0) 58%),
