@@ -82,4 +82,21 @@ class TraceContinuationTest {
         assertNotNull(span);
         span.end();
     }
+
+    @Test
+    void traceIdOfExtractsTraceIdForTaskViewDeepLink() {
+        assertEquals(
+                "4bf92f3577b34da6a3ce929d0e0e4736", TraceContinuation.traceIdOf(VALID_TRACEPARENT));
+    }
+
+    @Test
+    void traceIdOfReturnsNullForMissingOrMalformedTraceparent() {
+        // 历史数据 / tracing 未启用 / 落库值损坏：视图字段为 null，前端不渲染「链路」入口
+        assertNull(TraceContinuation.traceIdOf(null));
+        assertNull(TraceContinuation.traceIdOf("  "));
+        assertNull(TraceContinuation.traceIdOf("garbage"));
+        assertNull(
+                TraceContinuation.traceIdOf(
+                        "00-00000000000000000000000000000000-00f067aa0ba902b7-01"));
+    }
 }

@@ -19,6 +19,7 @@ import knowledgeIndex from './knowledgeIndex.js'
 import settings from './settings.js'
 import costs from './costs.js'
 import tasks from './tasks.js'
+import tracing from './tracing.js'
 import aiChat from './aiChat.js'
 import apiKeys from './apiKeys.js'
 import users from './users.js'
@@ -40,6 +41,7 @@ export const MESSAGE_MODULES = [
   settings,
   costs,
   tasks,
+  tracing,
   aiChat,
   apiKeys,
   users,

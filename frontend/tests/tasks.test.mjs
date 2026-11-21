@@ -30,6 +30,7 @@ test('任务：契约字段完整归一化', () => {
       maxAttempts: 3,
       nextAttemptAt: '2026-10-20T10:05:00',
       lastError: 'model timeout',
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
       createdAt: '2026-10-20T10:00:00',
       updatedAt: '2026-10-20T10:01:00',
       finishedAt: '2026-10-20T10:02:00'
@@ -43,6 +44,7 @@ test('任务：契约字段完整归一化', () => {
       maxAttempts: 3,
       nextAttemptAt: '2026-10-20T10:05:00',
       lastError: 'model timeout',
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
       createdAt: '2026-10-20T10:00:00',
       updatedAt: '2026-10-20T10:01:00',
       finishedAt: '2026-10-20T10:02:00'
@@ -84,6 +86,7 @@ test('任务：null / 非对象 / 缺字段安全兜底（状态记为 UNKNOWN�
     assert.equal(task.maxAttempts, 0)
     assert.equal(task.nextAttemptAt, '')
     assert.equal(task.lastError, '')
+    assert.equal(task.traceId, '')
     assert.equal(task.updatedAt, '')
   }
 })

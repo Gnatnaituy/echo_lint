@@ -65,6 +65,7 @@ import auth from '../auth'
 import {
   ChatDotRound,
   Collection,
+  Connection,
   DataAnalysis,
   DocumentChecked,
   Expand,
@@ -113,6 +114,7 @@ const MENU_ICONS = {
   SETTINGS: Setting,
   COSTS: Money,
   TASKS: Operation,
+  TRACING: Connection,
   AI_CHAT: ChatDotRound,
   API_KEYS: Key,
   USERS: User,

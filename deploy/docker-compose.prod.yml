@@ -58,7 +58,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Jaeger v2（OTel Collector 封装）：接收 backend 推送的 OTLP span，UI 只绑回环。
+  # Jaeger v2（OTel Collector 封装）：接收 backend 推送的 OTLP span。
+  # UI 挂在 /jaeger/ 前缀（base_path，见同目录 jaeger.yml），由 frontend nginx 同域反代进平台
+  # （auth_request 套登录态，公网路径 = 平台域名 /jaeger/）；16686 仍只绑回环供 SSH 诊断直访。
   # 内存存储 + mem_limit 上限：重启即清、超限 OOM 重启——定位为诊断工具，不承诺持久留存；
   # 需要长期留存/大规模检索时再切 ES/Cassandra 后端（见 DEPLOY.md §7）。
   # backend 不 depends_on 本服务：Jaeger 不可用时仅丢 span（OTLP exporter 重试），不影响业务。
@@ -67,8 +69,11 @@ services:
     container_name: echolint-jaeger
     restart: unless-stopped
     mem_limit: 512m
+    command: ["--config", "/etc/jaeger/jaeger.yml"]
+    volumes:
+      - ./jaeger.yml:/etc/jaeger/jaeger.yml:ro
     ports:
-      # 只绑回环：SSH 隧道访问（ssh -L 16686:127.0.0.1:16686），公网不暴露
+      # 只绑回环：SSH 隧道直访（ssh -L 16686:127.0.0.1:16686）仍可用于绕过平台排障
       - "127.0.0.1:16686:16686"
     logging:
       driver: json-file

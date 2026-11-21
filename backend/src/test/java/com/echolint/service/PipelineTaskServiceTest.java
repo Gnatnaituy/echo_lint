@@ -307,6 +307,7 @@ class PipelineTaskServiceTest {
         PipelineTask task = task(TaskStatus.DEAD, 3);
         task.setLastError("boom");
         task.setFinishedAt(LocalDateTime.now());
+        task.setTraceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
         when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
         // 录音仍有可重试状态（PENDING）且无其它活动任务，才允许重试
         when(recordingRepository.findWithLockById(RECORDING_ID))
@@ -323,6 +324,8 @@ class PipelineTaskServiceTest {
         assertNull(view.finishedAt());
         assertNotNull(view.nextAttemptAt());
         assertEquals("call.mp3", view.recordingFileName());
+        // 视图透出 traceparent 中的 traceId，前端据此深链平台内嵌的 Jaeger 页
+        assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", view.traceId());
         verify(recordingRepository).findWithLockById(RECORDING_ID);
     }
 

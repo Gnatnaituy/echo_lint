@@ -27,6 +27,7 @@ public enum MenuKey {
     SETTINGS("/settings", false),
     COSTS("/costs", true),
     TASKS("/tasks", true),
+    TRACING("/tracing", true),
     AI_CHAT("/ai-chat", true),
     API_KEYS("/api-keys", true),
     USERS("/users", true),

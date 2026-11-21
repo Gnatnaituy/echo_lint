@@ -13,7 +13,7 @@ class MenuKeyTest {
     @Test
     void allowedForAdminIsEveryMenuInDeclarationOrder() {
         assertEquals(List.of(MenuKey.values()), MenuKey.allowedFor(UserRole.ADMIN));
-        assertEquals(15, MenuKey.allowedFor(UserRole.ADMIN).size());
+        assertEquals(16, MenuKey.allowedFor(UserRole.ADMIN).size());
     }
 
     @Test

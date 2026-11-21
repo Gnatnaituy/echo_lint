@@ -1,0 +1,53 @@
+# Jaeger v2 配置（根 docker-compose.yml 与 deploy/docker-compose.prod.yml 共用）
+#
+# 相比镜像内置默认配置的取舍：
+# - 只保留 OTLP 接收（backend 是唯一推送方），去掉 jaeger/zipkin 接收、remote_sampling、
+#   pprof、adaptive_sampling 与独立 prometheus 端口；
+# - jaeger_query.base_path: /jaeger —— UI 与 API 整体挂在 /jaeger/ 前缀（v1
+#   --query.base-path 的 v2 对应项），由前端 nginx 同域反代（frontend/nginx.conf 的
+#   location /jaeger/），平台内 iframe 因此无需放宽前端 CSP（frame-src 回落 'self'）；
+# - 内存存储定位为诊断工具：重启即清、超限由容器 mem_limit 兜底（见两份 compose 注释），
+#   需要长期留存时再切 ES/Cassandra 后端（DEPLOY.md §7）；
+# - 日志降到 info（镜像默认 debug 对诊断工具太吵）。
+
+service:
+  extensions: [healthcheckv2, jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: echolint-jaeger
+    logs:
+      level: info
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_storage:
+    backends:
+      memory_store:
+        memory:
+          max_traces: 100000
+
+  jaeger_query:
+    base_path: /jaeger
+    storage:
+      traces: memory_store
+
+receivers:
+  otlp:
+    protocols:
+      # otelcol 默认绑 127.0.0.1：容器场景必须显式绑 0.0.0.0，
+      # 否则 backend 跨容器连 jaeger:4317/4318 全部拒绝
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: memory_store

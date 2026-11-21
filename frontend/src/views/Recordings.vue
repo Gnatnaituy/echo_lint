@@ -725,6 +725,11 @@
                   </el-button>
                 </template>
               </el-popconfirm>
+              <!-- 链路追踪：深链内嵌 Jaeger 页查看该录音最近一次任务的完整 trace。
+                   traceId 取自任务接口（仅 ADMIN），非 ADMIN 不发起请求也不渲染入口 -->
+              <el-button v-if="isAdmin && detailTraceId" size="small" @click="openDetailTrace">{{
+                t('recordings.actions.trace')
+              }}</el-button>
               <!-- 删除在所有宽度都必须可达：窄屏信息卡取代表格后，
                    操作列里的删除按钮没有其他入口，这里补上同一条路径 -->
               <el-popconfirm
@@ -1096,6 +1101,8 @@ const detailLoading = ref(false)
 const detail = ref(null)
 const logs = ref([])
 const aiInvocations = ref([])
+// 该录音最近一次任务的 traceId（ADMIN 打开详情时随任务接口一并取回，空则不渲染链路入口）
+const detailTraceId = ref('')
 
 // 角色与工作流
 const canWrite = computed(() => auth.hasRole('ADMIN', 'REVIEWER'))
@@ -1610,20 +1617,36 @@ async function openDetail(row) {
   detail.value = null
   logs.value = []
   aiInvocations.value = []
+  detailTraceId.value = ''
   try {
-    const [d, l, inv] = await Promise.all([
+    const [d, l, inv, traceId] = await Promise.all([
       api.recordingDetail(row.id).catch(() => null),
       api.recordingLogs(row.id).catch(() => []),
-      isAdmin.value ? api.recordingAiInvocations(row.id).catch(() => []) : Promise.resolve([])
+      isAdmin.value ? api.recordingAiInvocations(row.id).catch(() => []) : Promise.resolve([]),
+      // 最近一次任务的 traceId（列表按 id 倒序，取第一条即最新）：仅 ADMIN 发起，
+      // 失败按无链路处理，不影响详情主体
+      isAdmin.value
+        ? api
+            .listTasks({ recordingId: row.id, size: 1 })
+            .then((page) => page?.items?.[0]?.traceId || '')
+            .catch(() => '')
+        : Promise.resolve('')
     ])
     if (seq !== detailSeq) return
     if (!d) return
     detail.value = d
     logs.value = l || []
     aiInvocations.value = inv || []
+    detailTraceId.value = traceId || ''
   } finally {
     if (seq === detailSeq) detailLoading.value = false
   }
+}
+
+/** 深链内嵌 Jaeger 页（/tracing 仅 ADMIN 可达，由路由守卫与菜单绑定收敛） */
+function openDetailTrace() {
+  if (!detailTraceId.value) return
+  router.push({ path: '/tracing', query: { trace: detailTraceId.value } })
 }
 
 /** 手动推进/重新处理：清空上一轮产物后重新进入流水线 */

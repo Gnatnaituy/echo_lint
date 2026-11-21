@@ -1,11 +1,20 @@
 package com.echolint.controller;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.echolint.domain.AuditAction;
 import com.echolint.domain.TaskStatus;
 import com.echolint.dto.PipelineTaskView;
 import com.echolint.exception.BizException;
 import com.echolint.service.AuditService;
 import com.echolint.service.PipelineTaskService;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,26 +26,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 
-import java.time.LocalDateTime;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * 任务队列 API（Batch 3b-1）：分页上限/排序、筛选参数解析、非法状态 400、重试审计与 409 透传。
- */
+/** 任务队列 API（Batch 3b-1）：分页上限/排序、筛选参数解析、非法状态 400、重试审计与 409 透传。 */
 @ExtendWith(MockitoExtension.class)
 class PipelineTaskControllerTest {
 
-    @Mock
-    private PipelineTaskService pipelineTaskService;
-    @Mock
-    private AuditService auditService;
+    @Mock private PipelineTaskService pipelineTaskService;
+    @Mock private AuditService auditService;
 
     private PipelineTaskController controller;
 
@@ -46,8 +41,20 @@ class PipelineTaskControllerTest {
     }
 
     private PipelineTaskView view(TaskStatus status) {
-        return new PipelineTaskView(7L, 5L, "call.mp3", status, 3, 3,
-                LocalDateTime.now(), "boom", LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+        // traceId 在 traceparent 之后（view 无落库值时为 null，前端不渲染「链路」入口）
+        return new PipelineTaskView(
+                7L,
+                5L,
+                "call.mp3",
+                status,
+                3,
+                3,
+                LocalDateTime.now(),
+                "boom",
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                LocalDateTime.now());
     }
 
     @Test
@@ -91,8 +98,8 @@ class PipelineTaskControllerTest {
 
     @Test
     void listRejectsUnknownStatus() {
-        BizException e = assertThrows(BizException.class,
-                () -> controller.list("SIDEWAYS", null, 0, 20));
+        BizException e =
+                assertThrows(BizException.class, () -> controller.list("SIDEWAYS", null, 0, 20));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
         assertTrue(e.getMessage().contains("任务状态不合法"));
@@ -105,8 +112,8 @@ class PipelineTaskControllerTest {
         PipelineTaskView result = controller.retry(7L);
 
         assertEquals(TaskStatus.PENDING, result.status());
-        verify(auditService).record(eq(AuditAction.TASK_RETRY), eq("PIPELINE_TASK"), eq(7L),
-                contains("录音 #5"));
+        verify(auditService)
+                .record(eq(AuditAction.TASK_RETRY), eq("PIPELINE_TASK"), eq(7L), contains("录音 #5"));
     }
 
     @Test

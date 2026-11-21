@@ -66,6 +66,13 @@ const routes = [
     meta: { titleKey: 'nav.tasks', roles: ['ADMIN'], menuKey: 'TASKS' }
   },
   {
+    // 链路追踪（Jaeger UI 同域 iframe，录音/任务列表的「链路」按钮深链进来）：
+    // 仅管理员；/jaeger/ 反代由 nginx auth_request 套登录态兜底（frontend/nginx.conf）
+    path: '/tracing',
+    component: () => import('../views/Tracing.vue'),
+    meta: { titleKey: 'nav.tracing', roles: ['ADMIN'], menuKey: 'TRACING' }
+  },
+  {
     // AI 对话记录（提示词/原始回复/用量留痕）：仅管理员
     path: '/ai-chat',
     component: () => import('../views/AiChat.vue'),

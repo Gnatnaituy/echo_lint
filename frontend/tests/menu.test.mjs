@@ -24,7 +24,7 @@ import {
   visibleMenuGroups
 } from '../src/menu.js'
 
-const ADMIN_ONLY_KEYS = ['COSTS', 'TASKS', 'AI_CHAT', 'API_KEYS', 'USERS', 'AUDIT']
+const ADMIN_ONLY_KEYS = ['COSTS', 'TASKS', 'TRACING', 'AI_CHAT', 'API_KEYS', 'USERS', 'AUDIT']
 const NON_ADMIN_KEYS = MENU_KEYS.filter((key) => !ADMIN_ONLY_KEYS.includes(key))
 
 test('菜单目录：key 顺序与后端 MenuKey 枚举一致，key / path 全局唯一', () => {
@@ -40,6 +40,7 @@ test('菜单目录：key 顺序与后端 MenuKey 枚举一致，key / path 全�
     'SETTINGS',
     'COSTS',
     'TASKS',
+    'TRACING',
     'AI_CHAT',
     'API_KEYS',
     'USERS',

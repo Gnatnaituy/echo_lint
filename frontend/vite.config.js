@@ -12,7 +12,10 @@ export default defineConfig({
       // 必须带结尾斜杠：Vite 默认按 startsWith 匹配，'/api' 会把 SPA 路由
       // /api-keys 也代理到后端（开发环境整页变 JSON 404）。
       '/api/': { target: apiTarget, changeOrigin: true },
-      '/uploads/': { target: apiTarget, changeOrigin: true }
+      '/uploads/': { target: apiTarget, changeOrigin: true },
+      // Jaeger 同域反代（compose 的 jaeger 已挂 base_path=/jaeger，见 deploy/jaeger.yml）。
+      // 开发环境不做 auth_request（vite 代理无该能力），本机回环访问无匿名风险。
+      '/jaeger/': { target: 'http://localhost:16686', changeOrigin: true }
     }
   },
   build: {

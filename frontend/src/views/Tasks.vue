@@ -136,10 +136,11 @@
           </template>
         </el-table-column>
 
+        <!-- 操作列：可重试或有 traceId（链路深链）时才渲染，避免成功任务全为「—」白占一列 -->
         <el-table-column
-          v-if="hasRetryable"
+          v-if="hasRetryable || hasTrace"
           :label="t('common.actions')"
-          width="96"
+          width="124"
           align="right"
           fixed="right"
         >
@@ -156,7 +157,11 @@
                 </el-button>
               </template>
             </el-popconfirm>
-            <span v-else class="dim">—</span>
+            <!-- 链路：内嵌 Jaeger 页查看该任务续接出的完整 trace（上传 → 流水线执行） -->
+            <el-button v-if="row.traceId" size="small" link type="primary" @click="openTrace(row)">
+              {{ t('tasks.trace') }}
+            </el-button>
+            <span v-if="!isTaskRetryable(row.status) && !row.traceId" class="dim">—</span>
           </template>
         </el-table-column>
 
@@ -193,6 +198,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import api from '../api'
@@ -210,6 +216,7 @@ import { taskAttemptsText } from '../utils/tasks'
 import { Microphone, Operation, WarningFilled } from '../components/icons.js'
 
 const { t } = useI18n()
+const router = useRouter()
 
 const REFRESH_SECONDS = 5
 const pageSize = 20
@@ -238,6 +245,9 @@ const hasFilters = computed(() => !!(statusFilter.value || recordingIdFilter.val
 const hasRetryable = computed(() =>
   rows.value.some((row) => isTaskRetryable(row.status) && row.id != null)
 )
+
+/** 当前页有带 traceId 的任务时也渲染操作列：链路深链是成功任务的主要操作 */
+const hasTrace = computed(() => rows.value.some((row) => !!row.traceId))
 
 /** 403 / 404 给出可读降级文案（列表接口 silent，不弹全局错误） */
 function taskErrorMessage(err, fallback = t('tasks.loadFailed')) {
@@ -339,6 +349,12 @@ async function retry(row) {
   } finally {
     retryingId.value = null
   }
+}
+
+/** 深链内嵌 Jaeger 页：traceId 由任务视图从 traceparent 解出（/api/tasks 仅 ADMIN） */
+function openTrace(row) {
+  if (!row.traceId) return
+  router.push({ path: '/tracing', query: { trace: row.traceId } })
 }
 
 // 5s 自动刷新：页面不可见 / 正在手动加载 / 正在重试时跳过，避免无效请求与列表跳动

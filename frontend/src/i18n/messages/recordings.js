@@ -84,6 +84,8 @@ export default {
     'recordings.actions.goManualReview': '去人工复检',
     'recordings.actions.assignShort': '指派',
     'recordings.actions.reopenShort': '重开',
+    // 详情抽屉：深链内嵌 Jaeger 页查看该录音最近一次任务的完整 trace（仅 ADMIN）
+    'recordings.actions.trace': '链路',
     'recordings.reopen.confirm': '重开为待人工复检？将清空最终结论并保留复核历史。',
     'recordings.delete.confirm': '确认删除该录音（含文件与日志）？',
 
@@ -275,6 +277,7 @@ export default {
     'recordings.actions.goManualReview': 'Go to manual review',
     'recordings.actions.assignShort': 'Assign',
     'recordings.actions.reopenShort': 'Reopen',
+    'recordings.actions.trace': 'Trace',
     'recordings.reopen.confirm':
       'Reopen as pending manual review? The final verdict will be cleared and review history kept.',
     'recordings.delete.confirm': 'Delete this recording (including file and logs)?',

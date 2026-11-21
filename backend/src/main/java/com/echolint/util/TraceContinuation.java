@@ -45,6 +45,16 @@ public final class TraceContinuation {
     }
 
     /**
+     * 从落库的 traceparent 提取 traceId（任务视图透出，前端据此拼平台内嵌页的 Jaeger 深链 {@code /jaeger/trace/{traceId}}）。
+     *
+     * @return 32 位十六进制 traceId；traceparent 缺失/非法（历史数据 / tracing 未启用）返回 {@code null}
+     */
+    public static String traceIdOf(String traceparent) {
+        SpanContext context = parse(traceparent);
+        return context == null ? null : context.getTraceId();
+    }
+
+    /**
      * 用落库的 traceparent 恢复 remote parent 并开启「流水线执行」span（内部各阶段的 Observation span 会自动挂到它下面）。
      *
      * @return 已 start 的 span；traceparent 缺失/非法返回 {@code null}（调用方按无续接处理）

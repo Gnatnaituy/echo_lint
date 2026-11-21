@@ -30,6 +30,8 @@ export default {
     // 操作
     'tasks.retryConfirm': '重试会重新排队并将尝试次数归零，确认重试？',
     'tasks.retry': '重试',
+    // 链路：跳转内嵌 Jaeger 页查看该任务的完整 trace（traceparent 续接）
+    'tasks.trace': '链路',
 
     // 错误 / 反馈
     'tasks.loadFailed': '任务列表加载失败，请稍后重试',
@@ -65,6 +67,7 @@ export default {
     // Actions
     'tasks.retryConfirm': 'Retrying requeues the task and resets its attempt count. Retry?',
     'tasks.retry': 'Retry',
+    'tasks.trace': 'Trace',
 
     // Errors / feedback
     'tasks.loadFailed': 'Failed to load tasks. Please try again later.',

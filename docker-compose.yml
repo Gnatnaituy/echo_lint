@@ -36,12 +36,16 @@ services:
         max-file: "3"
 
   # Jaeger v2（OTel Collector 封装）：接收 backend 推送的 OTLP span（:4317 gRPC / :4318 HTTP），
-  # UI 只绑回环 http://localhost:16686。内存存储，重启即清——定位为诊断工具，不承诺持久留存；
+  # UI 挂在 /jaeger/ 前缀（base_path，见 deploy/jaeger.yml），由 frontend nginx 同域反代进平台；
+  # 16686 仍只绑回环供本机直访。内存存储，重启即清——定位为诊断工具，不承诺持久留存；
   # backend 不 depends_on 本服务：Jaeger 不可用时仅丢 span，OTLP exporter 重试，不影响业务。
   jaeger:
     image: jaegertracing/jaeger:2.23.0
     container_name: echolint-jaeger
     restart: unless-stopped
+    command: ["--config", "/etc/jaeger/jaeger.yml"]
+    volumes:
+      - ./deploy/jaeger.yml:/etc/jaeger/jaeger.yml:ro
     ports:
       # 16686 UI / 4317 gRPC / 4318 OTLP HTTP 均只绑回环（4317/4318 供本机 mvn spring-boot:run
       # 直推 span；backend 容器内走 compose 网络直连 jaeger:4318，不经宿主端口）

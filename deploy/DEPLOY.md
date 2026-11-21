@@ -41,7 +41,7 @@
 | frontend (nginx) | `0.0.0.0:80 → 80` | 公网入口；使用宿主 TLS 反代时改为 `127.0.0.1:8081:80` |
 | backend (Spring Boot) | `127.0.0.1:8082 → 8080` | 仅回环；`/actuator/health` 可直接本机访问 |
 | postgres | `127.0.0.1:5433 → 5432` | 仅回环；备份/运维用 |
-| jaeger | `127.0.0.1:16686 → 16686` | 仅回环；OTel 追踪 UI（SSH 隧道访问），span 由 backend 经 compose 网络直推 `jaeger:4318` |
+| jaeger | `127.0.0.1:16686 → 16686` | 仅回环；OTel 追踪 UI。公网入口在平台内：`https://<域名>/jaeger/`（frontend nginx 反代 + `auth_request` 登录态网关，「链路追踪」菜单，仅 ADMIN）；SSH 隧道直访仅作绕过平台排障的备用通道。span 由 backend 经 compose 网络直推 `jaeger:4318` |
 | whisper.cpp（宿主进程） | `:9900` | 可选（本地方案）；容器经 `host.docker.internal:9900` 访问，百炼方案无需 |
 
 ## 4. 首次部署（全新数据卷）

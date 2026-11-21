@@ -34,6 +34,7 @@ export const MENU_GROUPS = [
       { key: 'SETTINGS', path: '/settings', labelKey: 'nav.settings' },
       { key: 'COSTS', path: '/costs', labelKey: 'nav.costs', adminOnly: true },
       { key: 'TASKS', path: '/tasks', labelKey: 'nav.tasks', adminOnly: true },
+      { key: 'TRACING', path: '/tracing', labelKey: 'nav.tracing', adminOnly: true },
       { key: 'AI_CHAT', path: '/ai-chat', labelKey: 'nav.aiChat', adminOnly: true },
       { key: 'API_KEYS', path: '/api-keys', labelKey: 'nav.apiKeys', adminOnly: true },
       { key: 'USERS', path: '/users', labelKey: 'nav.users', adminOnly: true },

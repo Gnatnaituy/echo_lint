@@ -4,7 +4,7 @@
  * 后端契约（docs/production-readiness.md Batch 3b-1）：
  * - GET  /api/tasks?status=&recordingId=&page=&size= -> Spring Page
  *        {content:[{id,recordingId,fileName,status,attempts,maxAttempts,nextAttemptAt,lastError,
- *                   createdAt,updatedAt,finishedAt}], totalElements, totalPages, number, size}
+ *                   traceId,createdAt,updatedAt,finishedAt}], totalElements, totalPages, number, size}
  * - POST /api/tasks/{id}/retry -> 任务对象或 204（空响应）
  *
  * 所有字段做防御性归一化：缺字段 -> null / 0 / ''，状态缺失记为 UNKNOWN，
@@ -25,6 +25,8 @@ export function normalizeTask(raw) {
     maxAttempts: toNumber(pick(data, ['maxAttempts', 'max_attempts', 'maxRetries'])) ?? 0,
     nextAttemptAt: toText(pick(data, ['nextAttemptAt', 'next_attempt_at'])),
     lastError: toText(pick(data, ['lastError', 'last_error', 'errorMessage', 'message'])),
+    // traceparent 解出的 traceId：空 = 历史数据 / tracing 未启用，前端不渲染「链路」入口
+    traceId: toText(pick(data, ['traceId', 'trace_id'])),
     createdAt: toText(pick(data, ['createdAt', 'created_at'])),
     updatedAt: toText(pick(data, ['updatedAt', 'updated_at'])),
     finishedAt: toText(pick(data, ['finishedAt', 'finished_at']))
