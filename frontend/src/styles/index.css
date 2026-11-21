@@ -299,6 +299,13 @@ a {
     border-color 0.25s ease;
 }
 
+/* 面板内贴边表格（el-table 为直接子元素）：圆角轮廓由面板统一裁剪。
+   表头白底 / 行 hover 不再以方角压过面板的圆角边框；
+   下拉、气泡等弹层默认 teleport 到 body，不受裁剪影响。 */
+.panel:has(> .el-table) {
+  overflow: hidden;
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -461,8 +468,10 @@ a {
 }
 
 .el-table {
-  --el-table-header-bg-color: #f6f8fc;
-  --el-table-header-text-color: #4f5e76;
+  /* 表头对齐 .panel-head / .section-title 的观感：白底 + 深墨列名，
+     靠 border-strong 分割线与表体区分；不再用近画布的浅蓝底 / 灰蓝字。 */
+  --el-table-header-bg-color: var(--surface);
+  --el-table-header-text-color: var(--ink-800);
   --el-table-border-color: #edf1f6;
   --el-table-row-hover-bg-color: #f6f9ff;
   font-size: 13px;
