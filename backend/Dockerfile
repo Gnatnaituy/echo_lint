@@ -10,7 +10,10 @@ COPY src ./src
 RUN mvn -q -B -DskipTests package
 
 # ---- 运行阶段 ----
-FROM eclipse-temurin:21.0.13.1_2-jre
+# 滚动 tag（恒 multi-arch）：2026-11-20 上游重推 21.0.13.1_2-jre 后该具体 tag 一度只有
+# amd64 变体，Apple Silicon（arm64）无法构建；21-jre 始终含 amd64+arm64。待上游推全
+# 新的 _N rebuild 后可再锁回具体小版本 tag。
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # ffmpeg / ffprobe：双声道（双轨）录音的声道探测与左右声道分离
