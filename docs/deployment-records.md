@@ -311,3 +311,15 @@
 | 改动摘要 | ① 移除 shell-content 独立「背景板」（边框/圆角/渐变底/外边距），页面直铺浅灰蓝画布；② 内容页边距 20/22/34 → 14/16/24px（窄屏 12/14/24 → 10/12/20）；③ 数据大屏页边距 clamp 收一档（1920 宽上下 26→14、左右 34→18）；④ el-table 表头改白底 + 深墨列名（`var(--surface)` / `var(--ink-800)`），对齐 panel 标题观感；⑤ `.panel:has(> .el-table)` 统一 `overflow: hidden`，贴边表格方角不再压掉面板圆角 |
 | 验证 | 四容器 up/healthy（postgres 未重启，仅 backend 随依赖链重启约 30s）；host nginx 443 → 200；线上 CSS 实测含 `padding:14px 16px 24px`、`.panel:has(>.el-table){overflow:hidden}`、`--el-table-header-bg-color: var(--surface)` / `--el-table-header-text-color: var(--ink-800)`，Screen 分包含 `clamp(8px,.9vw,14px) clamp(10px,1.1vw,18px)`；本地 `npm test` 213 全绿 |
 | 注意 | 本机 clash TUN 全局截流会让公网 curl 出现 TLS 000（exit 35）假象——部署后验证一律 SSH 进服务器内部 curl 为准；`frontend/dist/` 在 `.gitignore` 中，仓库不含构建产物，构建发生在本地与服务器镜像内两处、内容一致 |
+
+### 2026-11-22 20:39 宽屏去空白边带（.page 撤宽度上限）上线
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `6ce8094`（fix(web): let page content fill wide screens without side bands） |
+| 部署时间 | 2026-11-22 20:39–20:41（Asia/Shanghai）；纯前端 dist 直传 + 重建 frontend 镜像 |
+| 变更范围 | 仅前端 `dist`（入口 `index-fwtVEsCR.js`，样式 `index-8hKxUMfH.css`）；后端 jar / compose / nginx.conf 均未改动 |
+| 回滚点 | dist 快照 `backups/frontend-dist-20261122-203908` + 镜像 `echolint-frontend:rollback-20261122-203908`；服务器 `frontend/dist.old` 就地保留 |
+| 改动摘要 | 移除 `.page` 的 `max-width:1560px` + `margin:0 auto`；宽屏（>1560px）下内容铺满画布，两侧仅剩 shell-content 的 16px 页边距（与窄屏一致），消除大屏两侧大片空白边带 |
+| 验证 | 本地 compose 2560px 宽视口实测：`.page` computed max-width `none` / margin `0`，页面宽 2292 = 内容区 2324 − 2×16，两侧间距各 16px；服务器内部 `curl --resolve ravooo.cn:443:127.0.0.1 https://ravooo.cn/` → 200，线上 CSS `index-8hKxUMfH.css` 的 `.page` 规则仅剩入场动画、`max-width:1560px` 零匹配；backend / postgres 本次均未重启（backend up 3h、postgres up 6d） |
+| 注意 | frontend 容器在服务器 compose 中未定义 healthcheck（`State.Health: null`），`docker compose ps` 永远不显示 `(healthy)`——验收以容器 Up + 静态资源 200 为准，勿等 healthy 标记 |
