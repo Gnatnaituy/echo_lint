@@ -299,3 +299,15 @@
 | 回滚点 | `backups/deploy-jaeger-20261121-204322/`（旧 jar / dist / nginx.conf / compose 快照）+ 镜像 `echolint-backend:rollback-20261121-204322`、`echolint-frontend:rollback-20261121-204322`；回滚需同时移除 compose 中 jaeger 服务 |
 | 验证 | 匿名 `/jaeger/` 401（网关生效）；管理员登录 200 后点开「链路追踪」菜单，`/tracing` iframe 内 Jaeger 搜索界面水合正常（真实浏览器）；Flyway V8 `pipeline_tasks.traceparent` 落列；OTLP 端到端（探测请求 span 入库，services 含 `echolint`）；frontend 容器内可达 `jaeger:16686`、运行中配置含 auth_request；四容器 healthy，stats：backend 326Mi/512m、jaeger 39Mi/256m、JVM 零 export 失败/OOM |
 | 注意 | ① 服务器 `.env` 的 `APP_ADMIN_PASSWORD` 原为首次引导的随机串，与数据库实际口令（后经 UI 修改）不一致——已按管理员确认对齐并补验：`admin/admin12345` 登录 200、登录态 `/jaeger/`→200、`/jaeger/api/v3/*`→200（网关正路径全通）；② backend JVM 其余参数不动（-Xmx256m/SerialGC 系小内存既有调优）；③ jaeger UI 公网入口 = 平台域名 `/jaeger/`，SSH 隧道 16686 降级为备用直访 |
+
+### 2026-11-22 18:06 UI 密度优化（去背景板 + 表头对比度 + 边距收紧）上线
+
+| 项 | 值 |
+|---|---|
+| 代码版本 | `main` @ `6f2f578`（2ac1bea feat(web): drop shell content board and tighten page margins；6f2f578 fix(web): boost table header contrast and clip flush tables to panel radius；frontend 213 tests 全绿） |
+| 部署时间 | 2026-11-22 18:02–18:06（Asia/Shanghai）；纯前端 dist 直传 + 重建 frontend 镜像 |
+| 变更范围 | 仅前端 `dist`（入口 `index-Blw6r_rl.js`，样式 `index-01K5XPwK.css`）；后端 jar / compose / nginx.conf 均未改动 |
+| 回滚点 | dist 快照 `backups/frontend-dist-20261122-180245` + 镜像 `echolint-frontend:rollback-20261122-180245`；服务器 `frontend/dist.old` 就地保留 |
+| 改动摘要 | ① 移除 shell-content 独立「背景板」（边框/圆角/渐变底/外边距），页面直铺浅灰蓝画布；② 内容页边距 20/22/34 → 14/16/24px（窄屏 12/14/24 → 10/12/20）；③ 数据大屏页边距 clamp 收一档（1920 宽上下 26→14、左右 34→18）；④ el-table 表头改白底 + 深墨列名（`var(--surface)` / `var(--ink-800)`），对齐 panel 标题观感；⑤ `.panel:has(> .el-table)` 统一 `overflow: hidden`，贴边表格方角不再压掉面板圆角 |
+| 验证 | 四容器 up/healthy（postgres 未重启，仅 backend 随依赖链重启约 30s）；host nginx 443 → 200；线上 CSS 实测含 `padding:14px 16px 24px`、`.panel:has(>.el-table){overflow:hidden}`、`--el-table-header-bg-color: var(--surface)` / `--el-table-header-text-color: var(--ink-800)`，Screen 分包含 `clamp(8px,.9vw,14px) clamp(10px,1.1vw,18px)`；本地 `npm test` 213 全绿 |
+| 注意 | 本机 clash TUN 全局截流会让公网 curl 出现 TLS 000（exit 35）假象——部署后验证一律 SSH 进服务器内部 curl 为准；`frontend/dist/` 在 `.gitignore` 中，仓库不含构建产物，构建发生在本地与服务器镜像内两处、内容一致 |
